@@ -1,6 +1,6 @@
 lucide.createIcons();
 
-/* --- UNIFIED STARFIELD ENGINE (SMOOTH TRANSITION) --- */
+/* --- CLUSTERED STARFIELD ENGINE --- */
 const canvas = document.getElementById('space-canvas');
 const ctx = canvas.getContext('2d');
 
@@ -58,7 +58,6 @@ class Star {
     reset(initial = false) {
         const useCluster = Math.random() < 0.7;
         
-        // Spawn logic
         if (useCluster && clusters.length > 0) {
             const cluster = clusters[Math.floor(Math.random() * clusters.length)];
             this.x = cluster.x + randomGaussian() * cluster.spread;
@@ -97,32 +96,25 @@ class Star {
     }
 
     update() {
-        // Store previous z before update
         this.pz = this.z;
-        
-        // Move star
         this.z -= speed;
 
-        // Respawn
         if (this.z < 1) {
             this.reset();
-            this.pz = this.z + speed; // Prevent streak from back to front
+            this.pz = this.z + speed; 
         }
 
-        // Opacity Logic:
-        // Smoothly blend from twinkling (idle) to steady bright (warp)
-        const twinkleVal = Math.sin(Date.now() * this.blinkSpeed + this.blinkOffset);
-        const idleAlpha = this.baseAlpha + (twinkleVal * 0.2);
-        const clampedIdle = Math.max(0, Math.min(1, idleAlpha));
-        
-        // Warp factor (approximate)
-        const warpFactor = Math.min(1, speed / 10);
-        
-        if (this.isPlanet) {
-            this.currentAlpha = 1;
+        if (speed < 1) {
+            if (this.isPlanet) {
+                this.currentAlpha = 1; 
+            } else {
+                const val = Math.sin(Date.now() * this.blinkSpeed + this.blinkOffset);
+                this.currentAlpha = this.baseAlpha + (val * 0.2);
+                if (this.currentAlpha < 0) this.currentAlpha = 0;
+                if (this.currentAlpha > 1) this.currentAlpha = 1;
+            }
         } else {
-            // Interpolate between twinkling and full brightness based on speed
-            this.currentAlpha = clampedIdle * (1 - warpFactor) + 1.0 * warpFactor;
+            this.currentAlpha = 1; 
         }
     }
 
@@ -130,7 +122,6 @@ class Star {
         const x = (this.x / this.z) * width + width / 2;
         const y = (this.y / this.z) * height + height / 2;
 
-        // Bounds check (slightly padded to allow trails to enter/exit smoothly)
         if (x < -100 || x > width + 100 || y < -100 || y > height + 100) return;
 
         const scale = (1 - this.z / 3000); 
@@ -138,30 +129,29 @@ class Star {
 
         const r = this.size * scale;
         
-        // Calculate previous position for trail
-        const px = (this.x / this.pz) * width + width / 2;
-        const py = (this.y / this.pz) * height + height / 2;
-        
         ctx.beginPath();
-        ctx.lineCap = 'round'; // Essential for smooth dot-to-streak transition
         
-        // Color & Opacity
-        const alpha = this.currentAlpha * scale;
-        ctx.strokeStyle = `rgba(${this.rgb.r}, ${this.rgb.g}, ${this.rgb.b}, ${alpha})`;
-        
-        // Planet Trail is thinner relative to its body size
-        ctx.lineWidth = this.isPlanet ? r * 0.6 : r;
-
-        ctx.moveTo(px, py);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        
-        // Extra glow for planets/large stars (only in drawing, not part of trail logic)
-        if (this.isPlanet || r > 2) {
-            ctx.beginPath();
-            ctx.fillStyle = `rgba(${this.rgb.r}, ${this.rgb.g}, ${this.rgb.b}, ${alpha * 0.3})`;
-            ctx.arc(x, y, r * 2, 0, Math.PI * 2);
+        if (speed > 1) {
+            const prevX = (this.x / this.pz) * width + width / 2;
+            const prevY = (this.y / this.pz) * height + height / 2;
+            
+            ctx.strokeStyle = `rgba(${this.rgb.r}, ${this.rgb.g}, ${this.rgb.b}, ${this.currentAlpha * scale})`;
+            ctx.lineWidth = this.isPlanet ? r * 0.5 : r; 
+            ctx.moveTo(prevX, prevY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = this.color;
+            ctx.globalAlpha = this.currentAlpha;
+            ctx.arc(x, y, r, 0, Math.PI * 2);
             ctx.fill();
+            
+            if (r > 1.5) {
+                ctx.globalAlpha = 0.1;
+                ctx.arc(x, y, r * 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
         }
     }
 }
@@ -171,13 +161,9 @@ for (let i = 0; i < numStars; i++) {
 }
 
 function animate() {
-    // Pure black clear
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, width, height);
-    
-    // Smooth speed interpolation
     speed += (targetSpeed - speed) * 0.02;
-    
     stars.forEach(star => {
         star.update();
         star.draw();
@@ -376,14 +362,14 @@ async function appendLogText(lineElement, text, className) {
 }
 
 async function animateProgressBar(barElement, targetWidth, duration) {
-     return new Promise(resolve => {
+        return new Promise(resolve => {
         barElement.style.width = '0%';
         requestAnimationFrame(() => {
             barElement.style.transition = `width ${duration}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
             barElement.style.width = targetWidth + '%';
         });
         setTimeout(resolve, duration);
-     });
+        });
 }
 
 async function simulateAIResponse() {
@@ -392,38 +378,34 @@ async function simulateAIResponse() {
     
     const cotId = 'cot-' + Date.now();
     
-    // Visual Representations as SVGs (Restored)
-    const visuals = {
-        scan: `<svg viewBox="0 0 100 100" class="w-full h-full opacity-20 text-white fill-current"><rect x="10" y="10" width="80" height="80" rx="10" stroke="currentColor" stroke-width="2" fill="none"/><path d="M20 30h60M20 50h60M20 70h40" stroke="currentColor" stroke-width="2"/></svg>`,
-        logic: `<svg viewBox="0 0 100 100" class="w-full h-full opacity-20 text-white fill-current"><path d="M50 20v60M20 50h60M20 20l60 60M80 20L20 80" stroke="currentColor" stroke-width="1"/></svg>`,
-        graph: `<svg viewBox="0 0 100 100" class="w-full h-full opacity-20 text-white fill-current"><circle cx="50" cy="50" r="5"/><circle cx="20" cy="80" r="5"/><circle cx="80" cy="20" r="5"/><line x1="50" y1="50" x2="20" y2="80" stroke="currentColor"/><line x1="50" y1="50" x2="80" y2="20" stroke="currentColor"/></svg>`,
-        chip: `<svg viewBox="0 0 100 100" class="w-full h-full opacity-20 text-white fill-current"><rect x="25" y="25" width="50" height="50" stroke="currentColor" stroke-width="2"/><path d="M25 35h-10M25 50h-10M25 65h-10M75 35h10M75 50h10M75 65h10M35 25v-10M50 25v-10M65 25v-10M35 75v10M50 75v10M65 75v10" stroke="currentColor" stroke-width="2"/></svg>`,
-        shield: `<svg viewBox="0 0 100 100" class="w-full h-full opacity-20 text-white fill-current"><path d="M50 10L20 20v30c0 30 30 40 30 40s30-10 30-40V20L50 10z" stroke="currentColor" stroke-width="2" fill="none"/></svg>`
+    const iconTemplates = {
+        scan: `<i data-lucide="scan-line" class="w-4 h-4 text-white animate-pulse"></i>`,
+        translate: `<i data-lucide="binary" class="w-4 h-4 text-white"></i>`,
+        graph: `<div class="relative w-full h-full"><i data-lucide="share-2" class="w-4 h-4 text-white absolute inset-0 m-auto anim-spin-slow"></i></div>`,
+        inference: `<i data-lucide="cpu" class="w-4 h-4 text-white animate-pulse"></i>`,
+        valid: `<i data-lucide="shield-check" class="w-4 h-4 text-white"></i>`,
+        synth: `<i data-lucide="message-square-dashed" class="w-4 h-4 text-white"></i>`,
+        done: `<i data-lucide="check" class="w-4 h-4 text-yellow-400"></i>`
     };
 
     contentArea.innerHTML = `
         <div id="${cotId}-container" class="mb-4 border-l border-white/20 pl-4 py-2 bg-white/5 rounded-r w-full max-w-xl transition-all duration-700 ease-in-out relative overflow-hidden">
             
-            <!-- Visual Background Overlay (Restored) -->
-            <div id="${cotId}-visual-bg" class="absolute right-0 top-0 bottom-0 w-32 pointer-events-none flex items-center justify-center p-4 transition-opacity duration-500">
-                ${visuals.scan}
-            </div>
-
             <!-- Header / Current Status -->
             <div class="flex items-center gap-3 cursor-pointer group relative z-10" onclick="toggleCoT('${cotId}')">
                 
                 <!-- Dynamic Status Icon Container -->
                 <div id="${cotId}-icon-container" class="w-5 h-5 flex items-center justify-center relative shrink-0">
-                     <div class="thinking-dot"></div>
-                     <div class="thinking-dot"></div>
+                        <div class="thinking-dot"></div>
+                        <div class="thinking-dot"></div>
                 </div>
 
                 <div class="flex-1 min-w-0">
-                     <span class="text-[11px] font-mono text-gray-300 tracking-wider uppercase transition-colors group-hover:text-white" id="${cotId}-status">Initializing...</span>
-                     <!-- Progress Bar (Yellow) -->
-                     <div id="${cotId}-bar-container" class="h-0.5 bg-white/10 w-full mt-2 rounded-full overflow-hidden transition-all duration-500">
-                          <div id="${cotId}-progress-fill" class="h-full bg-yellow-500/80 w-0"></div>
-                     </div>
+                        <span class="text-[11px] font-mono text-gray-300 tracking-wider uppercase transition-colors group-hover:text-white" id="${cotId}-status">Initializing...</span>
+                        <!-- Progress Bar (Yellow) -->
+                        <div id="${cotId}-bar-container" class="h-0.5 bg-white/10 w-full mt-2 rounded-full overflow-hidden transition-all duration-500">
+                            <div id="${cotId}-progress-fill" class="h-full bg-yellow-500/80 w-0"></div>
+                        </div>
                 </div>
                 
                 <i data-lucide="chevron-down" class="w-3 h-3 text-gray-500 ml-auto transition-transform group-hover:text-white shrink-0" id="${cotId}-arrow"></i>
@@ -431,7 +413,7 @@ async function simulateAIResponse() {
             
             <!-- Collapsible Logs -->
             <div id="${cotId}-logs" class="hidden mt-3 font-mono text-[11px] space-y-1.5 max-h-48 overflow-y-auto pr-2 border-t border-white/5 pt-2 relative z-10">
-                 <!-- Animated logs appear here -->
+                    <!-- Animated logs appear here -->
             </div>
         </div>
         <!-- Final Text -->
@@ -445,73 +427,54 @@ async function simulateAIResponse() {
     const iconContainer = document.getElementById(`${cotId}-icon-container`);
     const progressFill = document.getElementById(`${cotId}-progress-fill`);
     const barContainer = document.getElementById(`${cotId}-bar-container`);
-    const visualBg = document.getElementById(`${cotId}-visual-bg`);
-    
-    const iconTemplates = {
-        scan: `<i data-lucide="scan-line" class="w-4 h-4 text-white animate-pulse"></i>`,
-        translate: `<i data-lucide="binary" class="w-4 h-4 text-white"></i>`,
-        graph: `<div class="relative w-full h-full"><i data-lucide="share-2" class="w-4 h-4 text-white absolute inset-0 m-auto anim-spin-slow"></i></div>`,
-        inference: `<i data-lucide="cpu" class="w-4 h-4 text-white animate-pulse"></i>`,
-        valid: `<i data-lucide="shield-check" class="w-4 h-4 text-white"></i>`,
-        synth: `<i data-lucide="message-square-dashed" class="w-4 h-4 text-white"></i>`,
-        done: `<i data-lucide="check" class="w-4 h-4 text-yellow-400"></i>`
-    };
 
     const steps = [
         { 
             status: "PARSING INTENT", 
             log: "Vectorizing input query for semantic extraction...", 
             style: "log-secondary",
-            icon: iconTemplates.scan,
-            visual: visuals.scan
+            icon: iconTemplates.scan
         },
         { 
             status: "TRANSLATING LOGIC", 
             log: "Converting natural language to First-Order Logic predicates...", 
             style: "log-primary",
-            icon: iconTemplates.translate,
-            visual: visuals.logic
+            icon: iconTemplates.translate
         },
         { 
             status: "GRAPHRAG QUERY", 
             log: "Traversing Knowledge Graph edges for contextual nodes...", 
             style: "log-secondary",
-            icon: iconTemplates.graph,
-            visual: visuals.graph
+            icon: iconTemplates.graph
         },
         { 
             status: "GRAPHRAG QUERY", 
             log: ">> Retrieving semantic subgraph...", 
             style: "log-dim",
-            icon: iconTemplates.graph,
-            visual: visuals.graph
+            icon: iconTemplates.graph
         },
         { 
             status: "INFERENCE ENGINE", 
             log: "Executing resolution algorithm on logic gates...", 
             style: "log-primary",
-            icon: iconTemplates.inference,
-            visual: visuals.chip
+            icon: iconTemplates.inference
         },
         { 
             status: "VALIDATING", 
             log: "Checking logical consistency and constraints...", 
             style: "log-secondary",
-            icon: iconTemplates.valid,
-            visual: visuals.shield
+            icon: iconTemplates.valid
         },
         { 
             status: "SYNTHESIZING", 
             log: "Translating symbolic output to natural language...", 
             style: "log-primary",
-            icon: iconTemplates.synth,
-            visual: visuals.logic
+            icon: iconTemplates.synth
         }
     ];
 
     for (const step of steps) {
         iconContainer.innerHTML = step.icon;
-        visualBg.innerHTML = step.visual;
         lucide.createIcons(); 
         
         statusLabel.textContent = step.status;
@@ -538,10 +501,9 @@ async function simulateAIResponse() {
     container.classList.remove('w-full', 'max-w-xl', 'bg-white/5');
     container.classList.add('w-fit', 'pr-6', 'bg-yellow-500/5', 'border-yellow-500/30');
     
-    // Hide Progress Bar & Visual BG
+    // Hide Progress Bar after completion to save space
     barContainer.style.height = '0';
     barContainer.style.opacity = '0';
-    visualBg.style.opacity = '0';
     
     logsContainer.querySelectorAll('.cursor-blink').forEach(c => c.remove());
 
