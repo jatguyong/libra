@@ -186,6 +186,18 @@ const fileNameSpan = document.getElementById('filename');
 const emptyState = document.getElementById('empty-state');
 const inputContainer = document.getElementById('input-container');
 
+// Configuration State
+const logicToggleBtn = document.getElementById('logic-toggle-btn');
+const logicMenu = document.getElementById('logic-menu');
+const currentModeIcon = document.getElementById('current-mode-icon');
+const masterSwitch = document.getElementById('master-switch');
+const switchThumb = document.getElementById('switch-thumb');
+const ragOptions = document.getElementById('rag-options');
+
+// DEFAULT STATE: Inference Engine OFF
+let isInferenceEnabled = false; 
+let currentRagMode = 'none'; // Default when inference is ON (starts as none)
+
 let isProcessing = false;
 let isListening = false;
 let hasText = false;
@@ -202,6 +214,113 @@ userInput.addEventListener('input', function() {
         if (hasText) showMicIcon();
     }
 });
+
+// Dropdown Toggle
+if (logicToggleBtn) {
+    logicToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        logicMenu.classList.toggle('hidden');
+        logicMenu.classList.toggle('enter-dropdown');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!logicToggleBtn.contains(e.target) && !logicMenu.contains(e.target)) {
+            logicMenu.classList.add('hidden');
+            logicMenu.classList.remove('enter-dropdown');
+        }
+    });
+}
+
+// 1. MASTER TOGGLE LOGIC
+window.toggleInferenceEngine = () => {
+    isInferenceEnabled = !isInferenceEnabled;
+    
+    // Animate Switch
+    if (isInferenceEnabled) {
+        masterSwitch.classList.add('bg-white'); // Active white
+        masterSwitch.classList.remove('bg-white/10');
+        switchThumb.classList.add('translate-x-4', 'bg-black'); // Black thumb on white
+        switchThumb.classList.remove('bg-white');
+        
+        // Show RAG Options
+        ragOptions.classList.remove('hidden');
+        ragOptions.classList.add('block');
+        
+        // If no mode selected yet, default to 'none' checkmark
+        if (currentRagMode === '') selectRagMode('none');
+        
+        updateMainIcon();
+    } else {
+        masterSwitch.classList.remove('bg-white');
+        masterSwitch.classList.add('bg-white/10');
+        switchThumb.classList.remove('translate-x-4', 'bg-black');
+        switchThumb.classList.add('bg-white');
+        
+        // Hide RAG Options
+        ragOptions.classList.add('hidden');
+        ragOptions.classList.remove('block');
+        
+        updateMainIcon();
+    }
+};
+
+// 2. RAG SELECTION LOGIC
+window.selectRagMode = (mode) => {
+    currentRagMode = mode;
+    
+    // Update Checkmarks
+    document.querySelectorAll('.check-icon').forEach(el => el.classList.add('opacity-0'));
+    document.getElementById(`check-${mode}`).classList.remove('opacity-0');
+    
+    updateMainIcon();
+};
+
+function updateMainIcon() {
+    // Clear attributes
+    currentModeIcon.setAttribute('class', ''); 
+    currentModeIcon.classList.add('w-5', 'h-5');
+    
+    if (!isInferenceEnabled) {
+        // Disabled State -> Base LLM (CPU Icon)
+        currentModeIcon.setAttribute('data-lucide', 'cpu');
+        currentModeIcon.classList.add('text-gray-400'); // Monotone Gray
+    } else {
+        // Enabled State
+        if (currentRagMode === 'none') {
+            // Inference ON, No RAG -> Brain Circuit Icon
+            currentModeIcon.setAttribute('data-lucide', 'brain-circuit');
+            currentModeIcon.classList.add('text-gray-400');
+        } else if (currentRagMode === 'rag') {
+            // Standard RAG -> Library Icon
+            currentModeIcon.setAttribute('data-lucide', 'library');
+            currentModeIcon.classList.add('text-white'); // Active White
+        } else if (currentRagMode === 'graphrag') {
+            // Graph RAG -> Share Icon
+            currentModeIcon.setAttribute('data-lucide', 'share-2');
+            currentModeIcon.classList.add('text-white'); // Active White
+        }
+    }
+    lucide.createIcons();
+}
+
+// Initial State Setup
+window.addEventListener('DOMContentLoaded', () => {
+    // Default: OFF
+    masterSwitch.classList.remove('bg-white');
+    masterSwitch.classList.add('bg-white/10');
+    switchThumb.classList.remove('translate-x-4', 'bg-black');
+    switchThumb.classList.add('bg-white');
+    
+    // Default RAG checkmark to none (ready for when enabled)
+    selectRagMode('none');
+    
+    // Ensure RAG options hidden
+    ragOptions.classList.add('hidden');
+    
+    // Initial Icon Update
+    updateMainIcon();
+});
+
 
 function showSendIcon() {
     hasText = true;
@@ -274,7 +393,12 @@ function handleSend() {
     actionBtn.disabled = true;
     targetSpeed = 80; 
     
-    simulateAIResponse();
+    // Check if inference is enabled to decide behavior
+    if (isInferenceEnabled) {
+        simulateAIResponse(); // Use CoT
+    } else {
+        simulateDirectResponse(); // No CoT
+    }
 }
 
 userInput.addEventListener('keydown', (e) => {
@@ -289,7 +413,8 @@ function appendMessage(role, content) {
     msgDiv.className = `w-full flex ${role === 'user' ? 'justify-end' : 'justify-start'} msg-enter`;
     
     const avatarHtml = role === 'ai' 
-        ? `<div class="w-6 h-6 mt-1 flex items-center justify-center opacity-70"><i data-lucide="scale" class="w-4 h-4 text-white"></i></div>`
+        // CHANGED: Scale -> Omega
+        ? `<div class="w-6 h-6 mt-1 flex items-center justify-center opacity-70"><i data-lucide="omega" class="w-4 h-4 text-white"></i></div>`
         : `<div class="w-6 h-6 mt-1 flex items-center justify-center opacity-70"><div class="w-2 h-2 bg-white rounded-full"></div></div>`;
 
     const bubbleClass = role === 'user' 
@@ -370,6 +495,24 @@ async function animateProgressBar(barElement, targetWidth, duration) {
         });
         setTimeout(resolve, duration);
         });
+}
+
+// Direct response without CoT (for when inference is off)
+async function simulateDirectResponse() {
+    const aiMsgWrapper = appendMessage('ai', '');
+    const contentArea = aiMsgWrapper.querySelector('.text-gray-300');
+    
+    const cotId = 'direct-' + Date.now();
+    contentArea.innerHTML = `<div id="${cotId}-final"></div>`;
+    
+    const finalDiv = document.getElementById(`${cotId}-final`);
+    const responseText = "Here is the direct response from the base model, generated without the additional Chain of Thought reasoning process.";
+    
+    await typeWriter(finalDiv, responseText);
+
+    isProcessing = false;
+    actionBtn.disabled = false;
+    targetSpeed = 0.05; // Reset speed
 }
 
 async function simulateAIResponse() {
