@@ -20,7 +20,7 @@ Your responses should be precise, logical, and slightly technical but accessible
 When answering complex queries, briefly outline the logical steps you are taking.
 Maintain a professional, helpful, and futuristic persona.
 IMPORTANT: NEVER use asterisks, bold or italic formatting in your responses.
-IMPORTANT: For line breaks, use <br> instead.
+IMPORTANT: USE LINE BREAKS IN THE FORM OF <br><br> FREQUENTLY TO IMPROVE READABILITY.
 """
 
 @app.route("/", methods=["GET", "POST"])

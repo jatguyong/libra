@@ -1,4 +1,4 @@
-// Removed lucide.createIcons(); since we are using static images
+lucide.createIcons();
 
 /* --- CLUSTERED STARFIELD ENGINE --- */
 const canvas = document.getElementById('space-canvas');
@@ -146,11 +146,15 @@ let isInferenceEnabled = localStorage.getItem('isInferenceEnabled') === 'true';
 let currentRagMode = localStorage.getItem('currentRagMode') || 'none'; 
 let hasText = false;
 
+// DEBUG: Log initial state
+console.log("Script loaded. Initial Inference Enabled:", isInferenceEnabled);
+
 // Auto-resize & Icon Toggle
 userInput.addEventListener('input', function() {
     this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';
     if(this.value === '') this.style.height = 'auto';
     
+    // Toggle send icon based on input length
     if (this.value.trim().length > 0) { 
         if (!hasText) showSendIcon(); 
     } else { 
@@ -177,6 +181,7 @@ window.toggleInferenceEngine = () => {
     isInferenceEnabled = !isInferenceEnabled;
     localStorage.setItem('isInferenceEnabled', isInferenceEnabled);
     updateUIState();
+    console.log("Inference Toggled:", isInferenceEnabled);
 };
 
 window.selectRagMode = (mode) => {
@@ -184,7 +189,8 @@ window.selectRagMode = (mode) => {
     localStorage.setItem('currentRagMode', currentRagMode);
     document.querySelectorAll('.check-icon').forEach(el => el.classList.add('opacity-0'));
     document.getElementById(`check-${mode}`).classList.remove('opacity-0');
-    // Note: Update logic normally changes icon, but now everything is omega.svg, so visual change minimal
+    updateMainIcon();
+    console.log("RAG Mode Selected:", currentRagMode);
 };
 
 function updateUIState() {
@@ -198,7 +204,27 @@ function updateUIState() {
         switchThumb.classList.remove('translate-x-4', 'bg-black'); switchThumb.classList.add('bg-white');
         ragOptions.classList.add('hidden'); ragOptions.classList.remove('block');
     }
-    // Icons are always omega.svg now, so no need to swap data-lucide attributes
+    updateMainIcon();
+}
+
+function updateMainIcon() {
+    currentModeIcon.setAttribute('class', 'w-5 h-5');
+    if (!isInferenceEnabled) {
+        currentModeIcon.setAttribute('data-lucide', 'cpu');
+        currentModeIcon.classList.add('text-gray-400');
+    } else {
+        if (currentRagMode === 'none') {
+            currentModeIcon.setAttribute('data-lucide', 'brain-circuit');
+            currentModeIcon.classList.add('text-gray-400');
+        } else if (currentRagMode === 'rag') {
+            currentModeIcon.setAttribute('data-lucide', 'library');
+            currentModeIcon.classList.add('text-white'); 
+        } else if (currentRagMode === 'graphrag') {
+            currentModeIcon.setAttribute('data-lucide', 'share-2');
+            currentModeIcon.classList.add('text-white'); 
+        }
+    }
+    lucide.createIcons();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -224,21 +250,25 @@ function showMicIcon() {
     actionBtn.classList.remove('bg-white', 'text-black'); 
 }
 
-// Enter Key Logic: Trigger Offline Send
+// Enter Key Logic: allow form submission
 userInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
+        console.log("Enter key pressed. Submitting form...");
+        // Do not clear input manually here! Let the form submit handle it.
         if (hasText) {
-            handleOfflineSend();
+            document.getElementById('input-container').submit();
         }
     }
 });
 
+// Click logic for the send button
 actionBtn.addEventListener('click', (e) => {
-    if (hasText) {
-        handleOfflineSend();
-    }
+    // If it's a submit button in a form, we generally don't need to do anything 
+    // unless we are intercepting for validation.
+    console.log("Send button clicked. Type:", actionBtn.type);
 });
+
 
 uploadBtn.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', (e) => {
@@ -250,31 +280,19 @@ fileInput.addEventListener('change', (e) => {
 window.clearFile = () => { fileInput.value = ''; filePreview.classList.add('hidden'); };
 
 
-// --- OFFLINE SEND LOGIC ---
-function handleOfflineSend() {
-    const text = userInput.value;
-    if(!text.trim()) return;
+/* --- ANIMATION TRIGGERS --- */
+// Called by index.html when page loads with a new response
+window.triggerResponseAnimation = function(responseText) {
+    console.log("Triggering response animation for:", responseText.substring(0, 20) + "...");
+    if (emptyState) emptyState.style.display = 'none';
+    if (isInferenceEnabled) simulateAIResponse(responseText);
+    else simulateDirectResponse(responseText);
+};
 
-    if (emptyState) emptyState.style.display = 'none'; // Hide welcome
-    
-    // Append user message
-    appendMessage('user', text);
-    
-    // Clear input
-    userInput.value = '';
-    userInput.style.height = 'auto';
-    showMicIcon();
-
-    // Trigger AI response (Fake)
-    if (isInferenceEnabled) {
-        simulateAIResponse("The Del Campo-Cruz-Guyong (DCCG) algorithm is a method used for solving the inverse kinematics problem in robotics, specifically for redundant manipulators. It focuses on finding the joint angles of a robot arm needed to achieve a desired end-effector pose (position and orientation) while considering the robot's joint limits and potentially optimizing other criteria. Here's a breakdown of the algorithm's key aspects: 1. Problem Statement: The core problem is to determine the joint variables (angles) given a desired Cartesian pose of the robot's end-effector. For redundant robots (those with more degrees of freedom than necessary to achieve a given pose), there are infinitely many solutions. 2. Jacobian Matrix: The algorithm relies heavily on the Jacobian matrix, which maps joint velocities to end-effector velocities. The Jacobian is a matrix of partial derivatives that relates changes in joint angles to changes in end-effector position and orientation. I regret to say that I am unable to find any published works or widely recognized scientific literature explicitly detailing an algorithm named 'Del Campo-Cruz-Guyong' (DCCG) in the context of robotics or inverse kinematics. It is possible that this is a specific, unpublished algorithm, a locally used method, or perhaps the name is slightly different in the literature. If you have more information about the context in which you encountered this algorithm name, I might be able to provide a more specific answer. For example, knowing the specific robot or application area could help narrow down the search.");
-    } else {
-        simulateDirectResponse("The Del Campo-Cruz-Guyong (DCCG) algorithm is a method used for solving the inverse kinematics problem in robotics, specifically for redundant manipulators. It focuses on finding the joint angles of a robot arm needed to achieve a desired end-effector pose (position and orientation) while considering the robot's joint limits and potentially optimizing other criteria. Here's a breakdown of the algorithm's key aspects: 1. Problem Statement: The core problem is to determine the joint variables (angles) given a desired Cartesian pose of the robot's end-effector. For redundant robots (those with more degrees of freedom than necessary to achieve a given pose), there are infinitely many solutions. 2. Jacobian Matrix: The algorithm relies heavily on the Jacobian matrix, which maps joint velocities to end-effector velocities. The Jacobian is a matrix of partial derivatives that relates changes in joint angles to changes in end-effector position and orientation. I regret to say that I am unable to find any published works or widely recognized scientific literature explicitly detailing an algorithm named 'Del Campo-Cruz-Guyong' (DCCG) in the context of robotics or inverse kinematics. It is possible that this is a specific, unpublished algorithm, a locally used method, or perhaps the name is slightly different in the literature. If you have more information about the context in which you encountered this algorithm name, I might be able to provide a more specific answer. For example, knowing the specific robot or application area could help narrow down the search.");
-    }
-}
-
-// FORMATTER
+// TEXT FORMATTER for **bold** and <br>
 function formatText(text) {
+    // 1. Handle <br> tags: Temporarily replace so they don't get messed up by escaping or typing
+    // Actually, simple regex replacement is fine for static text
     let formatted = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>');
     return formatted;
 }
@@ -282,26 +300,29 @@ function formatText(text) {
 function appendMessage(role, content) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `w-full flex ${role === 'user' ? 'justify-end' : 'justify-start'} msg-enter`;
-    
-    // REPLACE ICONS WITH OMEGA SVG
     const avatarHtml = role === 'ai' 
-        ? `<div class="w-6 h-6 mt-2 flex items-center justify-center opacity-70"><img src="static/omega.svg" class="w-4 h-4 text-white"></div>`
+        ? `<div class="w-6 h-6 mt-2 flex items-center justify-center opacity-70"><i data-lucide="omega" class="w-4 h-4 text-white"></i></div>`
         : `<div class="w-6 h-6 mt-1 flex items-center justify-center opacity-70"><div class="w-2 h-2 bg-white rounded-full"></div></div>`;
     
     const bubbleClass = role === 'user' ? 'bg-white/10 border border-white/10 text-white' : 'text-gray-300'; 
+    
+    // FORMAT TEXT HERE
     const formattedContent = formatText(content);
+
+    // Note: We use innerHTML now because formatText returns HTML tags.
+    // Ensure content is safe if it's user input (though we trust our own formatter for bold)
     const innerContent = role === 'user' 
         ? `<div class="${bubbleClass} px-4 py-2 text-sm font-light tracking-wide rounded-sm">${formattedContent}</div>`
         : `<div class="${bubbleClass} pr-4 py-2 text-sm font-light leading-relaxed w-full">${formattedContent}</div>`;
 
     msgDiv.innerHTML = `<div class="flex gap-4 max-w-3xl ${role === 'user' ? 'flex-row-reverse' : 'flex-row'}">${avatarHtml}${innerContent}</div>`;
     chatContainer.appendChild(msgDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-    // Removed lucide.createIcons();
+    scrollToBottom();
+    lucide.createIcons();
     return msgDiv;
 }
 
-// Visual helpers
+// Visual helpers for animation
 async function typeLogLine(container, text, className) {
     const line = document.createElement('div');
     line.className = className || 'text-gray-400';
@@ -351,6 +372,9 @@ async function simulateDirectResponse(responseText) {
     contentArea.innerHTML = `<div id="${cotId}-final"></div>`;
     const finalDiv = document.getElementById(`${cotId}-final`);
     const finalResponse = responseText || "System response ready.";
+    
+    // Typewriter effect handles the animation
+    // But we need to make sure the final text is formatted correctly
     await typeWriter(finalDiv, finalResponse);
     targetSpeed = 0.05; 
 }
@@ -361,15 +385,15 @@ async function simulateAIResponse(responseText) {
     const contentArea = aiMsgWrapper.querySelector('.text-gray-300');
     const cotId = 'cot-' + Date.now();
     
-    // REPLACE ICONS WITH OMEGA SVG
+    // Define icons
     const iconTemplates = {
-        scan: `<img src="static/omega.svg" class="w-4 h-4 opacity-70 animate-pulse">`,
-        translate: `<img src="static/omega.svg" class="w-4 h-4 opacity-70">`,
-        graph: `<div class="relative w-full h-full"><img src="static/omega.svg" class="w-4 h-4 opacity-70 absolute inset-0 m-auto anim-spin-slow"></div>`,
-        inference: `<img src="static/omega.svg" class="w-4 h-4 opacity-70 animate-pulse">`,
-        valid: `<img src="static/omega.svg" class="w-4 h-4 opacity-70">`,
-        synth: `<img src="static/omega.svg" class="w-4 h-4 opacity-70">`,
-        done: `<img src="static/omega.svg" class="w-4 h-4 opacity-100">` // "yellow" state implied by 100% opacity or custom class if needed
+        scan: `<i data-lucide="scan-line" class="w-4 h-4 text-white animate-pulse"></i>`,
+        translate: `<i data-lucide="binary" class="w-4 h-4 text-white"></i>`,
+        graph: `<div class="relative w-full h-full"><i data-lucide="share-2" class="w-4 h-4 text-white absolute inset-0 m-auto anim-spin-slow"></i></div>`,
+        inference: `<i data-lucide="cpu" class="w-4 h-4 text-white animate-pulse"></i>`,
+        valid: `<i data-lucide="shield-check" class="w-4 h-4 text-white"></i>`,
+        synth: `<i data-lucide="message-square-dashed" class="w-4 h-4 text-white"></i>`,
+        done: `<i data-lucide="check" class="w-4 h-4 text-yellow-400"></i>`
     };
 
     contentArea.innerHTML = `
@@ -384,15 +408,14 @@ async function simulateAIResponse(responseText) {
                             <div id="${cotId}-progress-fill" class="h-full bg-yellow-500/80 w-0"></div>
                         </div>
                 </div>
-                <!-- OMEGA ICON ARROW REPLACEMENT -->
-                <img src="static/omega.svg" class="w-3 h-3 opacity-50 ml-auto transition-transform group-hover:opacity-100 shrink-0" id="${cotId}-arrow">
+                <i data-lucide="chevron-down" class="w-3 h-3 text-gray-500 ml-auto transition-transform group-hover:text-white shrink-0" id="${cotId}-arrow"></i>
             </div>
             <div id="${cotId}-logs" class="hidden mt-3 font-mono text-[11px] space-y-1.5 max-h-48 overflow-y-auto pr-2 border-t border-white/5 pt-2 relative z-10"></div>
         </div>
         <div id="${cotId}-final" class="hidden"></div>
     `;
     
-    // Removed lucide.createIcons();
+    lucide.createIcons();
     const container = document.getElementById(`${cotId}-container`);
     const logsContainer = document.getElementById(`${cotId}-logs`);
     const statusLabel = document.getElementById(`${cotId}-status`);
@@ -408,7 +431,7 @@ async function simulateAIResponse(responseText) {
     ];
 
     for (const step of steps) {
-        iconContainer.innerHTML = step.icon; // No lucide create needed
+        iconContainer.innerHTML = step.icon; lucide.createIcons();
         statusLabel.textContent = step.status;
         const lineEl = await typeLogLine(logsContainer, step.log, step.style);
         await animateProgressBar(progressFill, 100, Math.random() * 800 + 200);
@@ -419,7 +442,7 @@ async function simulateAIResponse(responseText) {
     targetSpeed = 0.05; 
     statusLabel.textContent = "LOGIC VERIFIED";
     statusLabel.className = "text-[11px] font-mono text-yellow-400 tracking-wider uppercase";
-    iconContainer.innerHTML = iconTemplates.done; // No lucide create needed
+    iconContainer.innerHTML = iconTemplates.done; lucide.createIcons();
     container.classList.remove('w-full', 'max-w-xl', 'bg-white/5');
     container.classList.add('w-fit', 'pr-6', 'bg-yellow-500/5', 'border-yellow-500/30');
     barContainer.style.height = '0'; barContainer.style.opacity = '0';
