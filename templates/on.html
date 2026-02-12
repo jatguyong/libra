@@ -5,10 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Libra Chat - Neuro-Symbolic Interface</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="{{ url_for('static', filename='vendor/tailwindcss.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/lucide.js') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/fonts.css') }}">
 </head>
 <body class="antialiased selection:bg-white selection:text-black">
 

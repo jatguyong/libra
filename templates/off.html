@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Libra Chat - Neuro-Symbolic Interface (Offline)</title>
+    <!-- Tailwind CSS -->
+    <script src="{{ url_for('static', filename='vendor/tailwindcss.js') }}"></script>
+    <!-- Custom CSS (Loaded after Tailwind to override defaults) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Google Fonts -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='fonts/fonts.css') }}">
+</head>
+<body class="antialiased selection:bg-white selection:text-black">
+
+    <canvas id="space-canvas"></canvas>
+    <div class="vignette"></div>
+
+    <div class="flex h-screen w-full relative z-10">
+        
+        <!-- Left Sidebar -->
+        <aside class="w-64 flex-shrink-0 hidden md:flex flex-col glass-panel border-r-0 border-l-0 border-t-0 border-b-0 border-r border-white/10 relative">
+            <div class="p-6 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-sm bg-white/5 border border-white/10 flex items-center justify-center">
+                    <!-- ICON PLACEHOLDER -->
+                    <img src="/static/omega.svg" class="w-4 h-4 text-white">
+                </div>
+                <h1 class="font-display font-bold text-lg tracking-widest text-white uppercase">Libra</h1>
+            </div>
+
+            <nav class="flex-1 px-3 space-y-1 overflow-y-auto">
+                <button class="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-300 bg-white/5 rounded hover:bg-white/10 transition-colors border border-white/5 mb-2 group uppercase tracking-wider">
+                    <!-- ICON PLACEHOLDER -->
+                    <img src="{{ url_for('static', filename='omega.svg') }}" class="w-3 h-3 opacity-50 group-hover:opacity-100 transition-all">
+                    New Session
+                </button>
+                
+                <button class="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-400 hover:bg-white/5 rounded transition-colors mb-6 group">
+                    <!-- ICON PLACEHOLDER -->
+                    <img src="{{ url_for('static', filename='omega.svg') }}" class="w-3 h-3 opacity-50 group-hover:opacity-100 transition-all">
+                    Search Sessions
+                </button>
+
+                <div class="text-[10px] font-bold text-gray-600 uppercase tracking-widest px-3 mb-2 mt-2">Logic Core</div>
+                
+                <button class="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors text-left truncate group font-mono">
+                    <span class="w-1.5 h-1.5 rounded-full bg-gray-700 group-hover:bg-white transition-colors"></span>
+                    <span class="truncate">inference_trace_04.pl</span>
+                </button>
+                <button class="w-full flex items-center gap-3 px-3 py-2 text-xs text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors text-left truncate group font-mono">
+                    <span class="w-1.5 h-1.5 rounded-full bg-gray-700 group-hover:bg-white transition-colors"></span>
+                    <span class="truncate">graph_rag_nodes.json</span>
+                </button>
+            </nav>
+
+            <div class="p-4 border-t border-white/10">
+                <button class="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors">
+                    <!-- ICON PLACEHOLDER -->
+                    <img src="{{ url_for('static', filename='omega.svg') }}" class="w-3 h-3">
+                    Parameters
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="flex-1 flex flex-col min-w-0 relative">
+            
+            <!-- Mobile Header -->
+            <header class="md:hidden h-14 glass-panel border-b border-white/10 flex items-center px-4 justify-between shrink-0">
+                <div class="flex items-center gap-2">
+                    <!-- ICON PLACEHOLDER -->
+                    <img src="{{ url_for('static', filename='omega.svg') }}" class="w-4 h-4">
+                    <span class="font-display font-bold text-lg text-white">LIBRA</span>
+                </div>
+                <button class="p-2 text-gray-400 hover:text-white">
+                    <!-- ICON PLACEHOLDER -->
+                    <img src="{{ url_for('static', filename='omega.svg') }}" class="w-5 h-5">
+                </button>
+            </header>
+
+            <div class="hidden md:flex h-6 w-full shrink-0"></div>
+
+            <div id="chat-container" class="flex-1 overflow-y-auto px-4 py-6 md:px-32 scroll-smooth space-y-10">
+                
+                <!-- Hardcoded History Example -->
+                <div class="w-full flex justify-end msg-enter">
+                    <div class="flex gap-4 max-w-3xl flex-row-reverse">
+                        <div class="w-6 h-6 mt-1 flex items-center justify-center opacity-70">
+                            <div class="w-2 h-2 bg-white rounded-full"></div>
+                        </div>
+                        <div class="bg-white/10 border border-white/10 text-white px-4 py-2 text-sm font-light tracking-wide rounded-sm">
+                            System status check.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="w-full flex justify-start msg-enter">
+                    <div class="flex gap-4 max-w-3xl flex-row">
+                        <div class="w-6 h-6 mt-2 flex items-center justify-center opacity-70">
+                            <!-- ICON PLACEHOLDER -->
+                            <img src="/static/omega.svg" class="w-4 h-4">
+                        </div>
+                        <div class="text-gray-300 pr-4 py-2 text-sm font-light leading-relaxed w-full">
+                            All systems nominal. Neuro-symbolic core is active and ready for inference queries.
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Welcome State (Hidden if history exists, but keeping here for structure) -->
+                <div class="hidden flex-col items-center justify-center h-full text-center space-y-6 opacity-80" id="empty-state">
+                    <div class="relative">
+                        <div class="absolute inset-0 bg-white blur-xl opacity-10 rounded-full"></div>
+                        <!-- ICON PLACEHOLDER -->
+                        <img src="/static/omega.svg" class="w-12 h-12 relative z-10">
+                    </div>
+                    <div class="space-y-1">
+                        <h2 class="text-2xl font-display text-white tracking-widest uppercase">Libra Interface</h2>
+                        <p class="text-gray-500 font-mono text-[10px] tracking-[0.2em] uppercase">Symbolic Reasoning Engine Active</p>
+                    </div>
+                </div>
+            
+            </div>
+
+            <!-- Input Area -->
+            <div class="p-4 md:p-8 pb-8 relative">
+                <div class="max-w-3xl mx-auto relative group">
+                    
+                    <!-- Reverted to DIV, no FORM needed for offline mode -->
+                    <div class="relative glass-input rounded-3xl p-2 pl-4 flex flex-col gap-2 shadow-2xl transition-all duration-300" id="input-container">
+                        <!-- File Upload Preview -->
+                        <div id="file-preview" class="hidden px-2 py-1 bg-white/5 border-b border-white/5 mb-1">
+                            <div class="flex justify-between items-center text-xs text-white font-mono">
+                                <span class="flex items-center gap-2">
+                                    <!-- ICON PLACEHOLDER -->
+                                    <img src="/static/omega.svg" class="w-3 h-3"> 
+                                    <span id="filename">data.csv</span>
+                                </span>
+                                <button onclick="clearFile()" class="hover:text-red-400">REMOVE</button>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="upload-btn" class="p-2 text-gray-500 hover:text-white transition-colors rounded-full hover:bg-white/10 shrink-0">
+                                <!-- ICON PLACEHOLDER -->
+                                <img src="/static/omega.svg" class="w-5 h-5">
+                            </button>
+                            
+                            <!-- CONFIGURATION MENU (Drop-up) -->
+                            <div class="relative group">
+                                <button type="button" id="logic-toggle-btn" class="p-2 text-gray-500 hover:text-white transition-colors rounded-full hover:bg-white/10 shrink-0 flex items-center justify-center">
+                                    <!-- ICON PLACEHOLDER (Current Mode) -->
+                                    <img src="/static/omega.svg" class="w-5 h-5" id="current-mode-icon">
+                                </button>
+                                
+                                <!-- Drop-up Menu -->
+                                <div id="logic-menu" class="hidden absolute bottom-full left-0 mb-3 w-64 glass-panel rounded-xl border border-white/10 shadow-2xl overflow-hidden backdrop-blur-xl z-50 transform origin-bottom-left transition-all duration-200 p-1">
+                                    
+                                    <!-- MASTER TOGGLE ROW -->
+                                    <div class="flex items-center justify-between px-3 py-3 border-b border-white/5">
+                                        <div class="flex items-center gap-2">
+                                            <!-- ICON PLACEHOLDER -->
+                                            <img src="/static/omega.svg" class="w-4 h-4 opacity-70">
+                                            <span class="text-xs font-semibold text-gray-200">Inference Engine</span>
+                                        </div>
+                                        <!-- Custom Toggle Switch -->
+                                        <button type="button" id="master-switch" class="w-9 h-5 rounded-full bg-white/10 relative transition-colors duration-300 focus:outline-none" onclick="toggleInferenceEngine()">
+                                            <div id="switch-thumb" class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-transform duration-300 shadow-sm"></div>
+                                        </button>
+                                    </div>
+
+                                    <!-- CONDITIONAL OPTIONS GROUP (Hidden by default) -->
+                                    <div id="rag-options" class="hidden p-1 transition-all duration-300 origin-top">
+                                        
+                                        <!-- Header for Section -->
+                                        <div class="px-3 py-1.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Context Retrieval</div>
+
+                                        <!-- Option: No RAG -->
+                                        <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-400 hover:bg-white/5 hover:text-white rounded-lg transition-colors group/item" onclick="selectRagMode('none')">
+                                            <!-- ICON PLACEHOLDER -->
+                                            <img src="{{ url_for('static', filename='omega.svg') }}" class="w-4 h-4 opacity-50 group-hover:opacity-100">
+                                            <span>No RAG</span>
+                                            <!-- ICON PLACEHOLDER (Checkmark) -->
+                                            <img src="/static/omega.svg" class="w-3.5 h-3.5 ml-auto opacity-0 check-icon" id="check-none">
+                                        </button>
+
+                                        <!-- Option: Standard RAG -->
+                                        <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-400 hover:bg-white/5 hover:text-white rounded-lg transition-colors group/item" onclick="selectRagMode('rag')">
+                                            <!-- ICON PLACEHOLDER -->
+                                            <img src="{{ url_for('static', filename='omega.svg') }}" class="w-4 h-4 opacity-50 group-hover:opacity-100">
+                                            <span>Standard RAG</span>
+                                            <!-- ICON PLACEHOLDER (Checkmark) -->
+                                            <img src="/static/omega.svg" class="w-3.5 h-3.5 ml-auto opacity-0 check-icon" id="check-rag">
+                                        </button>
+
+                                        <!-- Option: GraphRAG -->
+                                        <button type="button" class="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-400 hover:bg-white/10 hover:text-white rounded-lg transition-colors group/item" onclick="selectRagMode('graphrag')">
+                                            <!-- ICON PLACEHOLDER -->
+                                            <img src="{{ url_for('static', filename='omega.svg') }}" class="w-4 h-4 opacity-50 group-hover:opacity-100">
+                                            <span>GraphRAG</span>
+                                            <!-- ICON PLACEHOLDER (Checkmark) -->
+                                            <img src="/static/omega.svg" class="w-3.5 h-3.5 ml-auto opacity-0 check-icon" id="check-graphrag">
+                                        </button>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <textarea name="query" id="user-input" rows="1" class="flex-1 bg-transparent border-0 text-white placeholder-gray-500 focus:ring-0 resize-none py-3 max-h-32 font-light text-sm tracking-wide" placeholder="Ask Libra anything..." required></textarea>
+                            
+                            <!-- Dynamic Action Button -->
+                            <button type="button" id="action-btn" class="p-2 mr-1 rounded-full text-white transition-all duration-300 hover:bg-white/10 flex items-center justify-center w-10 h-10 shrink-0">
+                                <!-- ICON PLACEHOLDER (Mic/Send - using same SVG for both placeholders) -->
+                                <img src="/static/omega.svg" class="w-5 h-5 absolute icon-transition" id="icon-mic">
+                                <img src="/static/omega.svg" class="w-5 h-5 absolute icon-transition opacity-0 scale-75" id="icon-send">
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <input type="file" id="file-input" class="hidden">
+
+        </main>
+    </div>
+    <!-- Pointing to local script -->
+    <script src="/static/script.js"></script>
+</body>
+</html>
