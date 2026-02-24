@@ -1,4 +1,4 @@
-import React, { useState, type KeyboardEvent, useRef } from 'react';
+import React, { useState, type KeyboardEvent, useRef, useEffect } from 'react';
 import { Plus, ChevronDown, Send, FileText, X } from 'lucide-react';
 
 interface ChatBoxProps {
@@ -6,12 +6,30 @@ interface ChatBoxProps {
     isLoading?: boolean;
     uploadedFile?: File | null;
     setUploadedFile?: (file: File | null) => void;
+    isChatActive?: boolean;
 }
 
-const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFile }: ChatBoxProps) => {
+const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFile, isChatActive = false }: ChatBoxProps) => {
     const [inputText, setInputText] = useState('');
     const [showBadge, setShowBadge] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [selectedEngine, setSelectedEngine] = useState('Baseline LLM');
+    const engines = ['Baseline LLM', 'GraphRAG', 'Prolog-GraphRAG'];
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (isDropdownOpen && dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isDropdownOpen]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -113,10 +131,32 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
                             <Plus size={16} />
                         </button>
 
-                        <button className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/20 text-white/70 text-xs font-sans hover:bg-white/10 transition">
-                            Symbolic Engine
-                            <ChevronDown size={14} />
-                        </button>
+                        <div className="relative" ref={dropdownRef}>
+                            <button
+                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/20 text-white/70 text-xs font-sans hover:bg-white/10 transition"
+                            >
+                                {selectedEngine}
+                                <ChevronDown size={14} className={`transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isDropdownOpen && (
+                                <div className={`absolute left-0 w-48 bg-[#1a1523] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 ${isChatActive ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'}`}>
+                                    {engines.map((engine) => (
+                                        <button
+                                            key={engine}
+                                            onClick={() => {
+                                                setSelectedEngine(engine);
+                                                setIsDropdownOpen(false);
+                                            }}
+                                            className={`w-full text-left px-4 py-2 text-xs font-sans hover:bg-white/5 transition-colors ${selectedEngine === engine ? 'text-white bg-white/10' : 'text-white/70'}`}
+                                        >
+                                            {engine}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <button

@@ -54,7 +54,6 @@ const BotMessage = ({ message }: { message: Message }) => {
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const isChatting = messages.length > 0;
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
@@ -63,6 +62,12 @@ function App() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  const handleNewConversation = () => {
+    setMessages([]);
+    setHasStartedChat(false);
+    setUploadedFile(null);
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -169,24 +174,24 @@ function App() {
         <div className="absolute inset-0 z-0">
           <Galaxy
             mouseRepulsion={false}
-            mouseInteraction={!isChatting}
+            mouseInteraction={!hasStartedChat}
             density={1}
-            glowIntensity={isChatting ? 0.05 : 0.2}
+            glowIntensity={hasStartedChat ? 0.05 : 0.2}
             saturation={0}
             hueShift={140}
-            twinkleIntensity={isChatting ? 0.05 : 0.3}
-            rotationSpeed={isChatting ? 0.0 : 0.05}
+            twinkleIntensity={hasStartedChat ? 0.05 : 0.3}
+            rotationSpeed={hasStartedChat ? 0.0 : 0.05}
             repulsionStrength={10}
             autoCenterRepulsion={0}
-            starSpeed={isChatting ? 0 : 0.2}
-            speed={isChatting ? 0.2 : 0.8}
+            starSpeed={hasStartedChat ? 0 : 0.2}
+            speed={hasStartedChat ? 0.2 : 0.8}
           />
         </div>
       </div>
 
       <div className="relative z-10 flex flex-row h-full w-full pointer-events-none">
 
-        <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} uploadedFile={uploadedFile} />
+        <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} uploadedFile={uploadedFile} onNewConversation={handleNewConversation} />
 
         <div className="flex-1 flex flex-col h-full relative overflow-hidden transition-all duration-300">
 
@@ -199,7 +204,13 @@ function App() {
             <main className="flex-1 flex flex-col items-center justify-center pointer-events-none px-6 mt-[-10%]">
               <WelcomeScreen />
               <div className="w-full flex justify-center pointer-events-auto">
-                <ChatBox onSendMessage={handleSendMessage} isLoading={isLoading} uploadedFile={uploadedFile} setUploadedFile={setUploadedFile} />
+                <ChatBox
+                  onSendMessage={handleSendMessage}
+                  isLoading={isLoading}
+                  uploadedFile={uploadedFile}
+                  setUploadedFile={setUploadedFile}
+                  isChatActive={hasStartedChat}
+                />
               </div>
             </main>
 
@@ -238,7 +249,13 @@ function App() {
               </div>
 
               <div className="w-full flex justify-center shrink-0 pt-4">
-                <ChatBox onSendMessage={handleSendMessage} isLoading={isLoading} uploadedFile={uploadedFile} setUploadedFile={setUploadedFile} />
+                <ChatBox
+                  onSendMessage={handleSendMessage}
+                  isLoading={isLoading}
+                  uploadedFile={uploadedFile}
+                  setUploadedFile={setUploadedFile}
+                  isChatActive={hasStartedChat}
+                />
               </div>
 
             </main>
