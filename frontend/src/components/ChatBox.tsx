@@ -1,18 +1,38 @@
-import React, { useState, type KeyboardEvent } from 'react';
-import { Plus, ChevronDown, Send } from 'lucide-react';
+import React, { useState, type KeyboardEvent, useRef } from 'react';
+import { Plus, ChevronDown, Send, FileText, X } from 'lucide-react';
 
 interface ChatBoxProps {
     onSendMessage: (message: string) => void;
     isLoading?: boolean;
+    uploadedFile?: File | null;
+    setUploadedFile?: (file: File | null) => void;
 }
 
-const ChatBox = ({ onSendMessage, isLoading = false }: ChatBoxProps) => {
+const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFile }: ChatBoxProps) => {
     const [inputText, setInputText] = useState('');
+    const [showBadge, setShowBadge] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.type === 'application/pdf') {
+                if (setUploadedFile) setUploadedFile(file);
+                setShowBadge(true);
+            } else {
+                alert("Only PDF files are accepted.");
+            }
+        }
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
 
     const handleSend = () => {
         if (inputText.trim() && !isLoading) {
             onSendMessage(inputText);
             setInputText(''); // clears the box after sending
+            setShowBadge(false); // hides badge but keeps uploadedFile in sidebar
         }
     };
 
@@ -48,8 +68,31 @@ const ChatBox = ({ onSendMessage, isLoading = false }: ChatBoxProps) => {
             />
 
             <div className="relative flex flex-col justify-between w-full min-h-[140px] px-6 py-5">
-
+                <input
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                />
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] w-[0%] opacity-0 group-hover:w-[40%] group-hover:opacity-100 bg-gradient-to-r from-transparent via-[#A278AE] to-transparent shadow-[0_0_12px_#A278AE] transition-all duration-500 ease-out" />
+
+                {showBadge && uploadedFile && setUploadedFile && (
+                    <div className="flex items-center gap-2 mb-3 bg-white/10 backdrop-blur-md rounded-lg px-3 py-2 w-max max-w-full">
+                        <FileText size={16} className="text-red-500 shrink-0" />
+                        <span className="text-sm text-white/90 truncate font-sans">{uploadedFile.name}</span>
+                        <button
+                            onClick={() => {
+                                setUploadedFile(null);
+                                setShowBadge(false);
+                            }}
+                            className="text-white/50 hover:text-white transition-colors"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                )}
+
                 <textarea
                     value={inputText}
                     onChange={(e) => setInputText(e.target.value)}
@@ -63,7 +106,10 @@ const ChatBox = ({ onSendMessage, isLoading = false }: ChatBoxProps) => {
                 <div className="flex justify-between items-center w-full mt-2">
 
                     <div className="flex items-center gap-3">
-                        <button className="flex items-center justify-center w-8 h-8 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/10 transition">
+                        <button
+                            className="flex items-center justify-center w-8 h-8 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/10 transition"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
                             <Plus size={16} />
                         </button>
 

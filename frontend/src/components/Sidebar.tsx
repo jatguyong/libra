@@ -5,9 +5,10 @@ import { Edit, FileText, ExternalLink } from 'lucide-react';
 interface SidebarProps {
     isOpen: boolean;
     toggleSidebar: () => void;
+    uploadedFile: File | null;
 }
 
-const Sidebar = ({ isOpen, toggleSidebar }: SidebarProps) => {
+const Sidebar = ({ isOpen, toggleSidebar, uploadedFile }: SidebarProps) => {
     return (
         <motion.div
             initial={false}
@@ -41,15 +42,17 @@ const Sidebar = ({ isOpen, toggleSidebar }: SidebarProps) => {
                         New Conversation
                     </button>
 
-                    <div className="flex flex-col gap-3 mt-2">
-                        <span className="text-xs font-sans text-white/40 px-2 tracking-wider uppercase font-medium">Uploaded PDF</span>
-                        <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 cursor-pointer transition-all group">
-                            <FileText size={20} className="text-[#ff4a4a] shrink-0" />
-                            <span className="text-sm font-sans text-white/80 truncate">
-                                [pdf_name_name_name.pdf]
-                            </span>
+                    {uploadedFile && (
+                        <div className="flex flex-col gap-3 mt-2">
+                            <span className="text-xs font-sans text-white/40 px-2 tracking-wider uppercase font-medium">Uploaded PDF</span>
+                            <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/5 pointer-events-none group">
+                                <FileText size={20} className="text-[#ff4a4a] shrink-0" />
+                                <span className="text-sm font-sans text-white/80 truncate">
+                                    {uploadedFile.name}
+                                </span>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 <div className="mt-auto flex flex-col gap-4 p-6 shrink-0">

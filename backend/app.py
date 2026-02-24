@@ -1,21 +1,15 @@
 import os
-import secrets
-from flask import Flask, request, jsonify, session
-from flask_session import Session
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import ollama
 
 app = Flask(__name__)
+
+# Configure CORS to allow requests ONLY from http://localhost:5173
 CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
-# --- CONFIGURATION ---
-app.config["SECRET_KEY"] = secrets.token_hex(32)
-app.config["SESSION_PERMANENT"] = False
-app.config["SESSION_TYPE"] = "filesystem"
-Session(app)
-
-# --- CONSTANTS ---
-MODEL_NAME = 'llama3.1:8b-instruct-q4_K_M'
+# Constants
+MODEL_NAME = 'gemma3:1b'
 
 SYSTEM_INSTRUCTION = """
 Your responses should be precise, logical, and slightly technical but accessible.
@@ -31,29 +25,48 @@ def index():
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    print("--- CHAT REQUEST RECEIVED ---")
     data = request.json or {}
-    print(f"Payload: {data}")
-    
-    user_input = data.get("message")
-    mode = data.get("mode", "default")
-    
-    if not user_input:
-        print("Error: No message provided")
-        return jsonify({"error": "No message provided"}), 400
+    react_messages = data.get("messages", [])
 
-    print(f"User Input: {user_input}, Mode: {mode}")
+    # Create a new list for Ollama, starting with the SYSTEM_INSTRUCTION
+    ollama_messages = [
+        {"role": "system", "content": SYSTEM_INSTRUCTION}
+    ]
 
-    # Dummy structured JSON response
-    ai_response = f"This is a dummy response from the Libra API. You said: '{user_input}' in mode: '{mode}'."
+    # Loop through the incoming React messages array
+    for msg in react_messages:
+        role = msg.get("role")
+        content = msg.get("content", "")
 
-    print("--- CHAT REQUEST COMPLETED ---")
-    return jsonify({"response": ai_response, "status": "success"})
+        # Crucial: If a message has role: 'ai', change it to role: 'assistant'
+        if role == "ai":
+            role = "assistant"
+            
+        ollama_messages.append({
+            "role": role,
+            "content": content
+        })
+
+    try:
+        # Calls ollama.chat
+        response = ollama.chat(model=MODEL_NAME, messages=ollama_messages)
+        
+        # Extracts the response text
+        ai_response = response['message']['content']
+        
+        return jsonify({
+            "response": ai_response,
+            "status": "success"
+        })
+        
+    except Exception as e:
+        # Uses a try/except block to gracefully return a JSON error if Ollama is not running
+        print(f"Ollama Error: {e}")
+        return jsonify({
+            "error": "Failed to connect to Ollama or process request. Is Ollama running?",
+            "details": str(e),
+            "status": "error"
+        }), 503
 
 if __name__ == "__main__":
-    print("----------------------------------------------------------------")
-    print("   LIBRA SYSTEM STARTING...")
-    print("   PLEASE ACCESS VIA: http://127.0.0.1:5000")
-    print("   DO NOT USE LIVE SERVER (Port 5500)")
-    print("----------------------------------------------------------------")
     app.run(debug=True, port=5000)
