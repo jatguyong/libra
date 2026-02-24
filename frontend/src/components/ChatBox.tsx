@@ -1,28 +1,24 @@
-import React, { useState, KeyboardEvent } from 'react';
+import React, { useState, type KeyboardEvent } from 'react';
 import { Plus, ChevronDown, Send } from 'lucide-react';
 
-// PROPS: This allows the InputBar to send the message up to your main App
-interface GlassInputBarProps {
+interface ChatBoxProps {
     onSendMessage: (message: string) => void;
     isLoading?: boolean;
 }
 
-const GlassInputBar = ({ onSendMessage, isLoading = false }: GlassInputBarProps) => {
-    // STATE: Tracks the text currently in the box
+const ChatBox = ({ onSendMessage, isLoading = false }: ChatBoxProps) => {
     const [inputText, setInputText] = useState('');
 
-    // HANDLER: Triggers when you click send or press enter
     const handleSend = () => {
         if (inputText.trim() && !isLoading) {
             onSendMessage(inputText);
-            setInputText(''); // Clears the box after sending
+            setInputText(''); // clears the box after sending
         }
     };
 
-    // HANDLER: Listens for the "Enter" key
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault(); // Prevents it from just dropping to a new line
+            e.preventDefault(); // prevents it from just dropping to a new line
             handleSend();
         }
     };
@@ -34,7 +30,7 @@ const GlassInputBar = ({ onSendMessage, isLoading = false }: GlassInputBarProps)
                 className="absolute inset-0 rounded-[2rem] backdrop-blur-md"
                 style={{
                     background: `
-            radial-gradient(circle at 50% 50%, rgba(165, 239, 255, 0.2) 0%, rgba(110, 191, 244, 0.2) 77%, rgba(70, 144, 212, 0.2) 100%), 
+            radial-gradient(circle at 50% 50%, rgba(120, 120, 120, 0.2) 0%, rgba(120, 120, 120, 0.05) 100%), 
             linear-gradient(rgba(6, 0, 16, 0.65), rgba(6, 0, 16, 0.65))
           `
                 }}
@@ -43,8 +39,8 @@ const GlassInputBar = ({ onSendMessage, isLoading = false }: GlassInputBarProps)
             <div
                 className="absolute inset-0 rounded-[2rem] pointer-events-none"
                 style={{
-                    padding: '1px',
-                    background: 'linear-gradient(to right, #98F9FF, #FFFFFF, #725584, #654B76)',
+                    padding: '1.5px',
+                    background: 'rgba(255, 255, 255, 0.2)',
                     WebkitMask: 'linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0)',
                     WebkitMaskComposite: 'xor',
                     maskComposite: 'exclude'
@@ -95,4 +91,4 @@ const GlassInputBar = ({ onSendMessage, isLoading = false }: GlassInputBarProps)
     );
 };
 
-export default GlassInputBar;
+export default ChatBox;

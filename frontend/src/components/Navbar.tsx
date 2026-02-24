@@ -1,43 +1,35 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-const Navbar = () => {
-    // toggle switch (does not actually change theme yet)
-    const [isLightMode, setIsLightMode] = useState(false);
+interface NavbarProps {
+    isSidebarOpen: boolean;
+    toggleSidebar: () => void;
+}
 
+const Navbar = ({ isSidebarOpen, toggleSidebar }: NavbarProps) => {
     return (
-        <nav className="w-full flex items-center justify-between px-10 py-6 select-none z-50">
-            <div className="flex items-center gap-8">
-                <div className="flex items-center gap-3 cursor-pointer">
-                    <span className="text-4xl font-space font-light tracking-tight text-white">Ω</span>
-                    <span className="text-2xl font-space font-light tracking-[0.2em] uppercase text-white">
-                        Libra
-                    </span>
-                </div>
+        <nav className="w-full h-[72px] flex items-center justify-between px-6 bg-transparent text-white pointer-events-auto shrink-0">
 
-                <div className="h-6 w-[1px] bg-white/20 rounded-full hidden md:block"></div>
-
-                <a href="#" className="text-sm font-sans text-white/50 hover:text-white transition-colors duration-300 hidden md:block">
-                    Documentation
-                </a>
+            <div
+                className={`flex items-center gap-3 cursor-pointer group transition-opacity duration-200 ${isSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                    }`}
+                onClick={toggleSidebar}
+            >
+                <img
+                    src="/libra_logo.png"
+                    alt="Libra Logo"
+                    className="w-10 h-10 object-contain"
+                />
+                <span className="font-space text-lg font-normal tracking-widest mt-[2px] group-hover:text-white/80 transition-colors">
+                    LIBRA
+                </span>
             </div>
 
-
-            <div className="flex items-center gap-4">
-                <span className="text-sm font-sans text-white/70">
-                    Light Mode
-                </span>
-
-                <button
-                    onClick={() => setIsLightMode(!isLightMode)}
-                    className={`relative w-14 h-7 rounded-full border transition-colors duration-300 flex items-center px-1
-            ${isLightMode ? 'bg-white/20 border-white/40' : 'bg-white/5 border-white/20'}`}
-                >
-
-                    <div
-                        className={`w-5 h-5 rounded-full bg-white shadow-lg transition-transform duration-300 
-              ${isLightMode ? 'translate-x-7' : 'translate-x-0'}`}
-                    ></div>
-                </button>
+            {/* light mode toggle */}
+            <div className="flex items-center gap-3 text-sm text-white/70 hover:text-white transition cursor-pointer">
+                <span>Light Mode</span>
+                <div className="w-8 h-4 bg-white/20 rounded-full relative flex items-center px-0.5">
+                    <div className="w-3 h-3 bg-white rounded-full"></div>
+                </div>
             </div>
 
         </nav>
