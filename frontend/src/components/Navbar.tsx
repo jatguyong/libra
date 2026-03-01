@@ -24,14 +24,6 @@ const Navbar = ({ isSidebarOpen, toggleSidebar }: NavbarProps) => {
                 </span>
             </div>
 
-            {/* light mode toggle */}
-            <div className="flex items-center gap-3 text-sm text-white/70 hover:text-white transition cursor-pointer">
-                <span>Light Mode</span>
-                <div className="w-8 h-4 bg-white/20 rounded-full relative flex items-center px-0.5">
-                    <div className="w-3 h-3 bg-white rounded-full"></div>
-                </div>
-            </div>
-
         </nav>
     );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { motion } from 'framer-motion';
 import Galaxy from './components/Backgrounds/Galaxy';
 import Navbar from './components/Navbar';
@@ -9,23 +10,23 @@ import { Brain, ChevronDown } from 'lucide-react';
 
 interface Message {
   id: string;
-  role: 'user' | 'ai';
+  role: 'user' | 'llm';
   content: string;
 }
 
-const BotMessage = ({ message }: { message: Message }) => {
+const AiMessage = ({ message }: { message: Message }) => {
   const [isThoughtExpanded, setIsThoughtExpanded] = useState(false);
 
   return (
     <div className="flex w-full justify-start">
-      <div className="max-w-[80%] rounded-2xl px-5 py-4 font-sans text-[15px] leading-relaxed bg-transparent text-white/90">
+      <div className="max-w-[80%] rounded-2xl px-5 py-4 font-inter text-[15px] leading-relaxed bg-transparent text-white/90">
 
         {/* CoT header */}
         <button
           onClick={() => setIsThoughtExpanded(!isThoughtExpanded)}
           className="flex items-center gap-2 mb-2 group text-white/50 hover:text-white/80 transition-colors w-auto"
         >
-          <Brain size={16} className="text-purple-400 group-hover:text-purple-300 transition-colors" />
+          <Brain size={16} className="font-inter text-purple-400 group-hover:text-purple-300 transition-colors" />
           <span className="text-sm font-medium">Libra's Thought Process</span>
           <ChevronDown
             size={14}
@@ -34,15 +35,29 @@ const BotMessage = ({ message }: { message: Message }) => {
         </button>
 
         {isThoughtExpanded && (
-          <div className="pl-4 mt-2 border-l-2 border-white/10 text-sm text-white/50 space-y-2 mb-3">
+          <div className="font-inter pl-4 mt-2 border-l-2 border-white/10 text-sm text-white/50 space-y-2 mb-3">
             <p>• Parsing user intent and symbolic parameters...</p>
             <p>• Accessing context...</p>
             <p>• Synthesizing logical constraints for final output...</p>
           </div>
         )}
 
-        <div style={{ whiteSpace: 'pre-wrap' }}>
-          {message.content.replace(/<br\s*\/?>/gi, '\n').replace(/\n{3,}/g, '\n\n')}
+        <div className="font-inter text-[15px] leading-relaxed w-full text-[#DEE1E5]">
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => <p className="mb-4 last:mb-0">{children}</p>,
+              ul: ({ children }) => <ul className="list-disc pl-5 mb-4 space-y-1">{children}</ul>,
+              ol: ({ children }) => <ol className="list-decimal pl-5 mb-4 space-y-1">{children}</ol>,
+              li: ({ children }) => <li className="mb-1">{children}</li>,
+              strong: ({ children }) => <strong className="font-bold text-[#DEE1E5]">{children}</strong>,
+              em: ({ children }) => <em className="italic text-[#DEE1E5]">{children}</em>,
+              h1: ({ children }) => <h1 className="text-2xl font-bold mt-5 mb-3 text-[#DEE1E5]">{children}</h1>,
+              h2: ({ children }) => <h2 className="text-xl font-bold mt-5 mb-3 text-[#DEE1E5]">{children}</h2>,
+              h3: ({ children }) => <h3 className="text-lg font-bold mt-4 mb-2 text-[#DEE1E5]">{children}</h3>,
+            }}
+          >
+            {message.content.replace(/<br\s*\/?>/gi, '\n')}
+          </ReactMarkdown>
         </div>
 
       </div>
@@ -94,7 +109,7 @@ function App() {
             setIsVoid(false);
 
             try {
-              const response = await fetch('http://127.0.0.1:5000/api/chat', {
+              const response = await fetch('http://localhost:5000/api/chat', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -102,18 +117,33 @@ function App() {
                 body: JSON.stringify({ messages: updatedMessagesArray }),
               });
 
-              const data = await response.json();
+              if (!response.body) throw new Error('No response body');
 
-              const newBotMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'ai',
-                content: data.response
-              };
-              setMessages((prev) => [...prev, newBotMsg]);
+              setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: 'llm', content: '' }]);
+
+              const reader = response.body.getReader();
+              const decoder = new TextDecoder('utf-8');
+
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                  setIsLoading(false); // final cleanup when stream finishes
+                  break;
+                }
+
+                setIsLoading(false); // remove indicator once text starts arriving
+                const chunkText = decoder.decode(value, { stream: true });
+
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === (Date.now() + 1).toString() ? { ...msg, content: msg.content + chunkText } : msg
+                  )
+                );
+              }
             } catch (error) {
               const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
-                role: 'ai',
+                role: 'llm',
                 content: "Error: Cannot connect to the Libra backend."
               };
               setMessages((prev) => [...prev, errorMsg]);
@@ -132,7 +162,7 @@ function App() {
       setIsLoading(true);
 
       try {
-        const response = await fetch('http://127.0.0.1:5000/api/chat', {
+        const response = await fetch('http://localhost:5000/api/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -140,18 +170,34 @@ function App() {
           body: JSON.stringify({ messages: updatedMessagesArray }),
         });
 
-        const data = await response.json();
+        if (!response.body) throw new Error('No response body');
 
-        const newBotMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'ai',
-          content: data.response
-        };
-        setMessages((prev) => [...prev, newBotMsg]);
+        const llmMsgId = (Date.now() + 1).toString();
+        setMessages((prev) => [...prev, { id: llmMsgId, role: 'llm', content: '' }]);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            setIsLoading(false); // final cleanup when stream finishes
+            break;
+          }
+
+          setIsLoading(false); // remove indicator once text starts arriving
+          const chunkText = decoder.decode(value, { stream: true });
+
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === llmMsgId ? { ...msg, content: msg.content + chunkText } : msg
+            )
+          );
+        }
       } catch (error) {
         const errorMsg: Message = {
           id: (Date.now() + 1).toString(),
-          role: 'ai',
+          role: 'llm',
           content: "Error: Cannot connect to the Libra backend."
         };
         setMessages((prev) => [...prev, errorMsg]);
@@ -163,7 +209,6 @@ function App() {
 
 
   return (
-    // ROOT is now a flex-row
     <div className="relative h-screen w-full flex flex-row overflow-hidden bg-[#060010]">
 
       {isVoid && (
@@ -224,21 +269,21 @@ function App() {
                     {msg.role === 'user' ? (
                       <div className="flex w-full justify-end">
                         <div
-                          className="max-w-[80%] rounded-2xl px-5 py-4 font-sans text-[15px] leading-relaxed bg-white/10 text-white border border-white/10 backdrop-blur-md"
+                          className="max-w-[80%] rounded-2xl px-5 py-4 font-inter text-[15px] leading-relaxed bg-white/10 text-white border border-white/10 backdrop-blur-md"
                           style={{ whiteSpace: 'pre-wrap' }}
                         >
                           {msg.content.replace(/\n{3,}/g, '\n\n')}
                         </div>
                       </div>
                     ) : (
-                      <BotMessage message={msg} />
+                      <AiMessage message={msg} />
                     )}
                   </React.Fragment>
                 ))}
 
                 {isLoading && (
                   <div className="flex w-full justify-start">
-                    <div className="bg-transparent text-white/50 font-sans px-5 py-4 animate-pulse">
+                    <div className="bg-transparent text-white/50 font-inter px-5 py-4 animate-pulse">
                       Libra is thinking...
                     </div>
                   </div>

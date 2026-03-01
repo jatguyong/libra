@@ -1,5 +1,5 @@
-import React, { useState, type KeyboardEvent, useRef, useEffect } from 'react';
-import { Plus, ChevronDown, Send, FileText, X } from 'lucide-react';
+import React, { useState, type KeyboardEvent, useRef } from 'react';
+import { Plus, Send, FileText, X, Info } from 'lucide-react';
 
 interface ChatBoxProps {
     onSendMessage: (message: string) => void;
@@ -13,23 +13,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
     const [inputText, setInputText] = useState('');
     const [showBadge, setShowBadge] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [selectedEngine, setSelectedEngine] = useState('Baseline LLM');
-    const engines = ['Baseline LLM', 'GraphRAG', 'Prolog-GraphRAG'];
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (isDropdownOpen && dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsDropdownOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [isDropdownOpen]);
+    const [useGlobalKG, setUseGlobalKG] = useState(false);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -117,7 +101,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
                     onKeyDown={handleKeyDown}
                     disabled={isLoading}
                     placeholder="Ask me any educational questions..."
-                    className="w-full bg-transparent border-none outline-none text-white font-sans text-sm placeholder:text-white/40 resize-none h-12"
+                    className="w-full bg-transparent border-none outline-none text-white font-inter text-sm placeholder:text-white/40 resize-none h-12"
                     style={{ whiteSpace: 'pre-wrap' }}
                 />
 
@@ -131,31 +115,28 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
                             <Plus size={16} />
                         </button>
 
-                        <div className="relative" ref={dropdownRef}>
+                        <div className="flex items-center gap-2 pl-2">
                             <button
-                                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                className="flex items-center gap-2 px-4 py-1.5 rounded-full border border-white/20 text-white/70 text-xs font-sans hover:bg-white/10 transition"
+                                onClick={() => setUseGlobalKG(!useGlobalKG)}
+                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none ${useGlobalKG ? 'bg-[#A278AE]' : 'bg-white/20'}`}
+                                role="switch"
+                                aria-checked={useGlobalKG}
                             >
-                                {selectedEngine}
-                                <ChevronDown size={14} className={`transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                                <span
+                                    aria-hidden="true"
+                                    className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-300 ease-in-out ${useGlobalKG ? 'translate-x-[19px]' : 'translate-x-[3px]'}`}
+                                />
                             </button>
 
-                            {isDropdownOpen && (
-                                <div className={`absolute left-0 w-48 bg-[#1a1523] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50 ${isChatActive ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top'}`}>
-                                    {engines.map((engine) => (
-                                        <button
-                                            key={engine}
-                                            onClick={() => {
-                                                setSelectedEngine(engine);
-                                                setIsDropdownOpen(false);
-                                            }}
-                                            className={`w-full text-left px-4 py-2 text-xs font-sans hover:bg-white/5 transition-colors ${selectedEngine === engine ? 'text-white bg-white/10' : 'text-white/70'}`}
-                                        >
-                                            {engine}
-                                        </button>
-                                    ))}
+                            <span className="text-white/70 text-sm font-space select-none tracking-wide">Use Global KG</span>
+
+                            <div className="relative group/tooltip flex items-center">
+                                <Info size={17} className="text-white/50 cursor-help hover:text-white/80 transition-colors" />
+                                <div className="font-inter absolute bottom-full left-0 mb-3 w-64 p-3 bg-[#1a1523] border border-white/10 rounded-xl shadow-2xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-300 origin-bottom-left scale-95 group-hover/tooltip:scale-100 text-xs text-white/80 leading-relaxed pointer-events-none">
+                                    Searches the Global Knowledge Graph (including KBPedia and Wikidata) to provide highly accurate, fact-based answers.
+                                    <div className="absolute top-full left-1.5 border-4 border-transparent border-t-[#1a1523]" />
                                 </div>
-                            )}
+                            </div>
                         </div>
                     </div>
 

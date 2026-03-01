@@ -65,7 +65,7 @@ const Sidebar = ({ isOpen, toggleSidebar, uploadedFile, onNewConversation }: Sid
                         <ExternalLink size={14} />
                     </a>
                     <span className="text-xs font-sans text-white/30">
-                        Built by your mama
+                        Prototype for Thesis 2
                     </span>
                 </div>
 

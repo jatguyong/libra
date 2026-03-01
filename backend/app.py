@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import ollama
 
@@ -48,16 +48,14 @@ def chat():
         })
 
     try:
-        # Calls ollama.chat
-        response = ollama.chat(model=MODEL_NAME, messages=ollama_messages)
+        def generate():
+            # Calls ollama.chat with stream=True
+            response = ollama.chat(model=MODEL_NAME, messages=ollama_messages, stream=True)
+            for chunk in response:
+                if 'message' in chunk and 'content' in chunk['message']:
+                    yield chunk['message']['content']
         
-        # Extracts the response text
-        ai_response = response['message']['content']
-        
-        return jsonify({
-            "response": ai_response,
-            "status": "success"
-        })
+        return Response(generate(), mimetype='text/plain')
         
     except Exception as e:
         # Uses a try/except block to gracefully return a JSON error if Ollama is not running
