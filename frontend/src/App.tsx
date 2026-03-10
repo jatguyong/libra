@@ -6,16 +6,44 @@ import Navbar from './components/Navbar';
 import WelcomeScreen from './components/WelcomeScreen';
 import ChatBox from './components/ChatBox';
 import Sidebar from './components/Sidebar';
-import { Brain, ChevronDown } from 'lucide-react';
-
+import { Brain, ChevronDown, Copy, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 interface Message {
   id: string;
   role: 'user' | 'llm';
   content: string;
+  alternativeContents?: string[];
 }
 
-const AiMessage = ({ message }: { message: Message }) => {
+const AiMessage = ({ message, onRedo, isFinished }: { message: Message, onRedo: (id: string) => void, isFinished: boolean }) => {
   const [isThoughtExpanded, setIsThoughtExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const variants = message.alternativeContents ? [...message.alternativeContents, message.content] : [message.content];
+  const [viewIndex, setViewIndex] = useState(variants.length - 1);
+
+  useEffect(() => {
+    setViewIndex(variants.length - 1);
+  }, [variants.length]);
+
+  const currentDisplayContent = variants[viewIndex] || '';
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(currentDisplayContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handlePrev = () => {
+    if (viewIndex > 0) setViewIndex(viewIndex - 1);
+  };
+
+  const handleNext = () => {
+    if (viewIndex < variants.length - 1) setViewIndex(viewIndex + 1);
+  };
+
+  if (!currentDisplayContent && !isFinished) {
+    return null;
+  }
 
   return (
     <div className="flex w-full justify-start">
@@ -56,9 +84,52 @@ const AiMessage = ({ message }: { message: Message }) => {
               h3: ({ children }) => <h3 className="text-lg font-bold mt-4 mb-2 text-[#DEE1E5]">{children}</h3>,
             }}
           >
-            {message.content.replace(/<br\s*\/?>/gi, '\n')}
+            {currentDisplayContent.replace(/<br\s*\/?>/gi, '\n')}
           </ReactMarkdown>
         </div>
+
+        {/* Action Bar */}
+        {isFinished && (
+          <div className="mt-2 flex items-center gap-1 text-white/40">
+            <div className="relative group/tooltip flex items-center justify-center">
+              <button onClick={handleCopy} className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors">
+                <Copy size={16} />
+              </button>
+              <div className="absolute bottom-full mb-2 bg-[#1a1523] text-white/80 text-xs px-2 py-1 rounded border border-white/10 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all whitespace-nowrap z-10 pointer-events-none">
+                {copied ? 'Copied!' : 'Copy'}
+              </div>
+            </div>
+
+            <div className="relative group/tooltip flex items-center justify-center">
+              <button onClick={() => onRedo(message.id)} className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors">
+                <RefreshCw size={16} />
+              </button>
+              <div className="absolute bottom-full mb-2 bg-[#1a1523] text-white/80 text-xs px-2 py-1 rounded border border-white/10 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all whitespace-nowrap z-10 pointer-events-none">
+                Redo response
+              </div>
+            </div>
+
+            {variants.length > 1 && (
+              <div className="flex items-center gap-1 ml-1 select-none text-xs font-medium">
+                <button
+                  onClick={handlePrev}
+                  disabled={viewIndex === 0}
+                  className={`p-1 rounded-md transition-colors ${viewIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="w-8 text-center">{viewIndex + 1}/{variants.length}</span>
+                <button
+                  onClick={handleNext}
+                  disabled={viewIndex === variants.length - 1}
+                  className={`p-1 rounded-md transition-colors ${viewIndex === variants.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
     </div>
@@ -207,6 +278,66 @@ function App() {
     }
   };
 
+  const handleRedo = async (llmMsgId: string) => {
+    if (isLoading) return;
+
+    const msgIndex = messages.findIndex(m => m.id === llmMsgId);
+    if (msgIndex === -1) return;
+
+    // Send context up to the message before the LLM message (the user message)
+    const contextMessages = messages.slice(0, msgIndex);
+
+    setMessages(prev => prev.map((msg, i) => {
+      if (i === msgIndex) {
+        const alt = msg.alternativeContents || [];
+        return { ...msg, alternativeContents: [...alt, msg.content], content: '' };
+      }
+      return msg;
+    }));
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:5000/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ messages: contextMessages }),
+      });
+
+      if (!response.body) throw new Error('No response body');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          setIsLoading(false);
+          break;
+        }
+
+        setIsLoading(false);
+        const chunkText = decoder.decode(value, { stream: true });
+
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === llmMsgId ? { ...msg, content: msg.content + chunkText } : msg
+          )
+        );
+      }
+    } catch (error) {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === llmMsgId ? { ...msg, content: "Error: Cannot connect to the Libra backend." } : msg
+        )
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   return (
     <div className="relative h-screen w-full flex flex-row overflow-hidden bg-[#060010]">
@@ -221,10 +352,10 @@ function App() {
             mouseRepulsion={false}
             mouseInteraction={!hasStartedChat}
             density={1}
-            glowIntensity={hasStartedChat ? 0.05 : 0.2}
+            glowIntensity={hasStartedChat ? 0.1 : 0.2}
             saturation={0}
             hueShift={140}
-            twinkleIntensity={hasStartedChat ? 0.05 : 0.3}
+            twinkleIntensity={hasStartedChat ? 0.1 : 0.3}
             rotationSpeed={hasStartedChat ? 0.0 : 0.05}
             repulsionStrength={10}
             autoCenterRepulsion={0}
@@ -248,22 +379,21 @@ function App() {
 
             <main className="flex-1 flex flex-col items-center justify-center pointer-events-none px-6 mt-[-10%]">
               <WelcomeScreen />
-              <div className="w-full flex justify-center pointer-events-auto">
+              <div className="w-full max-w-4xl mx-auto mt-8 px-6 flex justify-center pointer-events-auto">
                 <ChatBox
                   onSendMessage={handleSendMessage}
                   isLoading={isLoading}
                   uploadedFile={uploadedFile}
                   setUploadedFile={setUploadedFile}
-                  isChatActive={hasStartedChat}
                 />
               </div>
             </main>
 
           ) : (
 
-            <main className="flex-1 flex flex-col pointer-events-auto px-6 pb-8 overflow-hidden w-full max-w-4xl mx-auto">
+            <main className="flex-1 flex flex-col pointer-events-auto overflow-hidden w-full relative">
 
-              <div className="flex-1 overflow-y-auto w-full pt-4 flex flex-col gap-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="h-full overflow-y-auto w-full max-w-4xl mx-auto pt-4 pb-40 px-6 flex flex-col gap-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {messages.map((msg) => (
                   <React.Fragment key={msg.id}>
                     {msg.role === 'user' ? (
@@ -276,7 +406,11 @@ function App() {
                         </div>
                       </div>
                     ) : (
-                      <AiMessage message={msg} />
+                      <AiMessage
+                        message={msg}
+                        onRedo={handleRedo}
+                        isFinished={!isLoading || msg.id !== messages[messages.length - 1].id}
+                      />
                     )}
                   </React.Fragment>
                 ))}
@@ -290,17 +424,18 @@ function App() {
                 )}
 
                 {/* Auto-scroll target */}
-                <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} className="h-4 shrink-0" />
               </div>
 
-              <div className="w-full flex justify-center shrink-0 pt-4">
-                <ChatBox
-                  onSendMessage={handleSendMessage}
-                  isLoading={isLoading}
-                  uploadedFile={uploadedFile}
-                  setUploadedFile={setUploadedFile}
-                  isChatActive={hasStartedChat}
-                />
+              <div className="absolute bottom-0 left-0 right-0 z-50 pb-8 pt-12 bg-gradient-to-t from-[#060010] via-[#060010]/80 to-transparent pointer-events-none flex justify-center w-full">
+                <div className="w-full max-w-4xl mx-auto px-6 flex justify-center pointer-events-auto">
+                  <ChatBox
+                    onSendMessage={handleSendMessage}
+                    isLoading={isLoading}
+                    uploadedFile={uploadedFile}
+                    setUploadedFile={setUploadedFile}
+                  />
+                </div>
               </div>
 
             </main>

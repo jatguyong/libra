@@ -6,14 +6,31 @@ interface ChatBoxProps {
     isLoading?: boolean;
     uploadedFile?: File | null;
     setUploadedFile?: (file: File | null) => void;
-    isChatActive?: boolean;
 }
 
-const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFile, isChatActive = false }: ChatBoxProps) => {
+const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFile }: ChatBoxProps) => {
     const [inputText, setInputText] = useState('');
     const [showBadge, setShowBadge] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [useGlobalKG, setUseGlobalKG] = useState(false);
+
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const adjustTextareaHeight = () => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+        }
+    };
+
+    // Reset height when input clears (e.g., after send)
+    React.useEffect(() => {
+        if (inputText === '') {
+            if (textareaRef.current) {
+                textareaRef.current.style.height = 'auto';
+            }
+        }
+    }, [inputText]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -45,8 +62,13 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
         }
     };
 
+    const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setInputText(e.target.value);
+        adjustTextareaHeight();
+    };
+
     return (
-        <div className="relative w-full max-w-3xl mt-8 rounded-[2rem] shadow-2xl group">
+        <div className="relative w-full rounded-[2rem] shadow-2xl group">
 
             <div
                 className="absolute inset-0 rounded-[2rem] backdrop-blur-md"
@@ -69,7 +91,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
                 }}
             />
 
-            <div className="relative flex flex-col justify-between w-full min-h-[140px] px-6 py-5">
+            <div className="relative flex flex-col justify-between w-full min-h-[120px] px-6 py-5">
                 <input
                     type="file"
                     accept="application/pdf"
@@ -96,12 +118,14 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
                 )}
 
                 <textarea
+                    ref={textareaRef}
                     value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
+                    onChange={handleChange}
                     onKeyDown={handleKeyDown}
                     disabled={isLoading}
+                    rows={1}
                     placeholder="Ask me any educational questions..."
-                    className="w-full bg-transparent border-none outline-none text-white font-inter text-sm placeholder:text-white/40 resize-none h-12"
+                    className="w-full bg-transparent border-none outline-none text-white font-inter text-sm placeholder:text-white/40 resize-none overflow-y-auto min-h-[44px] max-h-[200px]"
                     style={{ whiteSpace: 'pre-wrap' }}
                 />
 
