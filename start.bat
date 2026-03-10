@@ -46,6 +46,8 @@ start "Libra Frontend" cmd /k "cd frontend && npm run dev"
 echo.
 echo =========================================
 echo Both services have been started in separate windows!
+echo Opening browser...
+start http://localhost:5173/
 echo You can close this window now.
 echo =========================================
 pause
