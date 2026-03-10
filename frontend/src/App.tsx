@@ -6,7 +6,7 @@ import Navbar from './components/Navbar';
 import WelcomeScreen from './components/WelcomeScreen';
 import ChatBox from './components/ChatBox';
 import Sidebar from './components/Sidebar';
-import { Brain, ChevronDown, Copy, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Brain, ChevronDown, Copy, RefreshCw, ChevronLeft, ChevronRight, X } from 'lucide-react';
 interface Message {
   id: string;
   role: 'user' | 'llm';
@@ -14,7 +14,7 @@ interface Message {
   alternativeContents?: string[];
 }
 
-const AiMessage = ({ message, onRedo, isFinished }: { message: Message, onRedo: (id: string) => void, isFinished: boolean }) => {
+const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { message: Message, onRedo: (id: string) => void, isFinished: boolean, onExplanationClick: () => void }) => {
   const [isThoughtExpanded, setIsThoughtExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -91,6 +91,26 @@ const AiMessage = ({ message, onRedo, isFinished }: { message: Message, onRedo: 
         {/* Action Bar */}
         {isFinished && (
           <div className="mt-2 flex items-center gap-1 text-white/40">
+            {variants.length > 1 && (
+              <div className="flex items-center gap-1 mr-1 select-none text-xs font-medium">
+                <button
+                  onClick={handlePrev}
+                  disabled={viewIndex === 0}
+                  className={`p-1 rounded-md transition-colors ${viewIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="w-8 text-center">{viewIndex + 1}/{variants.length}</span>
+                <button
+                  onClick={handleNext}
+                  disabled={viewIndex === variants.length - 1}
+                  className={`p-1 rounded-md transition-colors ${viewIndex === variants.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+
             <div className="relative group/tooltip flex items-center justify-center">
               <button onClick={handleCopy} className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors">
                 <Copy size={16} />
@@ -109,25 +129,9 @@ const AiMessage = ({ message, onRedo, isFinished }: { message: Message, onRedo: 
               </div>
             </div>
 
-            {variants.length > 1 && (
-              <div className="flex items-center gap-1 ml-1 select-none text-xs font-medium">
-                <button
-                  onClick={handlePrev}
-                  disabled={viewIndex === 0}
-                  className={`p-1 rounded-md transition-colors ${viewIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="w-8 text-center">{viewIndex + 1}/{variants.length}</span>
-                <button
-                  onClick={handleNext}
-                  disabled={viewIndex === variants.length - 1}
-                  className={`p-1 rounded-md transition-colors ${viewIndex === variants.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            )}
+            <button onClick={onExplanationClick} className="text-sm font-inter text-white/40 hover:text-white/70 transition-colors ml-1 cursor-pointer">
+              Explanation
+            </button>
           </div>
         )}
 
@@ -148,6 +152,8 @@ function App() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  const [isExplanationOpen, setIsExplanationOpen] = useState(false);
 
   const handleNewConversation = () => {
     setMessages([]);
@@ -339,6 +345,7 @@ function App() {
   };
 
 
+  {/* galaxy bg */ }
   return (
     <div className="relative h-screen w-full flex flex-row overflow-hidden bg-[#060010]">
 
@@ -393,7 +400,7 @@ function App() {
 
             <main className="flex-1 flex flex-col pointer-events-auto overflow-hidden w-full relative">
 
-              <div className="h-full overflow-y-auto w-full max-w-4xl mx-auto pt-4 pb-40 px-6 flex flex-col gap-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="h-full overflow-y-auto w-full max-w-[768px] mx-auto shrink-0 pt-4 pb-40 px-6 flex flex-col gap-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {messages.map((msg) => (
                   <React.Fragment key={msg.id}>
                     {msg.role === 'user' ? (
@@ -410,6 +417,7 @@ function App() {
                         message={msg}
                         onRedo={handleRedo}
                         isFinished={!isLoading || msg.id !== messages[messages.length - 1].id}
+                        onExplanationClick={() => setIsExplanationOpen(true)}
                       />
                     )}
                   </React.Fragment>
@@ -428,7 +436,7 @@ function App() {
               </div>
 
               <div className="absolute bottom-0 left-0 right-0 z-50 pb-8 pt-12 bg-gradient-to-t from-[#060010] via-[#060010]/80 to-transparent pointer-events-none flex justify-center w-full">
-                <div className="w-full max-w-4xl mx-auto px-6 flex justify-center pointer-events-auto">
+                <div className="w-full max-w-[768px] mx-auto justify-center shrink-0 px-6 flex pointer-events-auto">
                   <ChatBox
                     onSendMessage={handleSendMessage}
                     isLoading={isLoading}
@@ -443,13 +451,29 @@ function App() {
           )}
         </div>
 
+        {/* Explanation Pane */}
+        <motion.div
+          initial={false}
+          animate={{ width: isExplanationOpen ? 384 : 0, opacity: isExplanationOpen ? 1 : 0 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
+          className="h-full shrink-0 pointer-events-auto flex flex-col bg-[#0E0915] border-l border-white/10 overflow-hidden z-20"
+        >
+          <div className="w-[384px] h-full flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 shrink-0">
+              <span className="font-space text-base font-normal tracking-widest mt-[2px] text-white">Explanation</span>
+              <button onClick={() => setIsExplanationOpen(false)} className="text-white/50 hover:text-white transition-colors cursor-pointer">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <p className="text-white/90 text-sm font-inter">Details...</p>
+            </div>
+          </div>
+        </motion.div>
+
       </div>
     </div>
   );
 }
 
 export default App;
-
-
-
-
