@@ -37,7 +37,7 @@ uniform bool uTransparent;
 
 varying vec2 vUv;
 
-#define NUM_LAYER 4.0
+#define NUM_LAYER 2.0
 #define STAR_COLOR_CUTOFF 0.2
 #define MAT45 mat2(0.7071, -0.7071, 0.7071, 0.7071)
 #define PERIOD 3.0
@@ -89,22 +89,13 @@ vec3 StarLayer(vec2 uv) {
   for (int y = -1; y <= 1; y++) {
     for (int x = -1; x <= 1; x++) {
       vec2 offset = vec2(float(x), float(y));
-      vec2 si = id + vec2(float(x), float(y));
+      vec2 si = id + offset;
       float seed = Hash21(si);
       float size = fract(seed * 345.32);
       float glossLocal = tri(uStarSpeed / (PERIOD * seed + 1.0));
       float flareSize = smoothstep(0.9, 1.0, size) * glossLocal;
 
-      float red = smoothstep(STAR_COLOR_CUTOFF, 1.0, Hash21(si + 1.0)) + STAR_COLOR_CUTOFF;
-      float blu = smoothstep(STAR_COLOR_CUTOFF, 1.0, Hash21(si + 3.0)) + STAR_COLOR_CUTOFF;
-      float grn = min(red, blu) * seed;
-      vec3 base = vec3(red, grn, blu);
-      
-      float hue = atan(base.g - base.r, base.b - base.r) / (2.0 * 3.14159) + 0.5;
-      hue = fract(hue + uHueShift / 360.0);
-      float sat = length(base - vec3(dot(base, vec3(0.299, 0.587, 0.114)))) * uSaturation;
-      float val = max(max(base.r, base.g), base.b);
-      base = hsv2rgb(vec3(hue, sat, val));
+      vec3 base = vec3(1.0);
 
       vec2 pad = vec2(tris(seed * 34.0 + uTime * uSpeed / 10.0), tris(seed * 38.0 + uTime * uSpeed / 30.0)) - 0.5;
 
@@ -126,21 +117,22 @@ void main() {
   vec2 focalPx = uFocal * uResolution.xy;
   vec2 uv = (vUv * uResolution.xy - focalPx) / uResolution.y;
 
-  vec2 mouseNorm = uMouse - vec2(0.5);
-  
-  if (uAutoCenterRepulsion > 0.0) {
-    vec2 centerUV = vec2(0.0, 0.0);
-    float centerDist = length(uv - centerUV);
-    vec2 repulsion = normalize(uv - centerUV) * (uAutoCenterRepulsion / (centerDist + 0.1));
-    uv += repulsion * 0.05;
-  } else if (uMouseRepulsion) {
-    vec2 mousePosUV = (uMouse * uResolution.xy - focalPx) / uResolution.y;
-    float mouseDist = length(uv - mousePosUV);
-    vec2 repulsion = normalize(uv - mousePosUV) * (uRepulsionStrength / (mouseDist + 0.1));
-    uv += repulsion * 0.05 * uMouseActiveFactor;
-  } else {
-    vec2 mouseOffset = mouseNorm * 0.1 * uMouseActiveFactor;
-    uv += mouseOffset;
+  // Only compute repulsion/mouse offset when active
+  if (uMouseActiveFactor > 0.01) {
+    if (uAutoCenterRepulsion > 0.0) {
+      float centerDist = length(uv);
+      vec2 repulsion = normalize(uv) * (uAutoCenterRepulsion / (centerDist + 0.1));
+      uv += repulsion * 0.05;
+    } else if (uMouseRepulsion) {
+      vec2 mousePosUV = (uMouse * uResolution.xy - focalPx) / uResolution.y;
+      float mouseDist = length(uv - mousePosUV);
+      vec2 repulsion = normalize(uv - mousePosUV) * (uRepulsionStrength / (mouseDist + 0.1));
+      uv += repulsion * 0.05 * uMouseActiveFactor;
+    } else {
+      vec2 mouseNorm = uMouse - vec2(0.5);
+      vec2 mouseOffset = mouseNorm * 0.1 * uMouseActiveFactor;
+      uv += mouseOffset;
+    }
   }
 
   float autoRotAngle = uTime * uRotationSpeed;
@@ -191,6 +183,11 @@ interface GalaxyProps {
 const DEFAULT_FOCAL: [number, number] = [0.5, 0.5];
 const DEFAULT_ROTATION: [number, number] = [1.0, 0.0];
 
+// Cap render resolution — never exceed 1× CSS pixels regardless of device DPR
+const MAX_PIXEL_RATIO = 1.0;
+// Target ~30fps for the background (interval in ms)
+const FRAME_INTERVAL = 1000 / 30;
+
 export default memo(function Galaxy({
   focal = DEFAULT_FOCAL,
   rotation = DEFAULT_ROTATION,
@@ -236,8 +233,12 @@ export default memo(function Galaxy({
     let program: Program;
 
     function resize() {
-      const scale = 1;
+      // Cap the pixel ratio to MAX_PIXEL_RATIO to avoid rendering at high-DPI resolutions
+      const scale = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
       renderer.setSize(ctn.offsetWidth * scale, ctn.offsetHeight * scale);
+      // Ensure the canvas CSS size fills the container
+      gl.canvas.style.width = ctn.offsetWidth + 'px';
+      gl.canvas.style.height = ctn.offsetHeight + 'px';
       if (program) {
         program.uniforms.uResolution.value = new Color(
           gl.canvas.width,
@@ -281,9 +282,16 @@ export default memo(function Galaxy({
 
     const mesh = new Mesh(gl, { geometry, program });
     let animateId: number;
+    let lastFrameTime = 0;
 
     function update(t: number) {
       animateId = requestAnimationFrame(update);
+
+      // Throttle to ~30fps
+      const delta = t - lastFrameTime;
+      if (delta < FRAME_INTERVAL) return;
+      lastFrameTime = t - (delta % FRAME_INTERVAL);
+
       if (!disableAnimation) {
         program.uniforms.uTime.value = t * 0.001;
         program.uniforms.uStarSpeed.value = (t * 0.001 * starSpeed) / 10.0;
