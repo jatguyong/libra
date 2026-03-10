@@ -49,26 +49,28 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
     <div className="flex w-full justify-start">
       <div className="max-w-[80%] rounded-2xl px-5 py-4 font-inter text-[15px] leading-relaxed bg-transparent text-white/90">
 
-        {/* CoT header */}
-        <button
-          onClick={() => setIsThoughtExpanded(!isThoughtExpanded)}
-          className="flex items-center gap-2 mb-2 group text-white/50 hover:text-white/80 transition-colors w-auto"
-        >
-          <Brain size={16} className="font-inter text-purple-400 group-hover:text-purple-300 transition-colors" />
-          <span className="text-sm font-medium">Libra's Thought Process</span>
-          <ChevronDown
-            size={14}
-            className={`transition-transform duration-300 ${isThoughtExpanded ? 'rotate-180' : ''}`}
-          />
-        </button>
+        {/* CoT header block */}
+        <div className="mb-6">
+          <button
+            onClick={() => setIsThoughtExpanded(!isThoughtExpanded)}
+            className="flex items-center gap-2 mb-2 group text-white/50 hover:text-white/80 transition-colors w-auto"
+          >
+            <Brain size={16} className="font-inter text-purple-400 group-hover:text-purple-300 transition-colors" />
+            <span className="text-sm font-medium">Libra's Thought Process</span>
+            <ChevronDown
+              size={14}
+              className={`transition-transform duration-300 ${isThoughtExpanded ? 'rotate-180' : ''}`}
+            />
+          </button>
 
-        {isThoughtExpanded && (
-          <div className="font-inter pl-4 mt-2 border-l-2 border-white/10 text-sm text-white/50 space-y-2 mb-3">
-            <p>• Parsing user intent and symbolic parameters...</p>
-            <p>• Accessing context...</p>
-            <p>• Synthesizing logical constraints for final output...</p>
-          </div>
-        )}
+          {isThoughtExpanded && (
+            <div className="font-inter pl-4 mt-2 border-l-2 border-white/10 text-sm text-white/50 space-y-2">
+              <p>• Parsing user intent and symbolic parameters...</p>
+              <p>• Accessing context...</p>
+              <p>• Synthesizing logical constraints for final output...</p>
+            </div>
+          )}
+        </div>
 
         <div className="font-inter text-[15px] leading-relaxed w-full text-[#DEE1E5]">
           <ReactMarkdown
@@ -90,30 +92,30 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
 
         {/* Action Bar */}
         {isFinished && (
-          <div className="mt-2 flex items-center gap-1 text-white/40">
+          <div className="mt-6 flex items-center gap-1 text-white/40">
             {variants.length > 1 && (
               <div className="flex items-center gap-1 mr-1 select-none text-xs font-medium">
                 <button
                   onClick={handlePrev}
                   disabled={viewIndex === 0}
-                  className={`p-1 rounded-md transition-colors ${viewIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
+                  className={`p-1 rounded-md transition-colors ${viewIndex === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/30 hover:text-white'}`}
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeft size={18} />
                 </button>
-                <span className="w-8 text-center">{viewIndex + 1}/{variants.length}</span>
+                <span className="w-8 text-sm font-inter font-light text-center">{viewIndex + 1}/{variants.length}</span>
                 <button
                   onClick={handleNext}
                   disabled={viewIndex === variants.length - 1}
-                  className={`p-1 rounded-md transition-colors ${viewIndex === variants.length - 1 ? 'opacity-30 cursor-not-allowed' : 'hover:bg-white/10 hover:text-white'}`}
+                  className={`p-1 rounded-md transition-colors ${viewIndex === variants.length - 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/30 hover:text-white'}`}
                 >
-                  <ChevronRight size={16} />
+                  <ChevronRight size={18} />
                 </button>
               </div>
             )}
 
             <div className="relative group/tooltip flex items-center justify-center">
               <button onClick={handleCopy} className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors">
-                <Copy size={16} />
+                <Copy size={18} />
               </button>
               <div className="absolute bottom-full mb-2 bg-[#1a1523] text-white/80 text-xs px-2 py-1 rounded border border-white/10 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all whitespace-nowrap z-10 pointer-events-none">
                 {copied ? 'Copied!' : 'Copy'}
@@ -122,14 +124,14 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
 
             <div className="relative group/tooltip flex items-center justify-center">
               <button onClick={() => onRedo(message.id)} className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors">
-                <RefreshCw size={16} />
+                <RefreshCw size={18} />
               </button>
               <div className="absolute bottom-full mb-2 bg-[#1a1523] text-white/80 text-xs px-2 py-1 rounded border border-white/10 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all whitespace-nowrap z-10 pointer-events-none">
                 Redo response
               </div>
             </div>
 
-            <button onClick={onExplanationClick} className="text-sm font-inter text-white/40 hover:text-white/70 transition-colors ml-1 cursor-pointer">
+            <button onClick={onExplanationClick} className="text-base font-inter font-light text-white/40 hover:text-white/80 transition-colors ml-1 cursor-pointer">
               Explanation
             </button>
           </div>
@@ -144,6 +146,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
@@ -179,6 +182,7 @@ function App() {
         const updatedMessagesArray = [newUserMsg];
         setMessages(updatedMessagesArray);
         setIsLoading(true);
+        setIsGenerating(true);
 
         // sync with the browser's GPU paint cycle
         requestAnimationFrame(() => {
@@ -205,6 +209,7 @@ function App() {
                 const { done, value } = await reader.read();
                 if (done) {
                   setIsLoading(false); // final cleanup when stream finishes
+                  setIsGenerating(false);
                   break;
                 }
 
@@ -226,6 +231,7 @@ function App() {
               setMessages((prev) => [...prev, errorMsg]);
             } finally {
               setIsLoading(false);
+              setIsGenerating(false);
             }
           });
         });
@@ -237,6 +243,7 @@ function App() {
       const updatedMessagesArray = [...messages, newUserMsg];
       setMessages(updatedMessagesArray);
       setIsLoading(true);
+      setIsGenerating(true);
 
       try {
         const response = await fetch('http://localhost:5000/api/chat', {
@@ -259,6 +266,7 @@ function App() {
           const { done, value } = await reader.read();
           if (done) {
             setIsLoading(false); // final cleanup when stream finishes
+            setIsGenerating(false);
             break;
           }
 
@@ -280,6 +288,7 @@ function App() {
         setMessages((prev) => [...prev, errorMsg]);
       } finally {
         setIsLoading(false);
+        setIsGenerating(false);
       }
     }
   };
@@ -302,6 +311,7 @@ function App() {
     }));
 
     setIsLoading(true);
+    setIsGenerating(true);
 
     try {
       const response = await fetch('http://localhost:5000/api/chat', {
@@ -321,6 +331,7 @@ function App() {
         const { done, value } = await reader.read();
         if (done) {
           setIsLoading(false);
+          setIsGenerating(false);
           break;
         }
 
@@ -341,6 +352,7 @@ function App() {
       );
     } finally {
       setIsLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -389,7 +401,7 @@ function App() {
               <div className="w-full max-w-4xl mx-auto mt-8 px-6 flex justify-center pointer-events-auto">
                 <ChatBox
                   onSendMessage={handleSendMessage}
-                  isLoading={isLoading}
+                  isLoading={isGenerating}
                   uploadedFile={uploadedFile}
                   setUploadedFile={setUploadedFile}
                 />
@@ -416,7 +428,7 @@ function App() {
                       <AiMessage
                         message={msg}
                         onRedo={handleRedo}
-                        isFinished={!isLoading || msg.id !== messages[messages.length - 1].id}
+                        isFinished={!isGenerating || msg.id !== messages[messages.length - 1].id}
                         onExplanationClick={() => setIsExplanationOpen(true)}
                       />
                     )}
@@ -439,7 +451,7 @@ function App() {
                 <div className="w-full max-w-[768px] mx-auto justify-center shrink-0 px-6 flex pointer-events-auto">
                   <ChatBox
                     onSendMessage={handleSendMessage}
-                    isLoading={isLoading}
+                    isLoading={isGenerating}
                     uploadedFile={uploadedFile}
                     setUploadedFile={setUploadedFile}
                   />
