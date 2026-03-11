@@ -563,10 +563,14 @@ function App() {
                   )}
 
                   {/* GraphRAG Sources Section */}
-                  {(selectedExplanation.condensed_context || (Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0)) && (
+                  {(() => {
+                    const cc = selectedExplanation.condensed_context;
+                    const hasValidContext = cc && !cc.toLowerCase().includes('error during generation');
+                    const hasContexts = Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0;
+                    return (hasValidContext || hasContexts) ? (
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">GraphRAG Sources</h3>
-                      {selectedExplanation.condensed_context && (
+                      {hasValidContext && (
                         <div className="mb-3">
                           <p className="text-xs text-white/40 mb-1">Condensed Context</p>
                           <p className="text-sm text-white/70 font-inter leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5 max-h-48 overflow-y-auto">
@@ -587,7 +591,8 @@ function App() {
                         </div>
                       )}
                     </div>
-                  )}
+                    ) : null;
+                  })()}
 
                   {/* Prolog Error (if any) */}
                   {selectedExplanation.prolog_error && (
