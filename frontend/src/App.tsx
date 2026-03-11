@@ -508,10 +508,24 @@ function App() {
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Explainability</h3>
                       {selectedExplanation.explainer_output && (
                         <div className="mb-3">
-                          <p className="text-xs text-white/40 mb-1">Explainer Output</p>
-                          <p className="text-sm text-white/80 font-inter leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
-                            {selectedExplanation.explainer_output}
-                          </p>
+                          <p className="text-xs text-white/40 mb-2">Explainer Output</p>
+                          <div className="text-sm text-white/80 font-inter leading-relaxed">
+                            <ReactMarkdown
+                              components={{
+                                p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                                ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
+                                ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
+                                li: ({ children }) => <li className="mb-1">{children}</li>,
+                                strong: ({ children }) => <strong className="font-bold text-white/90">{children}</strong>,
+                                em: ({ children }) => <em className="italic">{children}</em>,
+                                h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-2 text-white/90">{children}</h1>,
+                                h2: ({ children }) => <h2 className="text-base font-bold mt-4 mb-2 text-white/90">{children}</h2>,
+                                h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1 text-white/90">{children}</h3>,
+                              }}
+                            >
+                              {selectedExplanation.explainer_output}
+                            </ReactMarkdown>
+                          </div>
                         </div>
                       )}
                       {selectedExplanation.prolog_explanation && (
