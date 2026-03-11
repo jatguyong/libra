@@ -54,6 +54,13 @@ def chat():
         else:
             contexts = str(raw_contexts) if raw_contexts else ""
 
+        # Serialize logprobs (they may be Pydantic/OpenAI objects)
+        raw_logprobs = result.get("logprobs", [])
+        try:
+            logprobs = [lp.model_dump() if hasattr(lp, 'model_dump') else lp for lp in (raw_logprobs or [])]
+        except Exception:
+            logprobs = []
+
         return jsonify({
             "answer": result.get("answer", "No answer generated."),
             "explainer_output": result.get("explainer_output", ""),
@@ -64,6 +71,7 @@ def chat():
             "condensed_context": result.get("condensed_context", ""),
             "fallback": result.get("fallback", "unknown"),
             "prolog_error": result.get("prolog_error", None),
+            "logprobs": logprobs,
         })
         
     except Exception as e:

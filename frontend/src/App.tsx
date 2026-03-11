@@ -16,6 +16,7 @@ interface ExplanationData {
   condensed_context: string;
   fallback: string;
   prolog_error: string | null;
+  logprobs: any[];
 }
 
 interface Message {
@@ -224,6 +225,7 @@ function App() {
           condensed_context: data.condensed_context || '',
           fallback: data.fallback || 'unknown',
           prolog_error: data.prolog_error || null,
+          logprobs: data.logprobs || [],
         };
 
         const llmMsg: Message = {
@@ -276,6 +278,7 @@ function App() {
           condensed_context: data.condensed_context || '',
           fallback: data.fallback || 'unknown',
           prolog_error: data.prolog_error || null,
+          logprobs: data.logprobs || [],
         };
 
         const llmMsgId = (Date.now() + 1).toString();
@@ -344,7 +347,8 @@ function App() {
         condensed_context: data.condensed_context || '',
         fallback: data.fallback || 'unknown',
         prolog_error: data.prolog_error || null,
-      };
+          logprobs: data.logprobs || [],
+        };
 
       setMessages((prev) =>
         prev.map((msg) =>
@@ -578,6 +582,30 @@ function App() {
                       <p className="text-sm text-red-300/80 font-inter leading-relaxed whitespace-pre-wrap bg-red-500/5 rounded-lg p-3 border border-red-500/10">
                         {selectedExplanation.prolog_error}
                       </p>
+                    </div>
+                  )}
+
+                  {/* Logprobs (shown for Tuned fallback) */}
+                  {selectedExplanation.fallback === 'tuned' && selectedExplanation.logprobs && selectedExplanation.logprobs.length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Token Log Probabilities</h3>
+                      <div className="bg-white/5 rounded-lg p-3 border border-white/5 max-h-64 overflow-y-auto">
+                        <div className="flex flex-wrap gap-1">
+                          {selectedExplanation.logprobs.map((lp: any, i: number) => {
+                            const prob = lp.logprob != null ? Math.exp(lp.logprob) : 0;
+                            const color = prob > 0.8 ? 'text-green-300' : prob > 0.4 ? 'text-yellow-300' : 'text-red-300';
+                            return (
+                              <span
+                                key={i}
+                                className={`${color} text-xs font-mono px-1 py-0.5 rounded bg-white/5 cursor-default`}
+                                title={`Token: ${lp.token || '?'}\nLogprob: ${lp.logprob?.toFixed(4) ?? 'N/A'}\nProb: ${(prob * 100).toFixed(1)}%`}
+                              >
+                                {lp.token || '?'}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>
