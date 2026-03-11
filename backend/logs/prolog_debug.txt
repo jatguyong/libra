@@ -1,0 +1,79 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 161, in <module>
+    output = run_pipeline(prompt, flag="x")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 17, in run_pipeline
+    fallback = decide_fallback(question)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\llm.py", line 31, in decide_fallback
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\AppData\Local\Programs\Python\Python312\Lib\site-packages\openai\_utils\_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\AppData\Local\Programs\Python\Python312\Lib\site-packages\openai\resources\chat\completions\completions.py", line 1192, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "C:\Users\John Reniel\AppData\Local\Programs\Python\Python312\Lib\site-packages\openai\_base_client.py", line 1297, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\AppData\Local\Programs\Python\Python312\Lib\site-packages\openai\_base_client.py", line 1070, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.APIStatusError: Error code: 402 - {'id': 'oaeWSYa-2j9zxn-9dabb38799f1fed9', 'error': {'message': "Credit limit exceeded, please [add credits](https://api.together.ai/settings/billing). If you've already made a payment, please wait up to 5 minutes for balances to update and try again.", 'type': 'credit_limit', 'param': None, 'code': None}}
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 161, in <module>
+    output = run_pipeline(prompt, flag="x")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 52, in run_pipeline
+    graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback) if flag != "q" else None
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\graphrag\graphrag_driver.py", line 477, in run_pipeline
+    init_globals()
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\graphrag\graphrag_driver.py", line 469, in init_globals
+    encoder_llm, retriever_llm, embedder = initialize_models()
+                                           ^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\graphrag\graphrag_driver.py", line 390, in initialize_models
+    from llm_config import EMBED_MODEL
+ModuleNotFoundError: No module named 'llm_config'
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 161, in <module>
+    output = run_pipeline(prompt, flag="x")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 52, in run_pipeline
+    graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback) if flag != "q" else None
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\graphrag\graphrag_driver.py", line 477, in run_pipeline
+    init_globals()
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\graphrag\graphrag_driver.py", line 471, in init_globals
+    retriever = create_retriever(neo4j_driver, embedder)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\graphrag\retriever.py", line 243, in create_retriever
+    create_indexes(driver)
+    ^^^^^^^^^^^^^^
+NameError: name 'create_indexes' is not defined
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 161, in <module>
+    output = run_pipeline(prompt, flag="x")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 117, in run_pipeline
+    llm_output = generate(question, retrieved_context_str, explainer_output, flag=flag, sample_mode=sample_mode) if prolog_error is None else pgr_results.get("final_answer", "")
+                                    ^^^^^^^^^^^^^^^^^^^^^
+UnboundLocalError: cannot access local variable 'retrieved_context_str' where it is not associated with a value
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 160, in <module>
+    output = run_pipeline(prompt, flag="x")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 30, in run_pipeline
+    final_answer = llm_output["text_answer"]
+                   ~~~~~~~~~~^^^^^^^^^^^^^^^
+KeyError: 'text_answer'
