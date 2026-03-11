@@ -25,43 +25,41 @@ def index():
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
+    from prolog_graphrag_pipeline.main_driver import run_pipeline
+    
     data = request.json or {}
     react_messages = data.get("messages", [])
 
-    # Create a new list for Ollama, starting with the SYSTEM_INSTRUCTION
-    ollama_messages = [
-        {"role": "system", "content": SYSTEM_INSTRUCTION}
-    ]
+    if not react_messages:
+        return jsonify({"error": "No messages provided"}), 400
 
-    # Loop through the incoming React messages array
-    for msg in react_messages:
-        role = msg.get("role")
-        content = msg.get("content", "")
-
-        # Crucial: If a message has role: 'ai', change it to role: 'assistant'
-        if role == "ai":
-            role = "assistant"
-            
-        ollama_messages.append({
-            "role": role,
-            "content": content
-        })
+    # Extract the user's latest question
+    latest_msg = react_messages[-1]
+    question = latest_msg.get("content", "")
 
     try:
+        # Run the Prolog-GraphRAG pipeline
+        # flag="x" means default exeuction path
+        result = run_pipeline(question, flag="x")
+        answer_text = result.get("answer", "No answer generated.")
+        
+        # Generator to simulate streaming the final answer to the frontend
         def generate():
-            # Calls ollama.chat with stream=True
-            response = ollama.chat(model=MODEL_NAME, messages=ollama_messages, stream=True)
-            for chunk in response:
-                if 'message' in chunk and 'content' in chunk['message']:
-                    yield chunk['message']['content']
+            # Split the text by spaces safely and yield piece by piece to keep the frontend UI streaming effect
+            import time
+            words = answer_text.split(" ")
+            for word in words:
+                yield word + " "
+                time.sleep(0.02)
         
         return Response(generate(), mimetype='text/plain')
         
     except Exception as e:
-        # Uses a try/except block to gracefully return a JSON error if Ollama is not running
-        print(f"Ollama Error: {e}")
+        import traceback
+        traceback.print_exc()
+        print(f"Pipeline Error: {e}")
         return jsonify({
-            "error": "Failed to connect to Ollama or process request. Is Ollama running?",
+            "error": "Failed to process the request through the pipeline.",
             "details": str(e),
             "status": "error"
         }), 503
