@@ -133,7 +133,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
 
                     <div className="flex items-center gap-3">
                         <button
-                            className="flex items-center justify-center w-8 h-8 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/10 transition"
+                            className="flex items-center justify-center w-8 h-8 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/10 transition cursor-pointer"
                             onClick={() => fileInputRef.current?.click()}
                         >
                             <Plus size={16} />
