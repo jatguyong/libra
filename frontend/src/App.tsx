@@ -53,7 +53,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
         <div className="mb-6">
           <button
             onClick={() => setIsThoughtExpanded(!isThoughtExpanded)}
-            className="flex items-center gap-2 mb-2 group text-white/50 hover:text-white/80 transition-colors w-auto"
+            className="flex items-center gap-2 mb-2 group text-white/50 hover:text-white/80 transition-colors w-auto cursor-pointer"
           >
             <Brain size={16} className="font-inter text-purple-400 group-hover:text-purple-300 transition-colors" />
             <span className="text-sm font-medium">Libra's Thought Process</span>
@@ -98,7 +98,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
                 <button
                   onClick={handlePrev}
                   disabled={viewIndex === 0}
-                  className={`p-1 rounded-md transition-colors ${viewIndex === 0 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/30 hover:text-white'}`}
+                  className={`p-1 rounded-md transition-colors ${viewIndex === 0 ? 'opacity-40' : 'hover:bg-white/30 hover:text-white cursor-pointer'}`}
                 >
                   <ChevronLeft size={18} />
                 </button>
@@ -106,7 +106,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
                 <button
                   onClick={handleNext}
                   disabled={viewIndex === variants.length - 1}
-                  className={`p-1 rounded-md transition-colors ${viewIndex === variants.length - 1 ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/30 hover:text-white'}`}
+                  className={`p-1 rounded-md transition-colors ${viewIndex === variants.length - 1 ? 'opacity-40' : 'hover:bg-white/30 hover:text-white cursor-pointer'}`}
                 >
                   <ChevronRight size={18} />
                 </button>
@@ -114,7 +114,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
             )}
 
             <div className="relative group/tooltip flex items-center justify-center">
-              <button onClick={handleCopy} className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors">
+              <button onClick={handleCopy} className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors cursor-pointer">
                 <Copy size={18} />
               </button>
               <div className="absolute bottom-full mb-2 bg-[#1a1523] text-white/80 text-xs px-2 py-1 rounded border border-white/10 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all whitespace-nowrap z-10 pointer-events-none">
@@ -123,7 +123,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
             </div>
 
             <div className="relative group/tooltip flex items-center justify-center">
-              <button onClick={() => onRedo(message.id)} className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors">
+              <button onClick={() => onRedo(message.id)} className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors cursor-pointer">
                 <RefreshCw size={18} />
               </button>
               <div className="absolute bottom-full mb-2 bg-[#1a1523] text-white/80 text-xs px-2 py-1 rounded border border-white/10 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all whitespace-nowrap z-10 pointer-events-none">
@@ -150,7 +150,6 @@ function App() {
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
-  const [isVoid, setIsVoid] = useState(false);
   const [hasStartedChat, setHasStartedChat] = useState(false);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -162,6 +161,7 @@ function App() {
     setMessages([]);
     setHasStartedChat(false);
     setUploadedFile(null);
+    setIsExplanationOpen(false);
   };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -173,70 +173,57 @@ function App() {
 
   const handleSendMessage = async (text: string) => {
     if (!hasStartedChat) {
-      setIsVoid(true);
+      setHasStartedChat(true);
+      const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
+      const updatedMessagesArray = [newUserMsg];
+      setMessages(updatedMessagesArray);
+      setIsLoading(true);
+      setIsGenerating(true);
 
-      setTimeout(() => {
-
-        setHasStartedChat(true);
-        const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
-        const updatedMessagesArray = [newUserMsg];
-        setMessages(updatedMessagesArray);
-        setIsLoading(true);
-        setIsGenerating(true);
-
-        // sync with the browser's GPU paint cycle
-        requestAnimationFrame(() => {
-          requestAnimationFrame(async () => {
-            setIsVoid(false);
-
-            try {
-              const response = await fetch('http://localhost:5000/api/chat', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ messages: updatedMessagesArray }),
-              });
-
-              if (!response.body) throw new Error('No response body');
-
-              setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: 'llm', content: '' }]);
-
-              const reader = response.body.getReader();
-              const decoder = new TextDecoder('utf-8');
-
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) {
-                  setIsLoading(false); // final cleanup when stream finishes
-                  setIsGenerating(false);
-                  break;
-                }
-
-                setIsLoading(false); // remove indicator once text starts arriving
-                const chunkText = decoder.decode(value, { stream: true });
-
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === (Date.now() + 1).toString() ? { ...msg, content: msg.content + chunkText } : msg
-                  )
-                );
-              }
-            } catch (error) {
-              const errorMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'llm',
-                content: "Error: Cannot connect to the Libra backend."
-              };
-              setMessages((prev) => [...prev, errorMsg]);
-            } finally {
-              setIsLoading(false);
-              setIsGenerating(false);
-            }
-          });
+      try {
+        const response = await fetch('http://localhost:5000/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ messages: updatedMessagesArray }),
         });
 
-      }, 100);
+        if (!response.body) throw new Error('No response body');
+
+        setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: 'llm', content: '' }]);
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            setIsLoading(false); // final cleanup when stream finishes
+            setIsGenerating(false);
+            break;
+          }
+
+          setIsLoading(false); // remove indicator once text starts arriving
+          const chunkText = decoder.decode(value, { stream: true });
+
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === (Date.now() + 1).toString() ? { ...msg, content: msg.content + chunkText } : msg
+            )
+          );
+        }
+      } catch (error) {
+        const errorMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'llm',
+          content: "Error: Cannot connect to the Libra backend."
+        };
+        setMessages((prev) => [...prev, errorMsg]);
+      } finally {
+        setIsLoading(false);
+        setIsGenerating(false);
+      }
 
     } else {
       const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
@@ -361,34 +348,30 @@ function App() {
   return (
     <div className="relative h-screen w-full flex flex-row overflow-hidden bg-[#060010]">
 
-      {isVoid && (
-        <div className="absolute inset-0 bg-[#060010] z-[100] pointer-events-auto" />
-      )}
-
-      <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 z-0">
-          <Galaxy
-            mouseRepulsion={false}
-            mouseInteraction={!hasStartedChat}
-            density={1}
-            glowIntensity={hasStartedChat ? 0.1 : 0.2}
-            saturation={0}
-            hueShift={140}
-            twinkleIntensity={hasStartedChat ? 0.1 : 0.3}
-            rotationSpeed={hasStartedChat ? 0.0 : 0.05}
-            repulsionStrength={10}
-            autoCenterRepulsion={0}
-            starSpeed={hasStartedChat ? 0 : 0.2}
-            speed={hasStartedChat ? 0.2 : 0.8}
-          />
-        </div>
-      </div>
-
       <div className="relative z-10 flex flex-row h-full w-full pointer-events-none">
 
         <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} uploadedFile={uploadedFile} onNewConversation={handleNewConversation} />
 
+        {/* Central Chat Column */}
         <div className="flex-1 flex flex-col h-full relative overflow-hidden transition-all duration-300">
+
+          {/* Constrained Galaxy Background */}
+          <div className="absolute inset-0 z-0">
+            <Galaxy
+              mouseRepulsion={false}
+              mouseInteraction={!hasStartedChat}
+              density={1}
+              glowIntensity={hasStartedChat ? 0.1 : 0.2}
+              saturation={0}
+              hueShift={140}
+              twinkleIntensity={hasStartedChat ? 0.1 : 0.3}
+              rotationSpeed={hasStartedChat ? 0.0 : 0.05}
+              repulsionStrength={10}
+              autoCenterRepulsion={0}
+              starSpeed={hasStartedChat ? 0 : 0.2}
+              speed={hasStartedChat ? 0.2 : 0.8}
+            />
+          </div>
 
           <div className="pointer-events-auto w-full shrink-0 relative z-50">
             <Navbar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
@@ -396,21 +379,23 @@ function App() {
 
           {!hasStartedChat ? (
 
-            <main className="flex-1 flex flex-col items-center justify-center pointer-events-none px-6 mt-[-10%]">
-              <WelcomeScreen />
-              <div className="w-full max-w-4xl mx-auto mt-8 px-6 flex justify-center pointer-events-auto">
+            <main className="flex-1 flex flex-col items-center justify-center pointer-events-none px-6 mt-[-10%] z-10">
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+                <WelcomeScreen />
+              </motion.div>
+              <motion.div layout layoutId="chatbox-container" transition={{ duration: 0.5, ease: 'easeInOut' }} className="w-full max-w-4xl mx-auto mt-8 px-6 flex justify-center pointer-events-auto">
                 <ChatBox
                   onSendMessage={handleSendMessage}
                   isLoading={isGenerating}
                   uploadedFile={uploadedFile}
                   setUploadedFile={setUploadedFile}
                 />
-              </div>
+              </motion.div>
             </main>
 
           ) : (
 
-            <main className="flex-1 flex flex-col pointer-events-auto overflow-hidden w-full relative">
+            <main className="flex-1 flex flex-col pointer-events-auto overflow-hidden w-full relative z-10">
 
               <div className="h-full overflow-y-auto w-full max-w-[768px] mx-auto shrink-0 pt-4 pb-40 px-6 flex flex-col gap-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {messages.map((msg) => (
@@ -448,14 +433,14 @@ function App() {
               </div>
 
               <div className="absolute bottom-0 left-0 right-0 z-50 pb-8 pt-12 bg-gradient-to-t from-[#060010] via-[#060010]/80 to-transparent pointer-events-none flex justify-center w-full">
-                <div className="w-full max-w-[768px] mx-auto justify-center shrink-0 px-6 flex pointer-events-auto">
+                <motion.div layout layoutId="chatbox-container" transition={{ duration: 0.5, ease: 'easeInOut' }} className="w-full max-w-[768px] mx-auto justify-center shrink-0 px-6 flex pointer-events-auto">
                   <ChatBox
                     onSendMessage={handleSendMessage}
                     isLoading={isGenerating}
                     uploadedFile={uploadedFile}
                     setUploadedFile={setUploadedFile}
                   />
-                </div>
+                </motion.div>
               </div>
 
             </main>
