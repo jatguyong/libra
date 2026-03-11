@@ -56,10 +56,17 @@ def chat():
 
         # Serialize logprobs (they may be Pydantic/OpenAI objects)
         raw_logprobs = result.get("logprobs", [])
-        try:
-            logprobs = [lp.model_dump() if hasattr(lp, 'model_dump') else lp for lp in (raw_logprobs or [])]
-        except Exception:
-            logprobs = []
+        logprobs = []
+        if raw_logprobs and isinstance(raw_logprobs, (list, tuple)):
+            try:
+                logprobs = [
+                    lp.model_dump() if hasattr(lp, 'model_dump')
+                    else (lp.__dict__ if hasattr(lp, '__dict__') and not isinstance(lp, dict) else lp)
+                    for lp in raw_logprobs
+                ]
+            except Exception as e:
+                print(f"Warning: Could not serialize logprobs: {e}")
+                logprobs = []
 
         return jsonify({
             "answer": result.get("answer", "No answer generated."),

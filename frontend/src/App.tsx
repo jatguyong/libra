@@ -599,8 +599,8 @@ function App() {
                     </div>
                   )}
 
-                  {/* Logprobs (shown for Tuned fallback) */}
-                  {selectedExplanation.fallback === 'tuned' && selectedExplanation.logprobs && selectedExplanation.logprobs.length > 0 && (
+                  {/* Logprobs */}
+                  {selectedExplanation.logprobs && selectedExplanation.logprobs.length > 0 && (
                     <div>
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Token Log Probabilities</h3>
                       <div className="bg-white/5 rounded-lg p-3 border border-white/5 max-h-64 overflow-y-auto">
