@@ -7,14 +7,26 @@ import WelcomeScreen from './components/WelcomeScreen';
 import ChatBox from './components/ChatBox';
 import Sidebar from './components/Sidebar';
 import { Brain, ChevronDown, Copy, RefreshCw, ChevronLeft, ChevronRight, X } from 'lucide-react';
+interface ExplanationData {
+  explainer_output: string;
+  prolog_explanation: string;
+  database: string;
+  query: string;
+  contexts: string[] | string;
+  condensed_context: string;
+  fallback: string;
+  prolog_error: string | null;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'llm';
   content: string;
   alternativeContents?: string[];
+  explanationData?: ExplanationData;
 }
 
-const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { message: Message, onRedo: (id: string) => void, isFinished: boolean, onExplanationClick: () => void }) => {
+const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { message: Message, onRedo: (id: string) => void, isFinished: boolean, onExplanationClick: (data: ExplanationData) => void }) => {
   const [isThoughtExpanded, setIsThoughtExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -131,9 +143,11 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
               </div>
             </div>
 
-            <button onClick={onExplanationClick} className="text-base font-inter font-light text-white/40 hover:text-white/80 transition-colors ml-1 cursor-pointer">
-              Explanation
-            </button>
+            {message.explanationData && (
+              <button onClick={() => onExplanationClick(message.explanationData!)} className="text-base font-inter font-light text-white/40 hover:text-white/80 transition-colors ml-1 cursor-pointer">
+                Explanation
+              </button>
+            )}
           </div>
         )}
 
@@ -156,6 +170,12 @@ function App() {
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   const [isExplanationOpen, setIsExplanationOpen] = useState(false);
+  const [selectedExplanation, setSelectedExplanation] = useState<ExplanationData | null>(null);
+
+  const openExplanation = (data: ExplanationData) => {
+    setSelectedExplanation(data);
+    setIsExplanationOpen(true);
+  };
 
   const handleNewConversation = () => {
     setMessages([]);
@@ -189,30 +209,30 @@ function App() {
           body: JSON.stringify({ messages: updatedMessagesArray }),
         });
 
-        if (!response.body) throw new Error('No response body');
+        const data = await response.json();
 
-        setMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: 'llm', content: '' }]);
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            setIsLoading(false); // final cleanup when stream finishes
-            setIsGenerating(false);
-            break;
-          }
-
-          setIsLoading(false); // remove indicator once text starts arriving
-          const chunkText = decoder.decode(value, { stream: true });
-
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === (Date.now() + 1).toString() ? { ...msg, content: msg.content + chunkText } : msg
-            )
-          );
+        if (data.error) {
+          throw new Error(data.details || data.error);
         }
+
+        const explanationData: ExplanationData = {
+          explainer_output: data.explainer_output || '',
+          prolog_explanation: data.prolog_explanation || '',
+          database: data.database || '',
+          query: data.query || '',
+          contexts: data.contexts || [],
+          condensed_context: data.condensed_context || '',
+          fallback: data.fallback || 'unknown',
+          prolog_error: data.prolog_error || null,
+        };
+
+        const llmMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'llm',
+          content: data.answer || 'No answer generated.',
+          explanationData,
+        };
+        setMessages((prev) => [...prev, llmMsg]);
       } catch (error) {
         const errorMsg: Message = {
           id: (Date.now() + 1).toString(),
@@ -241,31 +261,31 @@ function App() {
           body: JSON.stringify({ messages: updatedMessagesArray }),
         });
 
-        if (!response.body) throw new Error('No response body');
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.details || data.error);
+        }
+
+        const explanationData: ExplanationData = {
+          explainer_output: data.explainer_output || '',
+          prolog_explanation: data.prolog_explanation || '',
+          database: data.database || '',
+          query: data.query || '',
+          contexts: data.contexts || [],
+          condensed_context: data.condensed_context || '',
+          fallback: data.fallback || 'unknown',
+          prolog_error: data.prolog_error || null,
+        };
 
         const llmMsgId = (Date.now() + 1).toString();
-        setMessages((prev) => [...prev, { id: llmMsgId, role: 'llm', content: '' }]);
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            setIsLoading(false); // final cleanup when stream finishes
-            setIsGenerating(false);
-            break;
-          }
-
-          setIsLoading(false); // remove indicator once text starts arriving
-          const chunkText = decoder.decode(value, { stream: true });
-
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === llmMsgId ? { ...msg, content: msg.content + chunkText } : msg
-            )
-          );
-        }
+        const llmMsg: Message = {
+          id: llmMsgId,
+          role: 'llm',
+          content: data.answer || 'No answer generated.',
+          explanationData,
+        };
+        setMessages((prev) => [...prev, llmMsg]);
       } catch (error) {
         const errorMsg: Message = {
           id: (Date.now() + 1).toString(),
@@ -309,28 +329,28 @@ function App() {
         body: JSON.stringify({ messages: contextMessages }),
       });
 
-      if (!response.body) throw new Error('No response body');
+      const data = await response.json();
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          setIsLoading(false);
-          setIsGenerating(false);
-          break;
-        }
-
-        setIsLoading(false);
-        const chunkText = decoder.decode(value, { stream: true });
-
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === llmMsgId ? { ...msg, content: msg.content + chunkText } : msg
-          )
-        );
+      if (data.error) {
+        throw new Error(data.details || data.error);
       }
+
+      const explanationData: ExplanationData = {
+        explainer_output: data.explainer_output || '',
+        prolog_explanation: data.prolog_explanation || '',
+        database: data.database || '',
+        query: data.query || '',
+        contexts: data.contexts || [],
+        condensed_context: data.condensed_context || '',
+        fallback: data.fallback || 'unknown',
+        prolog_error: data.prolog_error || null,
+      };
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === llmMsgId ? { ...msg, content: data.answer || 'No answer generated.', explanationData } : msg
+        )
+      );
     } catch (error) {
       setMessages((prev) =>
         prev.map((msg) =>
@@ -414,7 +434,7 @@ function App() {
                         message={msg}
                         onRedo={handleRedo}
                         isFinished={!isGenerating || msg.id !== messages[messages.length - 1].id}
-                        onExplanationClick={() => setIsExplanationOpen(true)}
+                        onExplanationClick={openExplanation}
                       />
                     )}
                   </React.Fragment>
@@ -462,8 +482,108 @@ function App() {
                 <X size={18} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              <p className="text-white/90 text-sm font-inter">Details...</p>
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+              {selectedExplanation ? (
+                <>
+                  {/* Pipeline Mode Badge */}
+                  <div>
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold tracking-wide uppercase ${
+                      selectedExplanation.fallback === 'prolog-graphrag' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                      selectedExplanation.fallback === 'graphrag' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
+                      'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}>
+                      {selectedExplanation.fallback === 'prolog-graphrag' ? '⚡ Prolog-GraphRAG' :
+                       selectedExplanation.fallback === 'graphrag' ? '🔍 GraphRAG Only' :
+                       '🧠 Tuned LLM'}
+                    </span>
+                  </div>
+
+                  {/* Explainability Section */}
+                  {(selectedExplanation.explainer_output || selectedExplanation.prolog_explanation) && (
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Explainability</h3>
+                      {selectedExplanation.explainer_output && (
+                        <div className="mb-3">
+                          <p className="text-xs text-white/40 mb-1">Explainer Output</p>
+                          <p className="text-sm text-white/80 font-inter leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
+                            {selectedExplanation.explainer_output}
+                          </p>
+                        </div>
+                      )}
+                      {selectedExplanation.prolog_explanation && (
+                        <div>
+                          <p className="text-xs text-white/40 mb-1">Prolog Explanation</p>
+                          <p className="text-sm text-white/80 font-inter leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
+                            {selectedExplanation.prolog_explanation}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Prolog Details Section */}
+                  {(selectedExplanation.database || selectedExplanation.query) && (
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Prolog Details</h3>
+                      {selectedExplanation.database && (
+                        <div className="mb-3">
+                          <p className="text-xs text-white/40 mb-1">Database</p>
+                          <pre className="text-xs text-green-300/80 font-mono leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5 max-h-48 overflow-y-auto">
+                            {selectedExplanation.database}
+                          </pre>
+                        </div>
+                      )}
+                      {selectedExplanation.query && (
+                        <div>
+                          <p className="text-xs text-white/40 mb-1">Query</p>
+                          <pre className="text-xs text-cyan-300/80 font-mono leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
+                            {selectedExplanation.query}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* GraphRAG Sources Section */}
+                  {(selectedExplanation.condensed_context || (Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0)) && (
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">GraphRAG Sources</h3>
+                      {selectedExplanation.condensed_context && (
+                        <div className="mb-3">
+                          <p className="text-xs text-white/40 mb-1">Condensed Context</p>
+                          <p className="text-sm text-white/70 font-inter leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5 max-h-48 overflow-y-auto">
+                            {selectedExplanation.condensed_context}
+                          </p>
+                        </div>
+                      )}
+                      {Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0 && (
+                        <div>
+                          <p className="text-xs text-white/40 mb-1">Retrieved Contexts ({selectedExplanation.contexts.length})</p>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {selectedExplanation.contexts.map((ctx, i) => (
+                              <div key={i} className="text-xs text-white/60 font-inter leading-relaxed bg-white/5 rounded-lg p-3 border border-white/5">
+                                {ctx}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Prolog Error (if any) */}
+                  {selectedExplanation.prolog_error && (
+                    <div>
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-red-400/70 mb-2">Prolog Error</h3>
+                      <p className="text-sm text-red-300/80 font-inter leading-relaxed whitespace-pre-wrap bg-red-500/5 rounded-lg p-3 border border-red-500/10">
+                        {selectedExplanation.prolog_error}
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-white/40 text-sm font-inter">Click "Explanation" on a response to view pipeline details.</p>
+              )}
             </div>
           </div>
         </motion.div>

@@ -44,20 +44,27 @@ def chat():
 
     try:
         # Run the Prolog-GraphRAG pipeline
-        # flag="x" means default exeuction path
+        # flag="x" means default execution path
         result = run_pipeline(question, flag="x")
-        answer_text = result.get("answer", "No answer generated.")
-        
-        # Generator to simulate streaming the final answer to the frontend
-        def generate():
-            # Split the text by spaces safely and yield piece by piece to keep the frontend UI streaming effect
-            import time
-            words = answer_text.split(" ")
-            for word in words:
-                yield word + " "
-                time.sleep(0.02)
-        
-        return Response(generate(), mimetype='text/plain')
+
+        # Safely convert contexts to strings if they are objects
+        raw_contexts = result.get("contexts", [])
+        if isinstance(raw_contexts, list):
+            contexts = [str(c) for c in raw_contexts]
+        else:
+            contexts = str(raw_contexts) if raw_contexts else ""
+
+        return jsonify({
+            "answer": result.get("answer", "No answer generated."),
+            "explainer_output": result.get("explainer_output", ""),
+            "prolog_explanation": result.get("prolog_explanation", ""),
+            "database": result.get("database", ""),
+            "query": result.get("query", ""),
+            "contexts": contexts,
+            "condensed_context": result.get("condensed_context", ""),
+            "fallback": result.get("fallback", "unknown"),
+            "prolog_error": result.get("prolog_error", None),
+        })
         
     except Exception as e:
         import traceback
