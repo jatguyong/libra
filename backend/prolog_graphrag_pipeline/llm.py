@@ -4,23 +4,11 @@ import json
 from typing import Literal
 from pydantic import BaseModel
 
-# Ensure project root is on the path so llm_config can be imported
-_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
-
-from llm_config import MODEL_NAME, get_openai_client
+from .llm_config import MODEL_NAME, get_openai_client
 from .config import FALLBACK_MESSAGES
 
-try:
-    from .config import LLM_SYSTEM_PROMPT, LLM_MESSAGES, LLM_SYSTEM_PROMPT_FALLBACK
-    from .prompt_reconstructor import reconstruct_prompt
-except ImportError:
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    from prolog_graphrag_pipeline.config import LLM_SYSTEM_PROMPT, LLM_MESSAGES, LLM_SYSTEM_PROMPT_FALLBACK
-    from prolog_graphrag_pipeline.prompt_reconstructor import reconstruct_prompt
+from .config import LLM_SYSTEM_PROMPT, LLM_MESSAGES, LLM_SYSTEM_PROMPT_FALLBACK
+from .prompt_reconstructor import reconstruct_prompt
 
 from typing import Optional, Union, List
 
@@ -87,7 +75,7 @@ def generate(question: str, retrieved_context: Optional[str], explainer_output: 
         return answer
 
     def _call_llm():
-        from llm_config import retry_with_exponential_backoff
+        from .llm_config import retry_with_exponential_backoff
         try:
             func = retry_with_exponential_backoff(_do_call_llm)
             return func()

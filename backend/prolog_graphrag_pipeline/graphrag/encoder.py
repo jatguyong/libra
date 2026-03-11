@@ -5,12 +5,7 @@ import sys
 import glob
 from .config import DOC_PATH, ENCODER_SYSTEM_PROMPT, ENCODER_FEW_SHOT_EXAMPLES
 
-# Ensure project root is on the path so llm_config can be imported
-_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
-
-from llm_config import MODEL_NAME, get_openai_client, log_llm_event, retry_with_exponential_backoff
+from ..llm_config import MODEL_NAME, get_openai_client, log_llm_event, retry_with_exponential_backoff
 
 import json
 import asyncio

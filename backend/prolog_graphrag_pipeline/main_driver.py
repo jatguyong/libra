@@ -1,16 +1,8 @@
-try:
-    from .graphrag import graphrag_driver
-    from .prolog import prolog_driver
-    from .llm import generate, decide_fallback
-    from .prompt_reconstructor import reconstruct_prompt
-    from .graphrag.config import SKIP_LOGICAL_EVIDENCE_LLM
-except ImportError:
-    # Fallback for direct script execution
-    from graphrag import graphrag_driver
-    from prolog import prolog_driver
-    from llm import generate
-    from prompt_reconstructor import reconstruct_prompt
-    from graphrag.config import SKIP_LOGICAL_EVIDENCE_LLM
+from .graphrag import graphrag_driver
+from .prolog import prolog_driver
+from .llm import generate, decide_fallback
+from .prompt_reconstructor import reconstruct_prompt
+from .graphrag.config import SKIP_LOGICAL_EVIDENCE_LLM
     
 import time
 from typing import Literal
@@ -35,8 +27,8 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
     # fallback = "prolog-graphrag"
     if fallback == "tuned":
         llm_output = generate(question, retrieved_context=None, explainer_output=None, fallback=fallback, flag=flag, sample_mode=sample_mode)
-        final_answer = llm_output["text_answer"]
-        logprobs = llm_output["logprobs"]
+        final_answer = llm_output.get("text_answer", "Error generating answer") if llm_output else "Error generating answer"
+        logprobs = llm_output.get("logprobs", "") if llm_output else ""
         
         # Return different dicts depending on sample_mode
         if not sample_mode:
@@ -96,15 +88,14 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                 else:
                     kbpedia_items.append(item_str)
 
-            # if SKIP_LOGICAL_EVIDENCE_LLM:
-            #     # Bypass the GRAPHRAG_TEMPLATE LLM step — pass raw triples directly to Prolog.
-            #     # This is richer and avoids the intermediate LLM bottleneck.
-            #     retrieved_context_str = "\n".join(raw_context_strings)
-            #     print("DEBUG PROLOG-GRAPHRAG:SKIP_LOGICAL_EVIDENCE_LLM=True — passing raw triples to Prolog.")
-            # else:
-            #     # Default: use the LLM-distilled logical evidence text as context
-            #     retrieved_context_str = condensed_context if graphrag_output else ""
-
+            if SKIP_LOGICAL_EVIDENCE_LLM:
+                # Bypass the GRAPHRAG_TEMPLATE LLM step — pass raw triples directly to Prolog.
+                # This is richer and avoids the intermediate LLM bottleneck.
+                retrieved_context_str = "\n".join(raw_context_strings)
+                print("DEBUG PROLOG-GRAPHRAG:SKIP_LOGICAL_EVIDENCE_LLM=True — passing raw triples to Prolog.")
+            else:
+                # Default: use the LLM-distilled logical evidence text as context
+                retrieved_context_str = condensed_context if graphrag_output else ""
             # Append Wikidata facts to context_from_prompt so they reach the synthesis LLM
             if wikidata_items:
                 wikidata_block = "\n\nWikidata Background Facts (for context, not Prolog logic):\n" + "\n".join(wikidata_items)

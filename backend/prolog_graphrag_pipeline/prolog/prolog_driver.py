@@ -4,20 +4,10 @@ import sys
 import os
 import time
 from typing import Optional
-try:
-    from .prolog_generator import generate_prolog_code, capture_db_and_query, capture_predicate_and_arguments
-    from .explainer import generate_safe_scasp_wrapper, generate_explanation
-    from .prolog_llms import warmup_prolog_model, reset_kv_cache_flag
-    from .. import llm
-except ImportError:
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-        
-    from prolog_graphrag_pipeline.prolog.prolog_generator import generate_prolog_code, capture_db_and_query, capture_predicate_and_arguments
-    from prolog_graphrag_pipeline.prolog.explainer import generate_safe_scasp_wrapper, generate_explanation
-    from prolog_graphrag_pipeline.prolog.prolog_llms import warmup_prolog_model, reset_kv_cache_flag
-    import prolog_graphrag_pipeline.llm as llm
+from .prolog_generator import generate_prolog_code, capture_db_and_query, capture_predicate_and_arguments
+from .explainer import generate_safe_scasp_wrapper, generate_explanation
+from .prolog_llms import warmup_prolog_model, reset_kv_cache_flag
+from .. import llm
 
 SCASP_AVAILABLE = False
 ALLOW_LLM_FALLBACK = True   # Enables LLM synthesis fallback when Prolog generation fails

@@ -35,13 +35,7 @@ def _run_async(coro):
 
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-
-# Ensure project root is on the path so llm_config can be imported
-_project_root = str(Path(__file__).resolve().parents[2])
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
-from llm_config import ENCODER_MODEL_NAME as _LLM_MODEL, USE_TOGETHER_API, get_openai_client, BASE_URL, API_KEY, log_llm_event, retry_with_exponential_backoff
+from ..llm_config import ENCODER_MODEL_NAME as _LLM_MODEL, USE_TOGETHER_API, get_openai_client, BASE_URL, API_KEY, log_llm_event, retry_with_exponential_backoff
 
 if USE_TOGETHER_API:
     from neo4j_graphrag.embeddings.base import Embedder
@@ -393,11 +387,11 @@ def initialize_models():
     )
 
     if USE_TOGETHER_API:
-        from llm_config import EMBED_MODEL
+        from ..llm_config import EMBED_MODEL
         embedder = TogetherAIEmbeddings()
         # print(f"Together AI embedder loaded ({EMBED_MODEL}).")
     else:
-        from llm_config import EMBED_MODEL
+        from ..llm_config import EMBED_MODEL
         embedder = OllamaEmbeddings(model=EMBED_MODEL)
         print("Ollama embedder loaded.")
 

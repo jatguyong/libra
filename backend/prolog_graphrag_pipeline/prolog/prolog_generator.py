@@ -425,12 +425,8 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
     try:
         from .prolog_llms import generate as generate_fn
     except ImportError:
-        import sys, os
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-        if project_root not in sys.path:
-            sys.path.insert(0, project_root)
         try:
-            from prolog_graphrag_pipeline.prolog.prolog_llms import generate as generate_fn
+            from .prolog_llms import generate as generate_fn
         except ImportError:
             from prolog.prolog_llms import generate as generate_fn
 

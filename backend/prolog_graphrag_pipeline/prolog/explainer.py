@@ -64,12 +64,7 @@ def generate_explanation(question: str, retrieved_context: str, database: str, q
     try:
         from .prolog_llms import generate
     except ImportError:
-        import sys
-        import os
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-        if project_root not in sys.path:
-            sys.path.insert(0, project_root)
-        from prolog_graphrag_pipeline.prolog.prolog_llms import generate
+        from .prolog_llms import generate
     explanation = generate(prompt=generate_explanation_prompt(question=question, retrieved_context=retrieved_context, database=database, query=query, retrieved_values=retrieved_values, human_readable_explanation=human_readable_explanation), flag="explanation")
     if explanation:
         return explanation['text_answer']

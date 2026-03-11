@@ -5,12 +5,7 @@ import signal
 import threading
 import time
 
-# Ensure project root is on the path so llm_config can be imported
-_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
-
-from llm_config import PROLOG_GENERATOR_NAME, MODEL_NAME, USE_TOGETHER_API, get_openai_client, log_llm_event, retry_with_exponential_backoff
+from ..llm_config import PROLOG_GENERATOR_NAME, MODEL_NAME, USE_TOGETHER_API, get_openai_client, log_llm_event, retry_with_exponential_backoff
 
 # Prolog code generation and NL tasks both use the configured model
 PROLOG_MODEL = PROLOG_GENERATOR_NAME
