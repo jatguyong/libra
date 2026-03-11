@@ -1,4 +1,9 @@
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file before anything else
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import ollama
