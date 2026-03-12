@@ -43,7 +43,7 @@ if USE_TOGETHER_API:
     class TogetherAIEmbeddings(Embedder):
         """Embedder that calls the Together AI OpenAI-compatible embeddings endpoint."""
         def embed_query(self, text: str):
-            from llm_config import EMBED_MODEL
+            from ..llm_config import EMBED_MODEL
             _client = get_openai_client()
             start_time = time.perf_counter()
             
@@ -60,7 +60,7 @@ if USE_TOGETHER_API:
 
         async def async_embed_chunks(self, texts: list[str]) -> list[list[float]]:
             """Batch embed a list of texts using the Together AI API."""
-            from llm_config import EMBED_MODEL
+            from ..llm_config import EMBED_MODEL
             import asyncio
             _client = get_openai_client()
             loop = asyncio.get_event_loop()

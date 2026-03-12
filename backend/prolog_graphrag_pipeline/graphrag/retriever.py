@@ -312,7 +312,7 @@ def generate(llm, retriever, query, original_query: str = "", fallback: str = "p
         context_str = "\n".join([item.content for item in retrieved_context.items])
         
     # Call LLM directly with System/User messages to prevent fact hallucination/repetition
-    from llm_config import get_openai_client, MODEL_NAME
+    from ..llm_config import get_openai_client, MODEL_NAME
     try:
         from .config import GRAPHRAG_SYSTEM_PROMPT, GRAPHRAG_FALLBACK_SYSTEM_PROMPT
     except ImportError:

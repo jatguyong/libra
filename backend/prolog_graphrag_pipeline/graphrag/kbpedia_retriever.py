@@ -15,7 +15,7 @@ import json
 import re
 import time
 from typing import List, Dict, Any, Optional
-from llm_config import log_llm_event, retry_with_exponential_backoff
+from ..llm_config import log_llm_event, retry_with_exponential_backoff
 
 
 def _safe_parse_json(text: str, expect: type = None):

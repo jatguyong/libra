@@ -77,3 +77,6 @@ Traceback (most recent call last):
     final_answer = llm_output["text_answer"]
                    ~~~~~~~~~~^^^^^^^^^^^^^^^
 KeyError: 'text_answer'
+Unable to retrieve routing information
+Unable to retrieve routing information
+Unable to retrieve routing information
