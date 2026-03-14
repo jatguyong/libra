@@ -473,7 +473,7 @@ def init_globals():
 def generate_answer(query, retriever, llm, original_query: str = "") -> dict:
     return generate(llm, retriever, query, original_query=original_query)
 
-def run_pipeline(question: str, fallback: str) -> dict:
+def run_pipeline(question: str, fallback: str, status_callback=None) -> dict:
     init_globals()
     
     # 1. Clear stale Neo4j data from previous questions to prevent irrelevant retrieval
@@ -497,6 +497,8 @@ def run_pipeline(question: str, fallback: str) -> dict:
     else:
         # print(f"DEBUG PROLOG-GRAPHRAG [run_pipeline]: Starting process_context (KG ingestion) with {len(text_context)} text chunk(s)...", flush=True)
         if PROCESS_CONTEXT:
+            if status_callback:
+                status_callback({"type": "step", "step": 2})
             _run_async(process_context(neo4j_driver, kg_builder_pdf=kg_builder_pdf, kg_builder_text=kg_builder_text, texts=text_context))
             # print("DEBUG PROLOG-GRAPHRAG [run_pipeline]: process_context done. Sleeping 2s for index update...", flush=True)
         time.sleep(2) # Allow vector index to update
@@ -504,6 +506,10 @@ def run_pipeline(question: str, fallback: str) -> dict:
 
     # print("DEBUG PROLOG-GRAPHRAG [run_pipeline]: Starting generate (retriever + LLM)...", flush=True)
     success = False
+    
+    if status_callback:
+        status_callback({"type": "step", "step": 3})
+        
     graph_rag = GraphRAG(llm=retriever_llm, retriever=retriever, prompt_template=GRAPHRAG_TEMPLATE if fallback == "prolog-graphrag" else GRAPHRAG_FALLBACK_TEMPLATE)
     retriever_result = []
     try:

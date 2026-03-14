@@ -71,7 +71,7 @@ def use_scasp():
             print(f"CRITICAL ERROR: Failed to install or load s(CASP): {e}")
             SCASP_AVAILABLE = False
 
-def run_pipeline(question: str, retrieved_context: str) -> dict:
+def run_pipeline(question: str, retrieved_context: str, status_callback=None) -> dict:
     start_time = time.perf_counter()
     
     # Ensure s(CASP) is loaded
@@ -106,6 +106,9 @@ def run_pipeline(question: str, retrieved_context: str) -> dict:
 
     # ── Attempt Prolog-verified path ───────────────────────────────────
     try:
+        if status_callback:
+            status_callback({"type": "step", "step": 4})
+            
         database, query = generate_prolog_code(
             question=question,
             retrieved_context=final_context,
@@ -124,6 +127,9 @@ def run_pipeline(question: str, retrieved_context: str) -> dict:
         # print(f"**Wrapper:** \n{wrapper}")
         final_query = f"explain(Explanation)."
         
+        if status_callback:
+            status_callback({"type": "step", "step": 5})
+            
         print("Consulting database...", flush=True)
         janus.consult("user", database + "\n" + wrapper)
         try:
@@ -149,6 +155,9 @@ def run_pipeline(question: str, retrieved_context: str) -> dict:
         except Exception as e:
         # else:
             print(f"Error: {e}")
+            
+        if status_callback:
+            status_callback({"type": "step", "step": 6})
             
         explainer_output = generate_explanation(
             question=question,
@@ -178,7 +187,7 @@ def run_pipeline(question: str, retrieved_context: str) -> dict:
         final_answer = {"text_answer": "Error: Prolog generation failed and LLM fallback is disabled."}
     else:
         # print("\n**FINAL LLM OUTPUT:")
-        final_answer = llm.generate(question, retrieved_context, explainer_output=None, flag="synthesis", fallback = True)
+        final_answer = llm.generate(question, retrieved_context, explainer_output=None, flag="synthesis", fallback=True, status_callback=status_callback)
 
     
     result_dict = {

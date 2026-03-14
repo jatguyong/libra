@@ -687,3 +687,73 @@ What is wrong with you?
 FINAL PROMPT:
 can you test this
 Pipeline Error: Error code: 500 - {'id': 'oaxdUhf-2j9zxn-9dbf421eafdb403a', 'error': {'message': 'Internal server error', 'type': 'server_error', 'param': None, 'code': None}}
+    Question: let me test this
+FINAL PROMPT:
+let me test this
+    Question: Use Prolog-GraphRAG: How do leaves turn sunshine into food?
+DEBUG PROLOG-GRAPHRAG:Initializing new Neo4j driver...
+Pre-flight check: Database connection verified.
+
+================================================================================
+GRAPHRAG CONDENSED CONTEXT
+================================================================================
+1. [ATOMIC FACTS]:
+   * Leaves contain chlorophyll, which is necessary for photosynthesis.
+   * Photosynthesis is the process by which plants convert light energy into chemical energy.
+   * Plants use energy from sunlight to convert carbon dioxide and water into glucose and oxygen.
+2. [CONDITIONAL RULES]:
+   * IF a plant has access to sunlight, water, and carbon dioxide, THEN it can perform photosynthesis.
+   * IF chlorophyll is present in a leaf, THEN the leaf can absorb light energy for photosynthesis.
+3. [EXCEPTIONS]:
+   * None
+4. [LOGICAL GAPS]:
+   * The specific biochemical pathways involved in photosynthesis.
+   * The role of other nutrients and minerals in supporting photosynthesis.
+   * The mechanisms by which leaves regulate photosynthesis in response to environmental conditions.
+================================================================================
+
+DEBUG PROLOG-GRAPHRAG:Transferring evidence to Prolog engine...
+
+**User Question:**
+Use Prolog-GraphRAG: How do leaves turn sunshine into food?
+Iteration 0 | Prolog code generation success
+Consulting database...
+**Query Results:** 
+{'truth': True, 'Explanation': '   turns_sunshine_into_food holds for leaves, because\n      can_absorb_light_energy holds for leaves, because\n         contains holds for leaves, and chlorophyll\n      process_of holds for photosynthesis, and converting_light_energy_into_chemical_energy\n\n'}
+truth Found: True
+**Human-Readable Explanation**
+   turns_sunshine_into_food holds for leaves, because
+      can_absorb_light_energy holds for leaves, because
+         contains holds for leaves, and chlorophyll
+      process_of holds for photosynthesis, and converting_light_energy_into_chemical_energy
+
+
+FINAL PROMPT:
+Use Prolog-GraphRAG: How do leaves turn sunshine into food?
+FINAL PROMPT:
+### FINAL SYNTHESIS TASK
+
+USER QUESTION:
+Use Prolog-GraphRAG: How do leaves turn sunshine into food?
+
+CONCLUSION: Leaves turn sunshine into food.
+
+LOGICAL EVIDENCE: **Conclusion:** 
+
+**Logical Explanation:** The system arrived at this conclusion by tracing the logical path of how leaves, specifically, can absorb and convert light energy into chemical energy.
+
+The key steps in this process are:
+
+1. **Chlorophyll Presence:** Leaves contain chlorophyll, which is necessary for photosynthesis.
+2. **Photosynthesis Process:** Photosynthesis is the process by which plants convert light energy into chemical energy.
+3. **Energy Conversion:** Plants use energy from sunlight to convert carbon dioxide and water into glucose and oxygen.
+4. **Leaf's Ability to Absorb Light Energy:** The leaf can absorb light energy for photosynthesis because it contains chlorophyll.
+5. **Final Conclusion:** The system concludes that leaves turn sunshine into food because they can absorb and convert light energy into chemical energy through the process of photosynthesis.
+
+    
+Prolog executed successfully without errors.
+**FINAL LLM OUTPUT: 
+Leaves turn sunshine into food.
+
+This is confirmed by the process of photosynthesis, where leaves, equipped with chlorophyll, absorb and convert light energy into chemical energy. This process involves the conversion of carbon dioxide and water into glucose and oxygen, making leaves capable of generating their own food from sunlight.**
+====The pipeline executed in 53.9064 seconds. Prolog verified: True===

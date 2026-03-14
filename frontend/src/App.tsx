@@ -126,7 +126,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
               </div>
             </div>
 
-            {message.explanationData?.fallback === 'tuned-llm' && (
+            {message.explanationData?.fallback === 'tuned' && (
               <div className="relative group/tooltip flex items-center justify-center ml-1">
                 <div className="p-1.5 text-amber-500/80 hover:text-amber-400 group-hover/tooltip:bg-amber-500/10 rounded-md transition-colors cursor-help">
                   <AlertTriangle size={18} />
@@ -155,6 +155,8 @@ function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
+  const [currentFallback, setCurrentFallback] = useState<string | undefined>(undefined);
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
@@ -194,6 +196,9 @@ function App() {
       setIsLoading(true);
       setIsGenerating(true);
 
+      setCurrentStep(1);
+      setCurrentFallback(undefined);
+
       try {
         const response = await fetch('http://localhost:5000/api/chat', {
           method: 'POST',
@@ -203,32 +208,65 @@ function App() {
           body: JSON.stringify({ messages: updatedMessagesArray }),
         });
 
-        const data = await response.json();
+        if (!response.body) throw new Error("No response body");
 
-        if (data.error) {
-          throw new Error(data.details || data.error);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+
+          for (const part of parts) {
+            if (part.startsWith('data: ')) {
+              try {
+                const eventData = JSON.parse(part.slice(6));
+                
+                if (eventData.type === 'step') {
+                  setCurrentStep(eventData.step);
+                  if (eventData.fallback) {
+                    setCurrentFallback(eventData.fallback);
+                  }
+                } else if (eventData.type === 'result') {
+                  const data = eventData.data;
+                  if (data.error) throw new Error(data.details || data.error);
+
+                  const explanationData: ExplanationData = {
+                    explainer_output: data.explainer_output || '',
+                    prolog_explanation: data.prolog_explanation || '',
+                    database: data.database || '',
+                    query: data.query || '',
+                    contexts: data.contexts || [],
+                    condensed_context: data.condensed_context || '',
+                    fallback: data.fallback || 'unknown',
+                    prolog_error: data.prolog_error || null,
+                    logprobs: data.logprobs || [],
+                  };
+
+                  const llmMsg: Message = {
+                    id: (Date.now() + 1).toString(),
+                    role: 'llm',
+                    content: data.answer || 'No answer generated.',
+                    explanationData,
+                  };
+                  setMessages((prev) => [...prev, llmMsg]);
+                } else if (eventData.type === 'error') {
+                  throw new Error(eventData.error || "Unknown pipeline error");
+                }
+              } catch (err) {
+                console.error("Error parsing SSE data:", err);
+              }
+            }
+          }
         }
 
-        const explanationData: ExplanationData = {
-          explainer_output: data.explainer_output || '',
-          prolog_explanation: data.prolog_explanation || '',
-          database: data.database || '',
-          query: data.query || '',
-          contexts: data.contexts || [],
-          condensed_context: data.condensed_context || '',
-          fallback: data.fallback || 'unknown',
-          prolog_error: data.prolog_error || null,
-          logprobs: data.logprobs || [],
-        };
-
-        const llmMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'llm',
-          content: data.answer || 'No answer generated.',
-          explanationData,
-        };
-        setMessages((prev) => [...prev, llmMsg]);
       } catch (error) {
+        console.error(error);
         const errorMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'llm',
@@ -247,6 +285,9 @@ function App() {
       setIsLoading(true);
       setIsGenerating(true);
 
+      setCurrentStep(1);
+      setCurrentFallback(undefined);
+
       try {
         const response = await fetch('http://localhost:5000/api/chat', {
           method: 'POST',
@@ -256,33 +297,66 @@ function App() {
           body: JSON.stringify({ messages: updatedMessagesArray }),
         });
 
-        const data = await response.json();
+        if (!response.body) throw new Error("No response body");
 
-        if (data.error) {
-          throw new Error(data.details || data.error);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop() || '';
+
+          for (const part of parts) {
+            if (part.startsWith('data: ')) {
+              try {
+                const eventData = JSON.parse(part.slice(6));
+                
+                if (eventData.type === 'step') {
+                  setCurrentStep(eventData.step);
+                  if (eventData.fallback) {
+                    setCurrentFallback(eventData.fallback);
+                  }
+                } else if (eventData.type === 'result') {
+                  const data = eventData.data;
+                  if (data.error) throw new Error(data.details || data.error);
+
+                  const explanationData: ExplanationData = {
+                    explainer_output: data.explainer_output || '',
+                    prolog_explanation: data.prolog_explanation || '',
+                    database: data.database || '',
+                    query: data.query || '',
+                    contexts: data.contexts || [],
+                    condensed_context: data.condensed_context || '',
+                    fallback: data.fallback || 'unknown',
+                    prolog_error: data.prolog_error || null,
+                    logprobs: data.logprobs || [],
+                  };
+
+                  const llmMsgId = (Date.now() + 1).toString();
+                  const llmMsg: Message = {
+                    id: llmMsgId,
+                    role: 'llm',
+                    content: data.answer || 'No answer generated.',
+                    explanationData,
+                  };
+                  setMessages((prev) => [...prev, llmMsg]);
+                } else if (eventData.type === 'error') {
+                  throw new Error(eventData.error || "Unknown pipeline error");
+                }
+              } catch (err) {
+                console.error("Error parsing SSE data:", err);
+              }
+            }
+          }
         }
 
-        const explanationData: ExplanationData = {
-          explainer_output: data.explainer_output || '',
-          prolog_explanation: data.prolog_explanation || '',
-          database: data.database || '',
-          query: data.query || '',
-          contexts: data.contexts || [],
-          condensed_context: data.condensed_context || '',
-          fallback: data.fallback || 'unknown',
-          prolog_error: data.prolog_error || null,
-          logprobs: data.logprobs || [],
-        };
-
-        const llmMsgId = (Date.now() + 1).toString();
-        const llmMsg: Message = {
-          id: llmMsgId,
-          role: 'llm',
-          content: data.answer || 'No answer generated.',
-          explanationData,
-        };
-        setMessages((prev) => [...prev, llmMsg]);
       } catch (error) {
+        console.error(error);
         const errorMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'llm',
@@ -316,6 +390,9 @@ function App() {
     setIsLoading(true);
     setIsGenerating(true);
 
+    setCurrentStep(1);
+    setCurrentFallback(undefined);
+
     try {
       const response = await fetch('http://localhost:5000/api/chat', {
         method: 'POST',
@@ -325,30 +402,63 @@ function App() {
         body: JSON.stringify({ messages: contextMessages }),
       });
 
-      const data = await response.json();
+      if (!response.body) throw new Error("No response body");
 
-      if (data.error) {
-        throw new Error(data.details || data.error);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          if (part.startsWith('data: ')) {
+            try {
+              const eventData = JSON.parse(part.slice(6));
+              
+              if (eventData.type === 'step') {
+                setCurrentStep(eventData.step);
+                if (eventData.fallback) {
+                  setCurrentFallback(eventData.fallback);
+                }
+              } else if (eventData.type === 'result') {
+                const data = eventData.data;
+                if (data.error) throw new Error(data.details || data.error);
+
+                const explanationData: ExplanationData = {
+                  explainer_output: data.explainer_output || '',
+                  prolog_explanation: data.prolog_explanation || '',
+                  database: data.database || '',
+                  query: data.query || '',
+                  contexts: data.contexts || [],
+                  condensed_context: data.condensed_context || '',
+                  fallback: data.fallback || 'unknown',
+                  prolog_error: data.prolog_error || null,
+                  logprobs: data.logprobs || [],
+                };
+
+                setMessages((prev) =>
+                  prev.map((msg) =>
+                    msg.id === llmMsgId ? { ...msg, content: data.answer || 'No answer generated.', explanationData } : msg
+                  )
+                );
+              } else if (eventData.type === 'error') {
+                throw new Error(eventData.error || "Unknown pipeline error");
+              }
+            } catch (err) {
+              console.error("Error parsing SSE data:", err);
+            }
+          }
+        }
       }
 
-      const explanationData: ExplanationData = {
-        explainer_output: data.explainer_output || '',
-        prolog_explanation: data.prolog_explanation || '',
-        database: data.database || '',
-        query: data.query || '',
-        contexts: data.contexts || [],
-        condensed_context: data.condensed_context || '',
-        fallback: data.fallback || 'unknown',
-        prolog_error: data.prolog_error || null,
-          logprobs: data.logprobs || [],
-        };
-
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === llmMsgId ? { ...msg, content: data.answer || 'No answer generated.', explanationData } : msg
-        )
-      );
     } catch (error) {
+      console.error(error);
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === llmMsgId ? { ...msg, content: "Error: Cannot connect to the Libra backend." } : msg
@@ -438,7 +548,7 @@ function App() {
                 ))}
 
                 {isLoading && (
-                  <ThinkingProcess isFinished={false} />
+                  <ThinkingProcess isFinished={false} currentStep={currentStep} fallback={currentFallback} />
                 )}
 
                 {/* Auto-scroll target */}

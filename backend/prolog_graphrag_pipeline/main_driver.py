@@ -7,9 +7,12 @@ from .graphrag.config import SKIP_LOGICAL_EVIDENCE_LLM
 import time
 from typing import Literal
 
-def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bool = False) -> dict:
+def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bool = False, status_callback=None) -> dict:
     start_time = time.perf_counter()
     
+    if status_callback:
+        status_callback({"type": "step", "step": 1})
+
     if flag != "q":
         pass
     
@@ -26,7 +29,9 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
     #     raise ValueError(f"Invalid fallback {fallback}")
     # fallback = "prolog-graphrag"
     if fallback == "tuned":
-        llm_output = generate(question, retrieved_context=None, explainer_output=None, fallback=fallback, flag=flag, sample_mode=sample_mode)
+        if status_callback:
+            status_callback({"type": "step", "step": 2, "fallback": fallback})
+        llm_output = generate(question, retrieved_context=None, explainer_output=None, fallback=fallback, flag=flag, sample_mode=sample_mode, status_callback=status_callback)
         final_answer = llm_output.get("text_answer", "Error generating answer") if llm_output else "Error generating answer"
         logprobs = llm_output.get("logprobs", "") if llm_output else ""
         
@@ -49,7 +54,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                 "logprobs": [output["logprobs"] for output in llm_output]
             }
     else:
-        graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback) if flag != "q" else None
+        graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback, status_callback=status_callback) if flag != "q" else None
         graphrag_answer = graphrag_output.get("answer", "") if graphrag_output else ""
         graphrag_logprobs = graphrag_output.get("logprobs", []) if graphrag_output else {}
         graphrag_retriever_results = graphrag_output.get("retriever_results", []) if graphrag_output else []
@@ -108,12 +113,14 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
         llm_logprobs = []
         if fallback == "prolog-graphrag":
             try:
-                pgr_results = prolog_driver.run_pipeline(question=question, retrieved_context=condensed_context) if flag != "q" else None
+                pgr_results = prolog_driver.run_pipeline(question=question, retrieved_context=condensed_context, status_callback=status_callback) if flag != "q" else None
             except Exception as e:
                 prolog_error = f"Error occurred while running Prolog pipeline: {e}"
             else:
                 explainer_output = pgr_results.get("explainer_output", "") if pgr_results else ""
-                llm_output = generate(question, retrieved_context_str, explainer_output, flag=flag, sample_mode=sample_mode) if prolog_error is None else pgr_results.get("final_answer", "")
+                if status_callback:
+                    status_callback({"type": "step", "step": 7})
+                llm_output = generate(question, retrieved_context_str, explainer_output, flag=flag, sample_mode=sample_mode, fallback=fallback, status_callback=status_callback) if prolog_error is None else pgr_results.get("final_answer", "")
                 final_answer = llm_output.get("text_answer", {"text_answer": "Error generating answer"}) if llm_output else {"text_answer": "Error generating answer"}
                 llm_logprobs = llm_output.get("logprobs", []) if llm_output else {}
         else:
@@ -149,9 +156,9 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
             }
 
     
-def run_graphrag_pipeline(question: str) -> dict:
+def run_graphrag_pipeline(question: str, status_callback=None) -> dict:
     """Wrapper function to run the entire pipeline with a given prompt and flag."""
-    return run_pipeline(question, flag="")
+    return run_pipeline(question, flag="", status_callback=status_callback)
 
 if __name__ == "__main__":
     prompt = "Which of the following parts of a plant cell has a function that is most similar to the function of an animal skeleton?"

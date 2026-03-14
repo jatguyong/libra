@@ -52,7 +52,7 @@ def decide_fallback(question: str):
     return data["route_to"] # True means fallback to GraphRAG
 
 
-def generate(question: str, retrieved_context: Optional[str], explainer_output: Optional[str] | None, flag: str, sample_mode: bool = False, fallback: str = "prolog-graphrag") -> Union[dict, List[dict]]:
+def generate(question: str, retrieved_context: Optional[str], explainer_output: Optional[str] | None, flag: str, sample_mode: bool = False, fallback: str = "prolog-graphrag", status_callback=None) -> Union[dict, List[dict]]:
     if fallback != "prolog-graphrag":
         final_prompt = question
         messages = LLM_SYSTEM_PROMPT_FALLBACK + [{"role": "user", "content": final_prompt}]
@@ -63,6 +63,8 @@ def generate(question: str, retrieved_context: Optional[str], explainer_output: 
     print(f"FINAL PROMPT:\n{final_prompt}")
     
     def _do_call_llm():
+        if status_callback and fallback == "prolog-graphrag":
+            status_callback({"type": "step", "step": 8})
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,

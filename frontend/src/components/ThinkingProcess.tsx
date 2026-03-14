@@ -61,35 +61,23 @@ const TUNED_LLM_STEPS = [
 interface ThinkingProcessProps {
   isFinished: boolean;
   fallback?: string;
+  currentStep?: number;
 }
 
-const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback }) => {
-  const activeSteps = fallback === 'tuned-llm' ? TUNED_LLM_STEPS : PROLOG_STEPS;
+const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback, currentStep = 1 }) => {
+  const activeSteps = fallback === 'tuned' ? TUNED_LLM_STEPS : PROLOG_STEPS;
 
   const [isExpanded, setIsExpanded] = useState(!isFinished);
-  const [currentStep, setCurrentStep] = useState(0);
+  
+  const internalStep = isFinished ? activeSteps.length - 1 : Math.min(Math.max(0, currentStep - 1), activeSteps.length - 1);
 
   useEffect(() => {
     if (isFinished) {
-      setCurrentStep(activeSteps.length);
       setIsExpanded(false);
-      return;
+    } else {
+      setIsExpanded(true);
     }
-
-    setIsExpanded(true);
-    setCurrentStep(0);
-
-    const interval = setInterval(() => {
-      setCurrentStep(prev => {
-        if (prev < activeSteps.length - 1) {
-          return prev + 1;
-        }
-        return prev;
-      });
-    }, 2500); // 2.5 seconds per step
-
-    return () => clearInterval(interval);
-  }, [isFinished, activeSteps.length]);
+  }, [isFinished]);
 
   return (
     <div className={`w-full flex justify-start ${!isFinished ? '' : ''}`}>
@@ -116,10 +104,10 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback 
             >
               <div className="font-inter pl-6 mt-4 border-l-2 border-white/10 text-sm text-white/70 space-y-5 mb-2">
                 {activeSteps.map((step, index) => {
-                  const isVisible = index <= currentStep || isFinished;
+                  const isVisible = index <= internalStep || isFinished;
                   if (!isVisible) return null;
 
-                  const isCurrentlyThinking = !isFinished && index === currentStep;
+                  const isCurrentlyThinking = !isFinished && index === internalStep;
 
                   return (
                     <motion.div
