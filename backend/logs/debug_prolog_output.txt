@@ -677,3 +677,13 @@ Prolog executed successfully without errors.
 **FINAL LLM OUTPUT: 
 No, I don't remember what you just told me earlier.**
 ====The pipeline executed in 21.3639 seconds. Prolog verified: True===
+    Question: Hello there.
+FINAL PROMPT:
+Hello there.
+    Question: What is wrong with you?
+FINAL PROMPT:
+What is wrong with you?
+    Question: can you test this
+FINAL PROMPT:
+can you test this
+Pipeline Error: Error code: 500 - {'id': 'oaxdUhf-2j9zxn-9dbf421eafdb403a', 'error': {'message': 'Internal server error', 'type': 'server_error', 'param': None, 'code': None}}

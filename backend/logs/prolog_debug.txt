@@ -80,3 +80,25 @@ KeyError: 'text_answer'
 Unable to retrieve routing information
 Unable to retrieve routing information
 Unable to retrieve routing information
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 48, in chat
+    result = run_pipeline(question, flag="x")
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 17, in run_pipeline
+    fallback = decide_fallback(question)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\llm.py", line 31, in decide_fallback
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\_utils\_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\resources\chat\completions\completions.py", line 1192, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\_base_client.py", line 1297, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\_base_client.py", line 1070, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'id': 'oaxdUhf-2j9zxn-9dbf421eafdb403a', 'error': {'message': 'Internal server error', 'type': 'server_error', 'param': None, 'code': None}}

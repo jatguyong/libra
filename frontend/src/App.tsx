@@ -6,7 +6,8 @@ import Navbar from './components/Navbar';
 import WelcomeScreen from './components/WelcomeScreen';
 import ChatBox from './components/ChatBox';
 import Sidebar from './components/Sidebar';
-import { Brain, ChevronDown, Copy, RefreshCw, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Copy, RefreshCw, ChevronLeft, ChevronRight, X, AlertTriangle } from 'lucide-react';
+import ThinkingProcess from './components/ThinkingProcess';
 interface ExplanationData {
   explainer_output: string;
   prolog_explanation: string;
@@ -28,7 +29,6 @@ interface Message {
 }
 
 const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { message: Message, onRedo: (id: string) => void, isFinished: boolean, onExplanationClick: (data: ExplanationData) => void }) => {
-  const [isThoughtExpanded, setIsThoughtExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const variants = message.alternativeContents ? [...message.alternativeContents, message.content] : [message.content];
@@ -63,26 +63,8 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
       <div className="max-w-[80%] rounded-2xl px-5 py-4 font-inter text-[15px] leading-relaxed bg-transparent text-white/90">
 
         {/* CoT header block */}
-        <div className="mb-6">
-          <button
-            onClick={() => setIsThoughtExpanded(!isThoughtExpanded)}
-            className="flex items-center gap-2 mb-2 group text-white/50 hover:text-white/80 transition-colors w-auto cursor-pointer"
-          >
-            <Brain size={16} className="font-inter text-purple-400 group-hover:text-purple-300 transition-colors" />
-            <span className="text-sm font-medium">Libra's Thought Process</span>
-            <ChevronDown
-              size={14}
-              className={`transition-transform duration-300 ${isThoughtExpanded ? 'rotate-180' : ''}`}
-            />
-          </button>
-
-          {isThoughtExpanded && (
-            <div className="font-inter pl-4 mt-2 border-l-2 border-white/10 text-sm text-white/50 space-y-2">
-              <p>• Parsing user intent and symbolic parameters...</p>
-              <p>• Accessing context...</p>
-              <p>• Synthesizing logical constraints for final output...</p>
-            </div>
-          )}
+        <div className="mb-6 -ml-5">
+          <ThinkingProcess isFinished={true} fallback={message.explanationData?.fallback} />
         </div>
 
         <div className="font-inter text-[15px] leading-relaxed w-full text-[#DEE1E5]">
@@ -143,6 +125,17 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
                 Redo response
               </div>
             </div>
+
+            {message.explanationData?.fallback === 'tuned-llm' && (
+              <div className="relative group/tooltip flex items-center justify-center ml-1">
+                <div className="p-1.5 text-amber-500/80 hover:text-amber-400 group-hover/tooltip:bg-amber-500/10 rounded-md transition-colors cursor-help">
+                  <AlertTriangle size={18} />
+                </div>
+                <div className="absolute bottom-full mb-2 bg-[#1a1523] text-white/90 text-xs px-3 py-2 rounded-lg border border-amber-500/30 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all w-56 text-center shadow-xl shadow-amber-900/20 z-10 pointer-events-none">
+                  This response is not Prolog verified and relies solely on the LLM's parametric memory.
+                </div>
+              </div>
+            )}
 
             {message.explanationData && (
               <button onClick={() => onExplanationClick(message.explanationData!)} className="text-base font-inter font-light text-white/40 hover:text-white/80 transition-colors ml-1 cursor-pointer">
@@ -445,11 +438,7 @@ function App() {
                 ))}
 
                 {isLoading && (
-                  <div className="flex w-full justify-start">
-                    <div className="bg-transparent text-white/50 font-inter px-5 py-4 animate-pulse">
-                      Libra is thinking...
-                    </div>
-                  </div>
+                  <ThinkingProcess isFinished={false} />
                 )}
 
                 {/* Auto-scroll target */}
