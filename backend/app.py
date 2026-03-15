@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from .env file before anything else
+
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from flask import Flask, request, jsonify, Response
@@ -10,10 +10,10 @@ import ollama
 
 app = Flask(__name__)
 
-# Configure CORS to allow requests ONLY from http://localhost:5173
+
 CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
-# Constants
+
 MODEL_NAME = 'gemma3:1b'
 
 SYSTEM_INSTRUCTION = """
@@ -43,7 +43,6 @@ def ingest():
     saved_files = []
     for file in files:
         if file.filename:
-            # Need to secure filename in real app, but for now we'll just save it
             filepath = os.path.join(upload_dir, file.filename)
             file.save(filepath)
             saved_files.append(file.filename)
@@ -63,7 +62,6 @@ def chat():
     if not react_messages:
         return jsonify({"error": "No messages provided"}), 400
 
-    # Extract the user's latest question and the boolean flag
     latest_msg = react_messages[-1]
     question = latest_msg.get("content", "")
     use_global_kg = data.get("useGlobalKG", False)
@@ -90,20 +88,6 @@ def chat():
                 else:
                     contexts = str(raw_contexts) if raw_contexts else ""
 
-                # Serialize logprobs (they may be Pydantic/OpenAI objects)
-                raw_logprobs = result.get("logprobs", [])
-                logprobs = []
-                if raw_logprobs and isinstance(raw_logprobs, (list, tuple)):
-                    try:
-                        logprobs = [
-                            lp.model_dump() if hasattr(lp, 'model_dump')
-                            else (lp.__dict__ if hasattr(lp, '__dict__') and not isinstance(lp, dict) else lp)
-                            for lp in raw_logprobs
-                        ]
-                    except Exception as e:
-                        print(f"Warning: Could not serialize logprobs: {e}")
-                        logprobs = []
-
                 q.put({
                     "type": "result",
                     "data": {
@@ -116,8 +100,7 @@ def chat():
                         "contexts": contexts,
                         "condensed_context": result.get("condensed_context", ""),
                         "fallback": result.get("fallback", "unknown"),
-                        "prolog_error": result.get("prolog_error", None),
-                        "logprobs": logprobs,
+                        "prolog_error": result.get("prolog_error", None)
                     }
                 })
                 

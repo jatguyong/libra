@@ -42,7 +42,6 @@ def decide_fallback(question: str):
             }
         )
     content_str = response.choices[0].message.content
-    # print(f"\nFALLBACK RESPONSE: \n{content_str}")
     try:
         data = json.loads(content_str)
     except json.JSONDecodeError:

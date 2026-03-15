@@ -2,7 +2,6 @@ from .graphrag import graphrag_driver
 from .prolog import prolog_driver
 from .llm import generate, decide_fallback
 from .prompt_reconstructor import reconstruct_prompt
-from .graphrag.config import SKIP_LOGICAL_EVIDENCE_LLM
     
 import time
 from typing import Literal
@@ -19,15 +18,6 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
     # Separate inference run for deciding if pipeline would fall back to GraphRAG
     fallback = decide_fallback(question)
     print(f"    Question: {question}")
-    # if fallback == "prolog-graphrag":
-    #     # print("     Fallback decision: NO — proceeding with Prolog inference.\n")
-    # elif fallback == "graphrag":
-    #     # print("     Fallback decision: YES — skipping Prolog and using GraphRAG answer directly.\n")
-    # elif fallback == "tuned":
-    #     # print("     Fallback decision: YES — skipping Prolog and using LLM answer directly.\n")
-    # else:
-    #     raise ValueError(f"Invalid fallback {fallback}")
-    # fallback = "prolog-graphrag"
     if fallback == "tuned":
         if status_callback:
             status_callback({"type": "step", "step": 2, "fallback": fallback})
@@ -39,7 +29,6 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
         if not sample_mode:
             return {
                 "answer": final_answer,
-                "logprobs": logprobs,
                 "database": None,
                 "query": None,
                 "contexts": None,
@@ -50,8 +39,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
             }
         else:
             return {
-                "answers": [output["text_answer"] for output in llm_output],
-                "logprobs": [output["logprobs"] for output in llm_output]
+                "answers": [output["text_answer"] for output in llm_output]
             }
     else:
         graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback, use_global_kg=use_global_kg, status_callback=status_callback) if flag != "q" else None
@@ -63,7 +51,6 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
         condensed_context = ""
         
         if flag != "q" and graphrag_output and fallback != "tuned":
-            # Print the intermediate GraphRAG logical evidence to the terminal for transparency
             print("\n" + "="*80)
             print("GRAPHRAG CONDENSED CONTEXT")
             print("="*80)
@@ -76,7 +63,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
             condensed_context = ""
             raw_context_strings = []
             
-        # ── Split KBPedia vs Wikidata retrieved items ────────────────────────────
+        # Split KBPedia vs Wikidata retrieved items
         if isinstance(raw_context_strings, list):
             kbpedia_items = []
             wikidata_items = []
@@ -93,14 +80,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                 else:
                     kbpedia_items.append(item_str)
 
-            if SKIP_LOGICAL_EVIDENCE_LLM:
-                # Bypass the GRAPHRAG_TEMPLATE LLM step — pass raw triples directly to Prolog.
-                # This is richer and avoids the intermediate LLM bottleneck.
-                retrieved_context_str = "\n".join(raw_context_strings)
-                print("DEBUG PROLOG-GRAPHRAG:SKIP_LOGICAL_EVIDENCE_LLM=True — passing raw triples to Prolog.")
-            else:
-                # Default: use the LLM-distilled logical evidence text as context
-                retrieved_context_str = condensed_context if graphrag_output else ""
+            retrieved_context_str = condensed_context if graphrag_output else ""
             # Append Wikidata facts to context_from_prompt so they reach the synthesis LLM
             if wikidata_items:
                 wikidata_block = "\n\nWikidata Background Facts (for context, not Prolog logic):\n" + "\n".join(wikidata_items)
@@ -139,7 +119,6 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
         if not sample_mode:
             return {
                 "answer": final_answer if final_answer else "Error generating answer",
-                "logprobs": logprobs,
                 "database": pgr_results.get("database", "") if pgr_results else "No database generated.",
                 "prolog_query": pgr_results.get("query", "") if pgr_results else "No prolog query generated.",
                 "query": query,
@@ -152,8 +131,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
             }
         else:
             return {
-                "answers": [output["text_answer"] for output in llm_output],
-                "logprobs": [output["logprobs"] for output in llm_output]
+                "answers": [output["text_answer"] for output in llm_output]
             }
 
     

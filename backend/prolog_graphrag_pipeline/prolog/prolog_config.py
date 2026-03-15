@@ -139,19 +139,19 @@ Now, process the following:
 User Question: If the grass is contaminated, are the snakes affected?
 
 Context:
-1. [ATOMIC FACTS]:
+**ATOMIC FACTS**:
     - In a food web, grass is a producer.
     - Grasshoppers eat grass.
     - Frogs eat grasshoppers.
     - Snakes eat frogs.
 
-2. [CONDITIONAL RULES]:
+**CONDITIONAL RULES**:
     - None
 
-3. [EXCEPTIONS]:
+**EXCEPTIONS**:
     - None
 
-4. [LOGICAL GAPS]:
+**LOGICAL GAPS**:
     - None
 """},
     {"role": "assistant", "content": r"""
@@ -202,18 +202,18 @@ User Question:
 If two rocks are lacking magnetic properties and far apart, can a magnetic effect pull them together? 
 
 Context: 
-1. [ATOMIC FACTS]:
+**ATOMIC FACTS**:
     - A magnetic effect can pull two objects together.
 
-2. [CONDITIONAL RULES]:
+**CONDITIONAL RULES**:
     - Magnetic properties are necessary for a magnetic force to act between two rocks.
     - Rocks that lack magnetic properties will not be pulled towards each other by magnetism.
     - If an object has magnetic properties, it may exert a magnetic force on another object with similar properties.
 
-3. [EXCEPTIONS]:
+**EXCEPTIONS**:
     - None
 
-4. [LOGICAL GAPS]:
+**LOGICAL GAPS**:
     - None
         """
         },
@@ -282,19 +282,19 @@ pulled_together(rock_one, rock_two).
 # D. mid-ocean ridge
 
 # Context: 
-# 1. [ATOMIC FACTS]:
+# **ATOMIC FACTS**:
 #     - Mid-ocean ridges are areas where tectonic plates diverge.
 #     - Diverging tectonic plates create new crust.
 
-# 2. [CONDITIONAL RULES]:
+# **CONDITIONAL RULES**:
 #     - A trench forms when one plate moves under another at a subduction zone (plate convergence).
 #     - A rift valley forms when tectonic plates diverge.
 #     - An ocean basin forms when tectonic plates diverge.
 
-# 3. [EXCEPTIONS]:
+# **EXCEPTIONS**:
 #     - None
 
-# 4. [LOGICAL GAPS]:
+# **LOGICAL GAPS**:
 #     - None        
 #     """},
 #     {
@@ -364,20 +364,20 @@ pulled_together(rock_one, rock_two).
 # D. frog
 
 # Context: 
-# 1. [ATOMIC FACTS]:
+# **ATOMIC FACTS**:
 #     - Dogs are mammals.
 #     - Cats are mammals.
 #     - Humans are mammals.
 #     - Frogs are amphibians.
 
-# 2. [CONDITIONAL RULES]:
+# **CONDITIONAL RULES**:
 #     - Mammals are warm-blooded vertebrates that have hair.
 #     - Amphibians are cold-blooded.
 
-# 3. [EXCEPTIONS]:
+# **EXCEPTIONS**:
 #     - None
 
-# 4. [LOGICAL GAPS]:
+# **LOGICAL GAPS**:
 #     - None        
 # """},
 #     {"role": "assistant", "content": r"""
@@ -435,7 +435,7 @@ C. wood
 D. steel
 
 Context:
-1. [ATOMIC FACTS]:
+**ATOMIC FACTS**:
     - Metals are good conductors of heat.
     - Metals contain free-moving electrons.
     - Wood is a poor conductor of heat.
@@ -443,14 +443,14 @@ Context:
     - Rubber is an insulator.
     - Glass conducts heat poorly.
 
-2. [CONDITIONAL RULES]:
+**CONDITIONAL RULES**:
     - Free-moving electrons transfer kinetic energy quickly.
     - Molecules that are tightly bound do not transfer energy efficiently.
 
-3. [EXCEPTIONS]:
+**EXCEPTIONS**:
     - None
 
-4. [LOGICAL GAPS]:
+**LOGICAL GAPS**:
     - None     
 """},
     {
@@ -521,7 +521,7 @@ C. water
 D. neon
 
 Context:
-1. [ATOMIC FACTS]:
+**ATOMIC FACTS**:
    - Water molecules exhibit hydrogen bonding.
    - Methane molecules exhibit only London dispersion forces.
    - Hydrogen sulfide molecules exhibit dipole-dipole interactions.
@@ -530,13 +530,13 @@ Context:
    - A stronger intermolecular force requires a greater amount of thermal energy to overcome.
    - The boiling point of a liquid is directly proportional to the amount of thermal energy required to overcome its intermolecular forces.
 
-2. [CONDITIONAL RULES]:
+**CONDITIONAL RULES**:
    - None
 
-3. [EXCEPTIONS]:
+**EXCEPTIONS**:
    - None
 
-4. [LOGICAL GAPS]:
+**LOGICAL GAPS**:
    - None
         """
     },
@@ -613,19 +613,19 @@ Now, process the following:
 Question: A proton is moving horizontally to the right through a uniform magnetic field that is directed perpendicular to the proton's velocity and straight into the page. Does the proton experience an upward magnetic force?
 
 Context:
-1. [ATOMIC FACTS]:
+**ATOMIC FACTS**:
    - The particle in motion is a proton.
    - A proton is a positively charged particle.
    - The velocity vector of the particle is directed to the right.
    - The magnetic field vector is directed into the page.
 
-2. [CONDITIONAL RULES]:
+**CONDITIONAL RULES**:
    - None
 
-3. [EXCEPTIONS]:
+**EXCEPTIONS**:
    - None
 
-4. [LOGICAL GAPS]:
+**LOGICAL GAPS**:
    - The context does not provide the Right-Hand Rule (Lorentz force vector cross product) required to determine the spatial direction of the magnetic force exerted on a moving charge.
         """
     },
@@ -685,16 +685,16 @@ C. electron transport chain
 D. lactic acid fermentation
 
 Context:
-1. [ATOMIC FACTS]:
+**ATOMIC FACTS**:
    - None
 
-2. [CONDITIONAL RULES]:
+**CONDITIONAL RULES**:
    - None
 
-3. [EXCEPTIONS]:
+**EXCEPTIONS**:
    - None
 
-4. [LOGICAL GAPS]:
+**LOGICAL GAPS**:
    - None
         """
     },
@@ -755,17 +755,17 @@ User Question:
 According to the provided texts, is the measured duration of an object's 'period' ($T$) considered to be an absolute value based on a fixed universal standard?
 
 Context:
-1. [ATOMIC FACTS]:
+**ATOMIC FACTS**:
    * There are no true physical absolute measures.
    * No fixed frame of reference has been found.
    * The period of an object is measured in seconds and denoted by $T$.
    * The period $T$ is the time it takes for an object to complete a cycle.
-2. [CONDITIONAL RULES]:
+**CONDITIONAL RULES**:
    * IF a force is applied to an object over a period of time, THEN the impulse is equal to the change in momentum.
    * IF an object moves around a full circle, THEN it completes a cycle and the time taken is called the period $T$.
-3. [EXCEPTIONS]:
+**EXCEPTIONS**:
    * None
-4. [LOGICAL GAPS]:
+**LOGICAL GAPS**:
    * The definition of an absolute value in the context of the measured duration of an object's period $T$.
    * The relationship between the measured duration of an object's period $T$ and a fixed universal standard.
         """
@@ -820,16 +820,16 @@ Now, process the following:
 What specific chemical mechanism is used to link the foundational units of the material that reinforces skin cells and provides their toughness?
 
 Context:
-1. [ATOMIC FACTS]:
+**ATOMIC FACTS**:
    * Skin cells need lots of the protein keratin.
    * Keratin is a protein that provides toughness to skin cells.
    * The matrix of bone cells consists of collagen hardened by calcium and phosphate crystals.
-2. [CONDITIONAL RULES]:
+**CONDITIONAL RULES**:
    * IF a cell needs to perform a specific job, THEN it requires a specific protein.
    * IF a cell is a skin cell, THEN it needs lots of the protein keratin.
-3. [EXCEPTIONS]:
+**EXCEPTIONS**:
    * None
-4. [LOGICAL GAPS]:
+**LOGICAL GAPS**:
    * The specific chemical mechanism used to link the foundational units of the material that reinforces skin cells is not mentioned in the provided context.
    * The relationship between keratin and the toughness of skin cells is mentioned, but the exact chemical mechanism of how keratin provides this toughness is not specified.
         """
