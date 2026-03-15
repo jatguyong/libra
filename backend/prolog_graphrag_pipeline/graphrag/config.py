@@ -6,8 +6,6 @@ NEO4J_URI = "neo4j://127.0.0.1:7687"
 NEO4J_USERNAME = "neo4j"
 NEO4J_PASSWORD = "graphrag"
 DB_NAME = "graphrag-kg"
-
-# Global Knowledge Source Configuration
 GLOBAL_KB = "KBPEDIA"
 
 # Wikidata Fallback: When KBPedia has no match for an entity,
@@ -15,23 +13,11 @@ GLOBAL_KB = "KBPEDIA"
 ENABLE_WIKIDATA_FALLBACK = True
 
 # Coarse concept-level filtering before triple filtering.
-# Default: False (faster, collapses redundant LLM turn).
 ENABLE_KBPEDIA_CONCEPT_FILTER = True
 ENABLE_LLM_FILTERING = True
 
-# When True, skip the GRAPHRAG_TEMPLATE LLM distillation step and pass raw retrieved
-# triples/chunks directly to the Prolog generator instead of LLM-summarized evidence.
-# This avoids an intermediate LLM bottleneck but gives Prolog more raw noise to parse.
-SKIP_LOGICAL_EVIDENCE_LLM = False
 
-
-class RETRIEVER_OPTIONS(Enum):
-  HybridCypherRetriever = "HybridCypherRetriever"
-  HybridRetriever = "HybridRetriever"
-  VectorCypherRetriever = "VectorCypherRetriever"
-  
-  
-RETRIEVER = RETRIEVER_OPTIONS.HybridRetriever
+RETRIEVER = "HybridRetriever"
 
 class SCHEMA_TYPE(Enum):
   STATIC = "Static Schema"
@@ -116,10 +102,10 @@ You are a rigorous Logic Extraction Agent. Your purpose is to extract and struct
 ### EXTRACTION CATEGORIES
 You MUST categorize the extracted knowledge into the following four exact sections. 
 
-1. [ATOMIC FACTS]: Unconditional, standalone truths extracted directly from the Context for ALL concepts in the query. (e.g., "The cell wall provides mechanical support.")
-2. [CONDITIONAL RULES]: Causal relationships, laws, or theorems explicitly found in the Context. Format these as IF-THEN statements. (e.g., "IF an object has mass, THEN it exerts gravity.")
-3. [EXCEPTIONS]: Explicit boundary conditions, caveats, or exceptions to the rules mentioned in the Context. (e.g., "EXCEPT when the system is in a vacuum.")
-4. [LOGICAL GAPS]: Essential missing premises or bridging facts NOT found in the Context that are strictly necessary to definitively answer the User Query or complete the logical chain.
+**ATOMIC FACTS**: Unconditional, standalone truths extracted directly from the Context for ALL concepts in the query. (e.g., "The cell wall provides mechanical support.")
+**CONDITIONAL RULES**: Causal relationships, laws, or theorems explicitly found in the Context. Format these as IF-THEN statements. (e.g., "IF an object has mass, THEN it exerts gravity.")
+**EXCEPTIONS**: Explicit boundary conditions, caveats, or exceptions to the rules mentioned in the Context. (e.g., "EXCEPT when the system is in a vacuum.")
+**LOGICAL GAPS**: Essential missing premises or bridging facts NOT found in the Context that are strictly necessary to definitively answer the User Query or complete the logical chain.
 
 ### STRICT CONSTRAINTS
 1. UNBIASED EXTRACTION: Extract information relevant to ALL options or concepts in the User Query. Do not assume an answer prematurely; let the reasoning engine decide.
@@ -130,13 +116,13 @@ You MUST categorize the extracted knowledge into the following four exact sectio
 ### FORMAT
 Output ONLY the ATOMIC FACTS, CONDITIONAL RULES, EXCEPTIONS, and LOGICAL GAPS with a bulleted list under each. If a section has no entries based on the Context, write "None". Do not include introductory filler or a final conclusion. Follow this answer format:
 
-1. [ATOMIC FACTS]:
+**ATOMIC FACTS**:
    List of atomic facts
-2. [CONDITIONAL RULES]:
+**CONDITIONAL RULES**:
    List of conditional rules
-3. [EXCEPTIONS]:
+**EXCEPTIONS**:
    List of exceptipns
-4. [LOGICAL GAPS]:
+**LOGICAL GAPS**:
    List of logical gaps
    
 ### Question:
