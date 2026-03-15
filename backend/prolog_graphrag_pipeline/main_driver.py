@@ -2,6 +2,7 @@ from .graphrag import graphrag_driver
 from .prolog import prolog_driver
 from .llm import generate, decide_fallback
 from .prompt_reconstructor import reconstruct_prompt
+from .semantic_entropy import compute_semantic_entropy
 from .graphrag.config import SKIP_LOGICAL_EVIDENCE_LLM
     
 import time
@@ -151,9 +152,24 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                 "fallback": fallback
             }
         else:
+            answers = [output["text_answer"] for output in llm_output],
+            logprobs =  [output["logprobs"] for output in llm_output],
+            se_results = compute_semantic_entropy(llm_output)
             return {
-                "answers": [output["text_answer"] for output in llm_output],
-                "logprobs": [output["logprobs"] for output in llm_output]
+                "answers": answers,
+                "logprobs": logprobs,
+                "best_answer": se_results["best_answer"],
+                "semantic_entropy": se_results["semantic_entropy"],
+                "hallucination_flag": se_results["hallucination_flag"],
+                "database": pgr_results.get("database", "") if pgr_results else "No database generated.",
+                "prolog_query": pgr_results.get("query", "") if pgr_results else "No prolog query generated.",
+                "query": query,
+                "condensed_context": condensed_context,
+                "contexts": retrieved_context_str,
+                "prolog_explanation": pgr_results.get("prolog_explanation", "") if pgr_results else "",
+                "explainer_output": pgr_results.get("explainer_output", "") if pgr_results else "No explainer output generated.",
+                "prolog_error": pgr_results.get("prolog_error") if pgr_results else None,
+                "fallback": fallback
             }
 
     
