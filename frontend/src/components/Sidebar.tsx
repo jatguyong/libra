@@ -89,10 +89,12 @@ const Sidebar = ({ isOpen, toggleSidebar, uploadedFiles, onNewConversation }: Si
                     className="h-[72px] flex items-center gap-3 px-6 cursor-pointer pointer-events-auto w-fit"
                     onClick={toggleSidebar}
                 >
-                    <img
+                    <motion.img
                         src="/libra_logo.png"
                         alt="Libra Logo"
                         className="w-10 h-10 object-contain"
+                        animate={{ rotate: isOpen ? -90 : 0 }}
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
                     />
                     <span className="font-space text-lg font-normal tracking-widest mt-[2px] text-white">
                         LIBRA
