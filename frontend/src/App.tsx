@@ -628,15 +628,88 @@ function App() {
                   {selectedExplanation.query && (
                     <div className="mb-4">
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Query</h3>
-                      <p className="text-sm text-white/80 font-inter leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
-                        {selectedExplanation.query}
-                      </p>
+                      <div className="text-sm text-white/80 font-inter leading-relaxed">
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                            ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
+                            li: ({ children }) => <li className="mb-1">{children}</li>,
+                            strong: ({ children }) => <strong className="font-bold text-white/90">{children}</strong>,
+                            em: ({ children }) => <em className="italic">{children}</em>,
+                            h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-2 text-white/90">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-base font-bold mt-4 mb-2 text-white/90">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1 text-white/90">{children}</h3>,
+                          }}
+                        >
+                          {selectedExplanation.query}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   )}
 
+                  {/* GraphRAG Sources Section */}
+                  {(() => {
+                    const cc = selectedExplanation.condensed_context;
+                    const hasValidContext = cc && !cc.toLowerCase().includes('error during generation');
+                    const hasContexts = Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0;
+                    return (hasValidContext || hasContexts) ? (
+                    <div className="mb-4">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">GraphRAG Sources</h3>
+                      {hasValidContext && (
+                        <div className="mb-3">
+                          <p className="text-xs text-white/40 mb-1">Condensed Context</p>
+                          <div className="text-sm text-white/80 font-inter leading-relaxed max-h-48 overflow-y-auto pr-2">
+                            <ReactMarkdown
+                              components={{
+                                p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                                ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
+                                ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
+                                li: ({ children }) => <li className="mb-1">{children}</li>,
+                                strong: ({ children }) => <strong className="font-bold text-white/90">{children}</strong>,
+                                em: ({ children }) => <em className="italic">{children}</em>,
+                                h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-2 text-white/90">{children}</h1>,
+                                h2: ({ children }) => <h2 className="text-base font-bold mt-4 mb-2 text-white/90">{children}</h2>,
+                                h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1 text-white/90">{children}</h3>,
+                              }}
+                            >
+                              {selectedExplanation.condensed_context}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                      {Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0 && (
+                        <div>
+                          <p className="text-xs text-white/40 mb-1">Retrieved Contexts ({selectedExplanation.contexts.length})</p>
+                          <div className="space-y-4 max-h-64 overflow-y-auto pr-2 text-sm text-white/80 font-inter leading-relaxed">
+                            {selectedExplanation.contexts.map((ctx, i) => (
+                              <ReactMarkdown
+                                key={i}
+                                components={{
+                                  p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                                  ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
+                                  ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
+                                  li: ({ children }) => <li className="mb-1">{children}</li>,
+                                  strong: ({ children }) => <strong className="font-bold text-white/90">{children}</strong>,
+                                  em: ({ children }) => <em className="italic">{children}</em>,
+                                  h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-2 text-white/90">{children}</h1>,
+                                  h2: ({ children }) => <h2 className="text-base font-bold mt-4 mb-2 text-white/90">{children}</h2>,
+                                  h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1 text-white/90">{children}</h3>,
+                                }}
+                              >
+                                {ctx}
+                              </ReactMarkdown>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    ) : null;
+                  })()}
+
                   {/* Explainability Section */}
                   {(selectedExplanation.explainer_output || selectedExplanation.prolog_explanation) && (
-                    <div>
+                    <div className="mb-4">
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Explainability</h3>
                       {selectedExplanation.explainer_output && (
                         <div className="mb-3">
@@ -673,58 +746,26 @@ function App() {
 
                   {/* Prolog Details Section */}
                   {(selectedExplanation.database || selectedExplanation.query) && (
-                    <div>
+                    <div className="mb-4">
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Prolog Details</h3>
-                      {selectedExplanation.database && (
-                        <div className="mb-3">
-                          <p className="text-xs text-white/40 mb-1">Database</p>
-                          <pre className="text-xs text-green-300/80 font-mono leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5 max-h-48 overflow-y-auto">
-                            {selectedExplanation.database}
-                          </pre>
-                        </div>
-                      )}
                       {selectedExplanation.prolog_query && (
-                        <div>
+                        <div className="mb-3">
                           <p className="text-xs text-white/40 mb-1">Prolog Query</p>
                           <pre className="text-xs text-cyan-300/80 font-mono leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
                             {selectedExplanation.prolog_query}
                           </pre>
                         </div>
                       )}
+                      {selectedExplanation.database && (
+                        <div>
+                          <p className="text-xs text-white/40 mb-1">Database</p>
+                          <pre className="text-xs text-green-300/80 font-mono leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5 max-h-48 overflow-y-auto">
+                            {selectedExplanation.database}
+                          </pre>
+                        </div>
+                      )}
                     </div>
                   )}
-
-                  {/* GraphRAG Sources Section */}
-                  {(() => {
-                    const cc = selectedExplanation.condensed_context;
-                    const hasValidContext = cc && !cc.toLowerCase().includes('error during generation');
-                    const hasContexts = Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0;
-                    return (hasValidContext || hasContexts) ? (
-                    <div>
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">GraphRAG Sources</h3>
-                      {hasValidContext && (
-                        <div className="mb-3">
-                          <p className="text-xs text-white/40 mb-1">Condensed Context</p>
-                          <p className="text-sm text-white/70 font-inter leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5 max-h-48 overflow-y-auto">
-                            {selectedExplanation.condensed_context}
-                          </p>
-                        </div>
-                      )}
-                      {Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0 && (
-                        <div>
-                          <p className="text-xs text-white/40 mb-1">Retrieved Contexts ({selectedExplanation.contexts.length})</p>
-                          <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {selectedExplanation.contexts.map((ctx, i) => (
-                              <div key={i} className="text-xs text-white/60 font-inter leading-relaxed bg-white/5 rounded-lg p-3 border border-white/5">
-                                {ctx}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    ) : null;
-                  })()}
 
                   {/* Prolog Error (if any) */}
                   {selectedExplanation.prolog_error && (
