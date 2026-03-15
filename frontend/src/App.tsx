@@ -13,6 +13,7 @@ interface ExplanationData {
   prolog_explanation: string;
   database: string;
   query: string;
+  prolog_query?: string;
   contexts: string[] | string;
   condensed_context: string;
   fallback: string;
@@ -241,6 +242,7 @@ function App() {
                     prolog_explanation: data.prolog_explanation || '',
                     database: data.database || '',
                     query: data.query || '',
+                    prolog_query: data.prolog_query || '',
                     contexts: data.contexts || [],
                     condensed_context: data.condensed_context || '',
                     fallback: data.fallback || 'unknown',
@@ -330,6 +332,7 @@ function App() {
                     prolog_explanation: data.prolog_explanation || '',
                     database: data.database || '',
                     query: data.query || '',
+                    prolog_query: data.prolog_query || '',
                     contexts: data.contexts || [],
                     condensed_context: data.condensed_context || '',
                     fallback: data.fallback || 'unknown',
@@ -601,6 +604,16 @@ function App() {
                     </span>
                   </div>
 
+                  {/* Mapped Query Section */}
+                  {selectedExplanation.query && (
+                    <div className="mb-4">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Query</h3>
+                      <p className="text-sm text-white/80 font-inter leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
+                        {selectedExplanation.query}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Explainability Section */}
                   {(selectedExplanation.explainer_output || selectedExplanation.prolog_explanation) && (
                     <div>
@@ -650,11 +663,11 @@ function App() {
                           </pre>
                         </div>
                       )}
-                      {selectedExplanation.query && (
+                      {selectedExplanation.prolog_query && (
                         <div>
-                          <p className="text-xs text-white/40 mb-1">Query</p>
+                          <p className="text-xs text-white/40 mb-1">Prolog Query</p>
                           <pre className="text-xs text-cyan-300/80 font-mono leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
-                            {selectedExplanation.query}
+                            {selectedExplanation.prolog_query}
                           </pre>
                         </div>
                       )}

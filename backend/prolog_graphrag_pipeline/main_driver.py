@@ -141,6 +141,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                 "answer": final_answer if final_answer else "Error generating answer",
                 "logprobs": logprobs,
                 "database": pgr_results.get("database", "") if pgr_results else "No database generated.",
+                "prolog_query": pgr_results.get("query", "") if pgr_results else "No prolog query generated.",
                 "query": query,
                 "condensed_context": condensed_context,
                 "contexts": retrieved_context_str,

@@ -85,6 +85,7 @@ def chat():
                         "explainer_output": result.get("explainer_output", ""),
                         "prolog_explanation": result.get("prolog_explanation", ""),
                         "database": result.get("database", ""),
+                        "prolog_query": result.get("prolog_query", ""),
                         "query": result.get("query", ""),
                         "contexts": contexts,
                         "condensed_context": result.get("condensed_context", ""),
