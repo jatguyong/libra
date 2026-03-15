@@ -517,7 +517,7 @@ function App() {
         <div className="flex-1 flex flex-col h-full relative overflow-hidden transition-all duration-300">
 
           <div className="pointer-events-auto w-full shrink-0 relative z-50">
-            <Navbar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
+            <Navbar />
           </div>
 
           {!hasStartedChat ? (
