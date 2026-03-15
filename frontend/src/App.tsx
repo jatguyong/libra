@@ -61,7 +61,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
 
   return (
     <div className="flex w-full justify-start">
-      <div className="max-w-[80%] rounded-2xl px-5 py-4 font-inter text-[15px] leading-relaxed bg-transparent text-white/90">
+      <div className="w-full rounded-2xl px-5 py-4 font-inter text-[15px] leading-relaxed bg-transparent text-white/90">
 
         {/* CoT header block */}
         <div className="mb-6 -ml-5">
@@ -551,7 +551,7 @@ function App() {
                     {msg.role === 'user' ? (
                       <div className="flex w-full justify-end">
                         <div
-                          className="max-w-[80%] rounded-2xl px-5 py-4 font-inter text-[15px] leading-relaxed bg-white/10 text-white border border-white/10 backdrop-blur-md"
+                          className="max-w-[80%] rounded-2xl rounded-tl-[4px] px-5 py-4 font-inter text-[15px] leading-relaxed bg-white/10 text-white border border-white/10 backdrop-blur-md"
                           style={{ whiteSpace: 'pre-wrap' }}
                         >
                           {msg.content.replace(/\n{3,}/g, '\n\n')}
