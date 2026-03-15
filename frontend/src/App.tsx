@@ -138,8 +138,11 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
               </div>
             )}
 
-            {message.explanationData && (
-              <button onClick={() => onExplanationClick(message.explanationData!)} className="text-base font-inter font-light text-white/40 hover:text-white/80 transition-colors ml-1 cursor-pointer">
+            {message.explanationData && message.explanationData.fallback !== 'tuned' && (
+              <button 
+                onClick={() => onExplanationClick(message.explanationData!)} 
+                className="text-base font-inter font-light text-white/40 hover:text-white/80 transition-colors ml-1 cursor-pointer"
+              >
                 Explanation
               </button>
             )}
@@ -237,7 +240,7 @@ function App() {
             if (part.startsWith('data: ')) {
               try {
                 const eventData = JSON.parse(part.slice(6));
-                
+
                 if (eventData.type === 'step') {
                   setCurrentStep(eventData.step);
                   if (eventData.fallback) {
@@ -327,7 +330,7 @@ function App() {
             if (part.startsWith('data: ')) {
               try {
                 const eventData = JSON.parse(part.slice(6));
-                
+
                 if (eventData.type === 'step') {
                   setCurrentStep(eventData.step);
                   if (eventData.fallback) {
@@ -433,7 +436,7 @@ function App() {
           if (part.startsWith('data: ')) {
             try {
               const eventData = JSON.parse(part.slice(6));
-              
+
               if (eventData.type === 'step') {
                 setCurrentStep(eventData.step);
                 if (eventData.fallback) {
@@ -486,7 +489,25 @@ function App() {
 
   {/* galaxy bg */ }
   return (
-    <div className="relative h-screen w-full flex flex-row overflow-hidden bg-[#060010]">
+    <div className="relative h-screen w-full overflow-hidden bg-[#060010]">
+
+      {/* Full-screen Galaxy Background */}
+      <div className="absolute inset-0 z-0 pointer-events-auto">
+        <Galaxy
+          mouseRepulsion={false}
+          mouseInteraction={!hasStartedChat}
+          density={1.3}
+          glowIntensity={hasStartedChat ? 0.12 : 0.2}
+          saturation={0}
+          hueShift={140}
+          twinkleIntensity={hasStartedChat ? 0.1 : 0.3}
+          rotationSpeed={hasStartedChat ? 0 : 0.05}
+          repulsionStrength={10}
+          autoCenterRepulsion={0}
+          starSpeed={hasStartedChat ? 0.05 : 0.2}
+          speed={hasStartedChat ? 0.2 : 0.8}
+        />
+      </div>
 
       <div className="relative z-10 flex flex-row h-full w-full pointer-events-none">
 
@@ -495,31 +516,13 @@ function App() {
         {/* Central Chat Column */}
         <div className="flex-1 flex flex-col h-full relative overflow-hidden transition-all duration-300">
 
-          {/* Constrained Galaxy Background */}
-          <div className="absolute inset-0 z-0">
-            <Galaxy
-              mouseRepulsion={false}
-              mouseInteraction={!hasStartedChat}
-              density={1}
-              glowIntensity={hasStartedChat ? 0.1 : 0.2}
-              saturation={0}
-              hueShift={140}
-              twinkleIntensity={hasStartedChat ? 0.1 : 0.3}
-              rotationSpeed={hasStartedChat ? 0.0 : 0.05}
-              repulsionStrength={10}
-              autoCenterRepulsion={0}
-              starSpeed={hasStartedChat ? 0 : 0.2}
-              speed={hasStartedChat ? 0.2 : 0.8}
-            />
-          </div>
-
           <div className="pointer-events-auto w-full shrink-0 relative z-50">
             <Navbar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
           </div>
 
           {!hasStartedChat ? (
 
-            <main className="flex-1 flex flex-col items-center justify-center pointer-events-none px-6 mt-[-10%] z-10">
+            <main className="flex-1 flex flex-col items-center justify-center pointer-events-none px-6 mt-[-10vh] z-10">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
                 <WelcomeScreen />
               </motion.div>
@@ -613,14 +616,13 @@ function App() {
                 <>
                   {/* Pipeline Mode Badge */}
                   <div>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold tracking-wide uppercase ${
-                      selectedExplanation.fallback === 'prolog-graphrag' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold tracking-wide uppercase ${selectedExplanation.fallback === 'prolog-graphrag' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
                       selectedExplanation.fallback === 'graphrag' ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' :
-                      'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    }`}>
+                        'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      }`}>
                       {selectedExplanation.fallback === 'prolog-graphrag' ? '⚡ Prolog-GraphRAG' :
-                       selectedExplanation.fallback === 'graphrag' ? '🔍 GraphRAG Only' :
-                       '🧠 Tuned LLM'}
+                        selectedExplanation.fallback === 'graphrag' ? '🔍 GraphRAG Only' :
+                          '🧠 Tuned LLM'}
                     </span>
                   </div>
 
@@ -654,37 +656,13 @@ function App() {
                     const hasValidContext = cc && !cc.toLowerCase().includes('error during generation');
                     const hasContexts = Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0;
                     return (hasValidContext || hasContexts) ? (
-                    <div className="mb-4">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">GraphRAG Sources</h3>
-                      {hasValidContext && (
-                        <div className="mb-3">
-                          <p className="text-xs text-white/40 mb-1">Condensed Context</p>
-                          <div className="text-sm text-white/80 font-inter leading-relaxed max-h-48 overflow-y-auto pr-2">
-                            <ReactMarkdown
-                              components={{
-                                p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
-                                ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
-                                ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
-                                li: ({ children }) => <li className="mb-1">{children}</li>,
-                                strong: ({ children }) => <strong className="font-bold text-white/90">{children}</strong>,
-                                em: ({ children }) => <em className="italic">{children}</em>,
-                                h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-2 text-white/90">{children}</h1>,
-                                h2: ({ children }) => <h2 className="text-base font-bold mt-4 mb-2 text-white/90">{children}</h2>,
-                                h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1 text-white/90">{children}</h3>,
-                              }}
-                            >
-                              {selectedExplanation.condensed_context}
-                            </ReactMarkdown>
-                          </div>
-                        </div>
-                      )}
-                      {Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0 && (
-                        <div>
-                          <p className="text-xs text-white/40 mb-1">Retrieved Contexts ({selectedExplanation.contexts.length})</p>
-                          <div className="space-y-4 max-h-64 overflow-y-auto pr-2 text-sm text-white/80 font-inter leading-relaxed">
-                            {selectedExplanation.contexts.map((ctx, i) => (
+                      <div className="mb-4">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">GraphRAG Sources</h3>
+                        {hasValidContext && (
+                          <div className="mb-3">
+                            <p className="text-xs text-white/40 mb-1">Condensed Context</p>
+                            <div className="text-sm text-white/80 font-inter leading-relaxed max-h-48 overflow-y-auto pr-2">
                               <ReactMarkdown
-                                key={i}
                                 components={{
                                   p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
                                   ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
@@ -697,13 +675,37 @@ function App() {
                                   h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1 text-white/90">{children}</h3>,
                                 }}
                               >
-                                {ctx}
+                                {selectedExplanation.condensed_context}
                               </ReactMarkdown>
-                            ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        )}
+                        {Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0 && (
+                          <div>
+                            <p className="text-xs text-white/40 mb-1">Retrieved Contexts ({selectedExplanation.contexts.length})</p>
+                            <div className="space-y-4 max-h-64 overflow-y-auto pr-2 text-sm text-white/80 font-inter leading-relaxed">
+                              {selectedExplanation.contexts.map((ctx, i) => (
+                                <ReactMarkdown
+                                  key={i}
+                                  components={{
+                                    p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
+                                    ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
+                                    ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
+                                    li: ({ children }) => <li className="mb-1">{children}</li>,
+                                    strong: ({ children }) => <strong className="font-bold text-white/90">{children}</strong>,
+                                    em: ({ children }) => <em className="italic">{children}</em>,
+                                    h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-2 text-white/90">{children}</h1>,
+                                    h2: ({ children }) => <h2 className="text-base font-bold mt-4 mb-2 text-white/90">{children}</h2>,
+                                    h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1 text-white/90">{children}</h3>,
+                                  }}
+                                >
+                                  {ctx}
+                                </ReactMarkdown>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ) : null;
                   })()}
 
