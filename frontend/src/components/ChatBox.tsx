@@ -4,6 +4,7 @@ import { Plus, Send, FileText, X, Info } from 'lucide-react';
 interface ChatBoxProps {
     onSendMessage: (message: string, useGlobalKG: boolean) => void;
     isLoading?: boolean;
+    isIngesting?: boolean;
     uploadedFiles?: File[];
     setUploadedFiles?: (files: File[]) => void;
     onFilesUploaded?: (files: File[]) => void;
@@ -11,7 +12,7 @@ interface ChatBoxProps {
     setUseGlobalKG?: (value: boolean) => void;
 }
 
-const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUploadedFiles, onFilesUploaded, useGlobalKG = false, setUseGlobalKG }: ChatBoxProps) => {
+const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, uploadedFiles = [], setUploadedFiles, onFilesUploaded, useGlobalKG = false, setUseGlobalKG }: ChatBoxProps) => {
     const [inputText, setInputText] = useState('');
     const [showBadge, setShowBadge] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,13 +41,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUplo
             const validFiles = newFiles.filter(file => file.type === 'application/pdf');
 
             if (validFiles.length > 0) {
-                // Update local state
-                if (setUploadedFiles) {
-                    setUploadedFiles([...uploadedFiles, ...validFiles]);
-                }
-                setShowBadge(true);
-
-                // Upload to backend
+                // Upload to backend first — state is added via onFilesUploaded callback on success
                 const formData = new FormData();
                 validFiles.forEach(file => {
                     formData.append('files', file);
@@ -59,8 +54,11 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUplo
                     });
                     if (!response.ok) {
                         console.error('Failed to upload files:', await response.text());
-                    } else if (onFilesUploaded) {
-                        onFilesUploaded(validFiles);
+                    } else {
+                        if (onFilesUploaded) {
+                            onFilesUploaded(validFiles);
+                        }
+                        setShowBadge(true);
                     }
                 } catch (error) {
                     console.error('Error uploading files:', error);
@@ -75,7 +73,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUplo
     };
 
     const handleSend = () => {
-        if (inputText.trim() && !isLoading) {
+        if (inputText.trim() && !isLoading && !isIngesting) {
             onSendMessage(inputText, useGlobalKG);
             setInputText(''); // clears the box after sending
             setShowBadge(false); // hides badge but keeps uploadedFiles in sidebar
@@ -167,8 +165,14 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUplo
 
                     <div className="flex items-center gap-3">
                         <button
-                            className="flex items-center justify-center w-8 h-8 rounded-full border border-white/20 text-white/70 hover:text-white hover:bg-white/10 transition cursor-pointer"
-                            onClick={() => fileInputRef.current?.click()}
+                            className={`flex items-center justify-center w-8 h-8 rounded-full border transition cursor-pointer ${
+                                isIngesting
+                                    ? 'border-white/10 text-white/30 cursor-not-allowed'
+                                    : 'border-white/20 text-white/70 hover:text-white hover:bg-white/10'
+                            }`}
+                            onClick={() => !isIngesting && fileInputRef.current?.click()}
+                            disabled={isIngesting}
+                            title={isIngesting ? 'Wait for ingestion to finish' : 'Upload PDF'}
                         >
                             <Plus size={16} />
                         </button>
@@ -198,16 +202,26 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUplo
                         </div>
                     </div>
 
-                    <button
-                        onClick={handleSend}
-                        disabled={!inputText.trim() || isLoading}
-                        className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${inputText.trim()
-                            ? 'bg-white/20 text-white hover:bg-white/30 hover:scale-105'
-                            : 'bg-white/5 text-white/30 cursor-not-allowed'
+                    <div className="flex items-center gap-2">
+                        {isIngesting && (
+                            <div className="flex items-center gap-1.5" title="Ingesting PDF into knowledge graph...">
+                                <span className="inline-block w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                                <span className="text-[11px] text-white/40 font-inter">Ingesting…</span>
+                            </div>
+                        )}
+                        <button
+                            onClick={handleSend}
+                            disabled={!inputText.trim() || isLoading || isIngesting}
+                            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${
+                                (!inputText.trim() || isLoading || isIngesting)
+                                    ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                                    : 'bg-white/20 text-white hover:bg-white/30 hover:scale-105'
                             }`}
-                    >
-                        <Send size={14} className="ml-[-2px]" />
-                    </button>
+                            title={isIngesting ? 'Waiting for PDF ingestion to complete…' : 'Send'}
+                        >
+                            <Send size={14} className="ml-[-2px]" />
+                        </button>
+                    </div>
 
                 </div>
 

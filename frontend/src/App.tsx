@@ -208,22 +208,30 @@ function App() {
   };
 
   const handleRemoveFile = async (filename: string) => {
-    try {
-      await fetch('http://localhost:5000/api/ingest/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename }),
-      });
-    } catch (err) {
-      console.error('Error removing file:', err);
-    }
+    // Optimistically remove from UI immediately
     setUploadedFiles(prev => prev.filter(f => f.name !== filename));
     setFileStatuses(prev => {
       const next = { ...prev };
       delete next[filename];
       return next;
     });
+
+    const isProcessing = fileStatuses[filename]?.status === 'processing';
+    const endpoint = isProcessing ? '/api/ingest/cancel' : '/api/ingest/remove';
+    try {
+      await fetch(`http://localhost:5000${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
+      });
+    } catch (err) {
+      console.error(`Error calling ${endpoint} for ${filename}:`, err);
+    }
   };
+
+  // True while any file is still being ingested — used to disable the send button
+  const hasProcessing = Object.values(fileStatuses).some(s => s.status === 'processing');
+
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -589,6 +597,7 @@ function App() {
                   <ChatBox
                     onSendMessage={handleSendMessage}
                     isLoading={isGenerating}
+                    isIngesting={hasProcessing}
                     uploadedFiles={uploadedFiles}
                     setUploadedFiles={setUploadedFiles}
                     onFilesUploaded={handleFilesUploaded}
@@ -646,6 +655,7 @@ function App() {
                     <ChatBox
                       onSendMessage={handleSendMessage}
                       isLoading={isGenerating}
+                      isIngesting={hasProcessing}
                       uploadedFiles={uploadedFiles}
                       setUploadedFiles={setUploadedFiles}
                       onFilesUploaded={handleFilesUploaded}

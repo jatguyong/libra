@@ -30,7 +30,8 @@ def index():
 
 
 # --- PDF Ingestion state tracking ---
-_ingestion_status = {}  # {filename: {"status": "uploading"|"processing"|"done"|"error", "duration_s": float, ...}}
+_ingestion_status = {}  # {filename: {status, duration_s, error}}
+_cancellation_flags = {}  # {filename: threading.Event}  — set to cancel mid-ingest
 _ingestion_lock = __import__('threading').Lock()
 
 @app.route("/api/ingest", methods=["POST"])
@@ -51,27 +52,41 @@ def ingest():
             filepath = os.path.join(upload_dir, file.filename)
             file.save(filepath)
             saved_files.append({"filename": file.filename, "filepath": filepath})
+            cancel_event = __import__('threading').Event()
             with _ingestion_lock:
                 _ingestion_status[file.filename] = {"status": "processing", "duration_s": 0}
+                _cancellation_flags[file.filename] = cancel_event
 
     # Trigger KG ingestion in a background thread
     import threading
 
     def _bg_ingest(file_list):
-        from prolog_graphrag_pipeline.graphrag.graphrag_driver import ingest_pdf_files
+        from prolog_graphrag_pipeline.graphrag import graphrag_driver as gd
         file_paths = [f["filepath"] for f in file_list]
         try:
-            results = ingest_pdf_files(file_paths)
-            with _ingestion_lock:
-                for r in results:
-                    fname = os.path.basename(r["file"])
+            results = gd.ingest_pdf_files(file_paths)
+            for r in results:
+                fname = os.path.basename(r["file"])
+                with _ingestion_lock:
+                    flag = _cancellation_flags.get(fname)
+                # If cancelled mid-run, clean up the partial data
+                if flag and flag.is_set():
+                    print(f"[INGEST] Cancellation detected post-ingest for {fname}. Cleaning up...", flush=True)
+                    try:
+                        result = gd.remove_document_from_kg(fname)
+                        print(f"[INGEST] Cancel cleanup result for {fname}: {result}", flush=True)
+                    except Exception as ex:
+                        print(f"[INGEST] Cancel cleanup error for {fname}: {ex}", flush=True)
+                    # File already removed by /api/ingest/cancel, skip status update
+                    continue
+                with _ingestion_lock:
                     _ingestion_status[fname] = {
                         "status": r.get("status", "done"),
                         "duration_s": r.get("duration_s", 0),
                         "error": r.get("error"),
                     }
         except Exception as e:
-            print(f"Background ingestion error: {e}", flush=True)
+            print(f"[INGEST] Background ingestion error: {e}", flush=True)
             with _ingestion_lock:
                 for f in file_list:
                     _ingestion_status[f["filename"]] = {"status": "error", "error": str(e)}
@@ -90,6 +105,49 @@ def ingest_status():
     with _ingestion_lock:
         return jsonify(_ingestion_status)
 
+@app.route("/api/ingest/cancel", methods=["POST"])
+def cancel_ingest():
+    """Signal cancellation for an ongoing ingestion. The background thread will clean up."""
+    data = request.json or {}
+    filename = data.get("filename")
+    if not filename:
+        return jsonify({"error": "No filename provided"}), 400
+
+    with _ingestion_lock:
+        flag = _cancellation_flags.get(filename)
+        status = _ingestion_status.get(filename, {})
+
+    if flag:
+        flag.set()
+        print(f"[INGEST] Cancellation requested for: {filename}", flush=True)
+
+    if status.get("status") != "processing":
+        # Already done — just do a regular remove instead
+        return cancel_and_remove(filename)
+
+    return jsonify({"message": f"Cancellation signal sent for {filename}"})
+
+def cancel_and_remove(filename: str):
+    """Remove a document from Neo4j and disk, with debug output."""
+    from prolog_graphrag_pipeline.graphrag import graphrag_driver as gd
+    print(f"[REMOVE] Removing document: {filename}", flush=True)
+    result = gd.remove_document_from_kg(filename)
+    print(f"[REMOVE] Result: {result}", flush=True)
+
+    upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
+    filepath = os.path.join(upload_dir, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+        print(f"[REMOVE] File deleted from disk: {filepath}", flush=True)
+    else:
+        print(f"[REMOVE] File not on disk (already gone): {filepath}", flush=True)
+
+    with _ingestion_lock:
+        _ingestion_status.pop(filename, None)
+        _cancellation_flags.pop(filename, None)
+
+    return jsonify(result)
+
 @app.route("/api/ingest/remove", methods=["POST"])
 def remove_document():
     """Remove a specific document and its chunks from Neo4j."""
@@ -98,19 +156,15 @@ def remove_document():
     if not filename:
         return jsonify({"error": "No filename provided"}), 400
 
-    from prolog_graphrag_pipeline.graphrag.graphrag_driver import remove_document_from_kg
-    result = remove_document_from_kg(filename)
-
-    # Also remove the file from disk and status tracking
-    upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
-    filepath = os.path.join(upload_dir, filename)
-    if os.path.exists(filepath):
-        os.remove(filepath)
-
+    # If still processing, signal cancellation first
     with _ingestion_lock:
-        _ingestion_status.pop(filename, None)
+        flag = _cancellation_flags.get(filename)
+        status = _ingestion_status.get(filename, {}).get("status")
+    if flag and status == "processing":
+        flag.set()
+        print(f"[REMOVE] Cancellation flagged for in-progress ingest: {filename}", flush=True)
 
-    return jsonify(result)
+    return cancel_and_remove(filename)
 
 @app.route("/api/ingest/documents", methods=["GET"])
 def list_documents():
