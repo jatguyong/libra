@@ -523,13 +523,18 @@ function App() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
                 <WelcomeScreen />
               </motion.div>
-              <motion.div layout layoutId="chatbox-container" transition={{ duration: 0, ease: 'easeInOut' }} className="w-full max-w-4xl mx-auto mt-8 px-6 flex justify-center pointer-events-auto">
-                <ChatBox
-                  onSendMessage={handleSendMessage}
-                  isLoading={isGenerating}
-                  uploadedFiles={uploadedFiles}
-                  setUploadedFiles={setUploadedFiles}
-                />
+              <motion.div layout layoutId="chatbox-container" transition={{ duration: 0, ease: 'easeInOut' }} className="w-full max-w-4xl mx-auto mt-8 px-6 flex flex-col items-center pointer-events-auto">
+                <div className="w-full flex justify-center">
+                  <ChatBox
+                    onSendMessage={handleSendMessage}
+                    isLoading={isGenerating}
+                    uploadedFiles={uploadedFiles}
+                    setUploadedFiles={setUploadedFiles}
+                  />
+                </div>
+                <div className="font-normal text-white/70 text-[11px] font-inter tracking-wide text-center mt-4 select-none">
+                  Libra is AI and can make mistakes. Check important info.
+                </div>
               </motion.div>
             </main>
 
@@ -568,14 +573,19 @@ function App() {
                 <div ref={messagesEndRef} className="h-4 shrink-0" />
               </div>
 
-              <div className="absolute bottom-0 left-0 right-0 z-50 pb-8 pt-12 bg-gradient-to-t from-[#060010] via-[#060010]/80 to-transparent pointer-events-none flex justify-center w-full">
-                <motion.div layout layoutId="chatbox-container" transition={{ duration: isChatLayoutSettled ? 0 : 0.5, ease: 'easeInOut' }} className="w-full max-w-[768px] mx-auto justify-center shrink-0 px-6 flex pointer-events-auto">
-                  <ChatBox
-                    onSendMessage={handleSendMessage}
-                    isLoading={isGenerating}
-                    uploadedFiles={uploadedFiles}
-                    setUploadedFiles={setUploadedFiles}
-                  />
+              <div className="absolute bottom-0 left-0 right-0 z-50 pb-4 pt-12 bg-gradient-to-t from-[#060010] via-[#060010]/80 to-transparent pointer-events-none flex justify-center w-full">
+                <motion.div layout layoutId="chatbox-container" transition={{ duration: isChatLayoutSettled ? 0 : 0.5, ease: 'easeInOut' }} className="w-full max-w-[768px] mx-auto flex flex-col items-center shrink-0 px-6 pointer-events-auto">
+                  <div className="w-full flex justify-center">
+                    <ChatBox
+                      onSendMessage={handleSendMessage}
+                      isLoading={isGenerating}
+                      uploadedFiles={uploadedFiles}
+                      setUploadedFiles={setUploadedFiles}
+                    />
+                  </div>
+                  <div className="font-normal text-white/70 text-[11px] font-inter tracking-wide text-center mt-3 select-none">
+                    Libra is AI and can make mistakes. Check important info.
+                  </div>
                 </motion.div>
               </div>
 
