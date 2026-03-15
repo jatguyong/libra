@@ -104,35 +104,53 @@ def extract_query_and_context(question: str) -> tuple[str, str]:
             
     raise ValueError(f"Failed to extract query and context after 5 retries. Last error: {most_recent_error}")
 
-async def process_pdf_documents(kg_builder_pdf: Optional[SimpleKGPipeline], file_paths: list[str] = None):
-    """Process PDF documents into the knowledge graph.
+async def process_pdf_documents(
+    kg_builder_pdf: Optional[SimpleKGPipeline], 
+    file_paths: list[str] = None,
+    max_concurrent: int = 3,
+):
+    """Process PDF documents into the knowledge graph with parallel LLM calls.
     
     Args:
         kg_builder_pdf: The SimpleKGPipeline configured with from_pdf=True.
         file_paths: Optional list of specific file paths to process. 
                     If None, globs all PDFs in DOC_PATH.
+        max_concurrent: Max concurrent documents to process at once.
     
     Returns:
         List of dicts with file path, result, and timing info.
     """
     import time as _time
+    import asyncio
     
     if file_paths is None:
         file_paths = glob.glob(os.path.join(DOC_PATH, "*.pdf"))
     
-    results = []
-    for path in file_paths:
-        print(f"Processing document: {path}", flush=True)
-        start = _time.perf_counter()
-        try:
-            pdf_result = await kg_builder_pdf.run_async(file_path=path)
-            duration = _time.perf_counter() - start
-            print(f"Document processed in {duration:.2f}s: {pdf_result}", flush=True)
-            results.append({"file": path, "result": str(pdf_result), "duration_s": round(duration, 2), "status": "done"})
-        except Exception as e:
-            duration = _time.perf_counter() - start
-            print(f"Error processing {path} after {duration:.2f}s: {e}", flush=True)
-            results.append({"file": path, "error": str(e), "duration_s": round(duration, 2), "status": "error"})
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def _process_one(path: str) -> dict:
+        async with semaphore:
+            print(f"[INGEST] Processing: {os.path.basename(path)}", flush=True)
+            start = _time.perf_counter()
+            try:
+                pdf_result = await kg_builder_pdf.run_async(file_path=path)
+                duration = _time.perf_counter() - start
+                print(f"[INGEST] Done in {duration:.2f}s: {os.path.basename(path)}", flush=True)
+                return {"file": path, "result": str(pdf_result), "duration_s": round(duration, 2), "status": "done"}
+            except Exception as e:
+                duration = _time.perf_counter() - start
+                print(f"[INGEST] Error after {duration:.2f}s on {os.path.basename(path)}: {e}", flush=True)
+                return {"file": path, "error": str(e), "duration_s": round(duration, 2), "status": "error"}
+    
+    if len(file_paths) == 1:
+        # Single file — run directly (no parallelism overhead)
+        results = [await _process_one(file_paths[0])]
+    else:
+        # Multiple files — process concurrently
+        print(f"[INGEST] Processing {len(file_paths)} PDFs (max {max_concurrent} concurrent)...", flush=True)
+        tasks = [_process_one(path) for path in file_paths]
+        results = await asyncio.gather(*tasks)
+        results = list(results)
     
     return results
 

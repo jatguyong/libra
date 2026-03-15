@@ -212,7 +212,7 @@ class DebugOllamaLLM(OllamaLLM):
                 messages=messages,
                 temperature=0.3,
                 timeout=timeout_sec,
-                max_tokens=2048,
+                max_tokens=4096,
                 logprobs=True
             )
             
@@ -399,25 +399,41 @@ def initialize_models():
 
 
 def setup_kg_pipeline(llm, embedder) -> SimpleKGPipeline    :
-    STATIC_SCHEMA = { # NOTE: Due to how 'EXTRACTED' works, the prompt used by SimpleKGPipeline is bad and does not constrain the output to only JSON format. We can create a custom KG Pipeline but for now we use this to skip it entirely.
+    # Schema aligned with KBPedia's ontology (top-level reference concept types)
+    # so that extracted entities can naturally interrelate with KBPedia's 58K concept nodes.
+    STATIC_SCHEMA = {
         "node_types": [
-            "Concept",      # The heavy lifter: covers Theorems, Ideas, Theories, Terms
-            "Person",       # Key figures: Socrates, Einstein, Historical Leaders
-            "Event",        # Occurrences: Wars, Experiments, Historical Periods
-            "Definition",   # Crucial for education: Explicit statements of meaning
-            "Example",      # Grounding: Specific instances (e.g., "Pingu" or "3")
-            "Topic"         # The Field: "Mathematics", "Philosophy", "Biology"
+            # Core KBPedia-aligned types
+            "KBPediaConcept",       # Primary: anything that maps to a KBPedia reference concept
+            "NaturalProcess",       # Biological/physical processes (e.g., photosynthesis, mitosis)
+            "ScientificTheory",     # Named theories and laws (e.g., Theory of Relativity)
+            "Organism",             # Living things (plants, animals, microorganisms)
+            "Substance",            # Chemical compounds, elements, materials
+            "Person",               # Historical figures, scientists, key individuals
+            "Event",                # Historical events, experiments, discoveries
+            "Location",             # Geographic or anatomical locations
+            "Technology",           # Tools, instruments, engineered systems
+            "MathematicalObject",   # Equations, formulas, mathematical structures
+            "Definition",           # Explicit definitions of terms
         ],
         "relationship_types": [
-            "RELATED_TO",   # Generic connection
-            "IS_A",         # Hierarchy: "Calculus IS_A Topic", "Penguin IS_A Bird"
-            "PART_OF",      # Composition: "Cell PART_OF Tissue"
-            "CAUSES",       # Logic/History: "War CAUSES Famine", "Premise CAUSES Conclusion"
-            "DEFINES",      # Concept -> Definition
-            "ILLUSTRATES"   # Example -> Concept ("Pingu ILLUSTRATES Non-flying bird")
+            # KBPedia-compatible relationships
+            "SUBCLASS_OF",      # Taxonomy: "Chloroplast SUBCLASS_OF Organelle" (matches KBPedia)
+            "PART_OF",          # Mereology: "Thylakoid PART_OF Chloroplast"
+            "RELATED_TO",       # General association
+            "CAUSES",           # Causation: "Light CAUSES Photosynthesis"
+            "PRODUCES",         # Output: "Photosynthesis PRODUCES Glucose"
+            "REQUIRES",         # Input dependency: "Photosynthesis REQUIRES Carbon Dioxide"
+            "OCCURS_IN",        # Location: "Photosynthesis OCCURS_IN Chloroplast"
+            "DISCOVERED_BY",    # Attribution: "Penicillin DISCOVERED_BY Fleming"
+            "DEFINES",          # Definition link: "Definition DEFINES Concept"
+            "IS_A",             # Instance: "Mitochondria IS_A Organelle"
         ]
     }
-    chunk_splitter = FixedSizeSplitter(chunk_size=450, chunk_overlap=50) # OPT2: reduced from 1200/150 → fewer tokens per extraction call
+    # Llama 3.3 70B Turbo: 128K context. chunk_size=1200 is the sweet spot with the
+    # expanded KBPedia schema (11 node types inflate the extraction prompt).
+    # Higher values (2500+) cause BadRequestError from Together AI.
+    chunk_splitter = FixedSizeSplitter(chunk_size=1200, chunk_overlap=100)
     
     schema = STATIC_SCHEMA if SCHEMA_CONFIG.name == "STATIC" else "EXTRACTED"
 
