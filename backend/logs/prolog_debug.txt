@@ -102,3 +102,31 @@ Traceback (most recent call last):
   File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\_base_client.py", line 1070, in request
     raise self._make_status_error_from_response(err.response) from None
 openai.InternalServerError: Error code: 500 - {'id': 'oaxdUhf-2j9zxn-9dbf421eafdb403a', 'error': {'message': 'Internal server error', 'type': 'server_error', 'param': None, 'code': None}}
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 84, in worker
+    result = run_pipeline(question, flag="x", use_global_kg=use_global_kg, status_callback=status_callback)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: run_pipeline() got an unexpected keyword argument 'use_global_kg'
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 84, in worker
+    result = run_pipeline(question, flag="x", use_global_kg=use_global_kg, status_callback=status_callback)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: run_pipeline() got an unexpected keyword argument 'use_global_kg'
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 84, in worker
+    result = run_pipeline(question, flag="x", use_global_kg=use_global_kg, status_callback=status_callback)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: run_pipeline() got an unexpected keyword argument 'use_global_kg'
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 84, in worker
+    result = run_pipeline(question, flag="x", use_global_kg=use_global_kg, status_callback=status_callback)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: run_pipeline() got an unexpected keyword argument 'use_global_kg'
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\graphrag\encoder.py", line 73, in extract_query_and_context
+    raise ValueError(f"Expected dict, got {type(extracted_data)}")
+ValueError: Expected dict, got <class 'list'>
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\graphrag\encoder.py", line 73, in extract_query_and_context
+    raise ValueError(f"Expected dict, got {type(extracted_data)}")
+ValueError: Expected dict, got <class 'list'>
