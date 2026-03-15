@@ -152,6 +152,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                 "fallback": fallback
             }
         else:
+            # NOTE: sample_mode MUST BE TRUE for all pipeline calls for the semantic entropy calculation to be carried out with each prompt
             answers = [output["text_answer"] for output in llm_output],
             logprobs =  [output["logprobs"] for output in llm_output],
             se_results = compute_semantic_entropy(llm_output)
