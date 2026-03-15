@@ -1,15 +1,30 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Edit, FileText, ExternalLink } from 'lucide-react';
+import { Edit, FileText, ExternalLink, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface SidebarProps {
     isOpen: boolean;
     toggleSidebar: () => void;
     uploadedFiles: File[];
+    fileStatuses: Record<string, { status: string; duration_s?: number; error?: string }>;
     onNewConversation: () => void;
+    onRemoveFile: (filename: string) => void;
 }
 
-const Sidebar = ({ isOpen, toggleSidebar, uploadedFiles, onNewConversation }: SidebarProps) => {
+const FileStatusIcon = ({ status }: { status: string }) => {
+    switch (status) {
+        case 'processing':
+            return <Loader2 size={14} className="text-purple-400 animate-spin shrink-0" />;
+        case 'done':
+            return <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />;
+        case 'error':
+            return <AlertCircle size={14} className="text-red-400 shrink-0" />;
+        default:
+            return null;
+    }
+};
+
+const Sidebar = ({ isOpen, toggleSidebar, uploadedFiles, fileStatuses, onNewConversation, onRemoveFile }: SidebarProps) => {
     return (
         <motion.div
             initial={false}
@@ -51,14 +66,33 @@ const Sidebar = ({ isOpen, toggleSidebar, uploadedFiles, onNewConversation }: Si
                                 <div className="flex flex-col gap-3 mt-2">
                                     <span className="text-xs font-sans text-white/40 px-2 tracking-wider uppercase font-medium whitespace-nowrap">Uploaded PDFs</span>
                                     <div className="flex flex-col gap-2">
-                                        {uploadedFiles.map((file, index) => (
-                                            <div key={index} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/5 pointer-events-none group whitespace-nowrap">
-                                                <FileText size={20} className="text-[#ff4a4a] shrink-0" />
-                                                <span className="text-sm font-sans text-white/80 truncate">
-                                                    {file.name}
-                                                </span>
-                                            </div>
-                                        ))}
+                                        {uploadedFiles.map((file, index) => {
+                                            const fileStatus = fileStatuses[file.name];
+                                            const status = fileStatus?.status || 'processing';
+                                            const durationInfo = fileStatus?.duration_s ? `${fileStatus.duration_s}s` : '';
+
+                                            return (
+                                                <div key={index} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 group whitespace-nowrap">
+                                                    <FileText size={18} className="text-[#ff4a4a] shrink-0" />
+                                                    <span className="text-sm font-sans text-white/80 truncate flex-1 min-w-0">
+                                                        {file.name}
+                                                    </span>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        {durationInfo && status === 'done' && (
+                                                            <span className="text-[10px] text-white/30 font-mono">{durationInfo}</span>
+                                                        )}
+                                                        <FileStatusIcon status={status} />
+                                                        <button
+                                                            onClick={() => onRemoveFile(file.name)}
+                                                            className="p-0.5 text-white/30 hover:text-red-400 transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+                                                            title="Remove from knowledge graph"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}

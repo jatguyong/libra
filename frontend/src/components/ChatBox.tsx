@@ -6,11 +6,12 @@ interface ChatBoxProps {
     isLoading?: boolean;
     uploadedFiles?: File[];
     setUploadedFiles?: (files: File[]) => void;
+    onFilesUploaded?: (files: File[]) => void;
     useGlobalKG?: boolean;
     setUseGlobalKG?: (value: boolean) => void;
 }
 
-const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUploadedFiles, useGlobalKG = false, setUseGlobalKG }: ChatBoxProps) => {
+const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUploadedFiles, onFilesUploaded, useGlobalKG = false, setUseGlobalKG }: ChatBoxProps) => {
     const [inputText, setInputText] = useState('');
     const [showBadge, setShowBadge] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,6 +59,8 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUplo
                     });
                     if (!response.ok) {
                         console.error('Failed to upload files:', await response.text());
+                    } else if (onFilesUploaded) {
+                        onFilesUploaded(validFiles);
                     }
                 } catch (error) {
                     console.error('Error uploading files:', error);
@@ -119,6 +122,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUplo
                 <input
                     type="file"
                     accept="application/pdf"
+                    multiple
                     className="hidden"
                     ref={fileInputRef}
                     onChange={handleFileChange}

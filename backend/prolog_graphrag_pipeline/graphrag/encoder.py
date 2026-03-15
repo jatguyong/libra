@@ -104,13 +104,37 @@ def extract_query_and_context(question: str) -> tuple[str, str]:
             
     raise ValueError(f"Failed to extract query and context after 5 retries. Last error: {most_recent_error}")
 
-async def process_pdf_documents(kg_builder_pdf: Optional[SimpleKGPipeline]):
-    paths = glob.glob(os.path.join(DOC_PATH, "*.pdf"))
+async def process_pdf_documents(kg_builder_pdf: Optional[SimpleKGPipeline], file_paths: list[str] = None):
+    """Process PDF documents into the knowledge graph.
     
-    for path in paths:
-        print(f"Processing document: {path}")
-        pdf_result = await kg_builder_pdf.run_async(file_path=path)
-        print(f"Document processed: {pdf_result}")
+    Args:
+        kg_builder_pdf: The SimpleKGPipeline configured with from_pdf=True.
+        file_paths: Optional list of specific file paths to process. 
+                    If None, globs all PDFs in DOC_PATH.
+    
+    Returns:
+        List of dicts with file path, result, and timing info.
+    """
+    import time as _time
+    
+    if file_paths is None:
+        file_paths = glob.glob(os.path.join(DOC_PATH, "*.pdf"))
+    
+    results = []
+    for path in file_paths:
+        print(f"Processing document: {path}", flush=True)
+        start = _time.perf_counter()
+        try:
+            pdf_result = await kg_builder_pdf.run_async(file_path=path)
+            duration = _time.perf_counter() - start
+            print(f"Document processed in {duration:.2f}s: {pdf_result}", flush=True)
+            results.append({"file": path, "result": str(pdf_result), "duration_s": round(duration, 2), "status": "done"})
+        except Exception as e:
+            duration = _time.perf_counter() - start
+            print(f"Error processing {path} after {duration:.2f}s: {e}", flush=True)
+            results.append({"file": path, "error": str(e), "duration_s": round(duration, 2), "status": "error"})
+    
+    return results
 
 async def process_text_context(kg_builder_text: SimpleKGPipeline, texts: list[str]):
     for text in texts:

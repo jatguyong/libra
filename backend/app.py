@@ -28,6 +28,11 @@ IMPORTANT: USE LINE BREAKS IN THE FORM OF <br><br> FREQUENTLY TO IMPROVE READABI
 def index():
     return jsonify({"status": "Libra API Active"})
 
+
+# --- PDF Ingestion state tracking ---
+_ingestion_status = {}  # {filename: {"status": "uploading"|"processing"|"done"|"error", "duration_s": float, ...}}
+_ingestion_lock = __import__('threading').Lock()
+
 @app.route("/api/ingest", methods=["POST"])
 def ingest():
     if "files" not in request.files:
@@ -45,12 +50,74 @@ def ingest():
         if file.filename:
             filepath = os.path.join(upload_dir, file.filename)
             file.save(filepath)
-            saved_files.append(file.filename)
+            saved_files.append({"filename": file.filename, "filepath": filepath})
+            with _ingestion_lock:
+                _ingestion_status[file.filename] = {"status": "processing", "duration_s": 0}
 
-    # In a real scenario, here we would trigger the backend pipeline ingestion (e.g. `process_pdf_documents()`)
-    # on the newly uploaded files.
+    # Trigger KG ingestion in a background thread
+    import threading
 
-    return jsonify({"message": f"Successfully uploaded {len(saved_files)} files.", "files": saved_files})
+    def _bg_ingest(file_list):
+        from prolog_graphrag_pipeline.graphrag.graphrag_driver import ingest_pdf_files
+        file_paths = [f["filepath"] for f in file_list]
+        try:
+            results = ingest_pdf_files(file_paths)
+            with _ingestion_lock:
+                for r in results:
+                    fname = os.path.basename(r["file"])
+                    _ingestion_status[fname] = {
+                        "status": r.get("status", "done"),
+                        "duration_s": r.get("duration_s", 0),
+                        "error": r.get("error"),
+                    }
+        except Exception as e:
+            print(f"Background ingestion error: {e}", flush=True)
+            with _ingestion_lock:
+                for f in file_list:
+                    _ingestion_status[f["filename"]] = {"status": "error", "error": str(e)}
+
+    thread = threading.Thread(target=_bg_ingest, args=(saved_files,), daemon=True)
+    thread.start()
+
+    return jsonify({
+        "message": f"Uploaded {len(saved_files)} file(s). Ingestion started in background.",
+        "files": [f["filename"] for f in saved_files]
+    })
+
+@app.route("/api/ingest/status", methods=["GET"])
+def ingest_status():
+    """Return current ingestion status for all tracked files."""
+    with _ingestion_lock:
+        return jsonify(_ingestion_status)
+
+@app.route("/api/ingest/remove", methods=["POST"])
+def remove_document():
+    """Remove a specific document and its chunks from Neo4j."""
+    data = request.json or {}
+    filename = data.get("filename")
+    if not filename:
+        return jsonify({"error": "No filename provided"}), 400
+
+    from prolog_graphrag_pipeline.graphrag.graphrag_driver import remove_document_from_kg
+    result = remove_document_from_kg(filename)
+
+    # Also remove the file from disk and status tracking
+    upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
+    filepath = os.path.join(upload_dir, filename)
+    if os.path.exists(filepath):
+        os.remove(filepath)
+
+    with _ingestion_lock:
+        _ingestion_status.pop(filename, None)
+
+    return jsonify(result)
+
+@app.route("/api/ingest/documents", methods=["GET"])
+def list_documents():
+    """List all documents currently ingested in the Neo4j knowledge graph."""
+    from prolog_graphrag_pipeline.graphrag.graphrag_driver import list_ingested_documents
+    docs = list_ingested_documents()
+    return jsonify({"documents": docs})
 
 @app.route("/api/chat", methods=["POST"])
 def chat():

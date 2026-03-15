@@ -164,6 +164,7 @@ function App() {
   const [currentFallback, setCurrentFallback] = useState<string | undefined>(undefined);
 
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [fileStatuses, setFileStatuses] = useState<Record<string, { status: string; duration_s?: number; error?: string }>>({});
 
   const [hasStartedChat, sethasStartedChat] = useState(false);
   const [isChatLayoutSettled, setIsChatLayoutSettled] = useState(false);
@@ -177,6 +178,52 @@ function App() {
       setIsChatLayoutSettled(false);
     }
   }, [hasStartedChat]);
+
+  // Poll ingestion status while any file is "processing"
+  useEffect(() => {
+    const hasProcessing = Object.values(fileStatuses).some(s => s.status === 'processing');
+    if (!hasProcessing) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/ingest/status');
+        if (res.ok) {
+          const data = await res.json();
+          setFileStatuses(data);
+        }
+      } catch (err) {
+        console.error('Error polling ingestion status:', err);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [fileStatuses]);
+
+  // Mark files as "processing" when they are uploaded
+  const handleFilesUploaded = (files: File[]) => {
+    setUploadedFiles(prev => [...prev, ...files]);
+    const newStatuses: Record<string, { status: string }> = {};
+    files.forEach(f => { newStatuses[f.name] = { status: 'processing' }; });
+    setFileStatuses(prev => ({ ...prev, ...newStatuses }));
+  };
+
+  const handleRemoveFile = async (filename: string) => {
+    try {
+      await fetch('http://localhost:5000/api/ingest/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename }),
+      });
+    } catch (err) {
+      console.error('Error removing file:', err);
+    }
+    setUploadedFiles(prev => prev.filter(f => f.name !== filename));
+    setFileStatuses(prev => {
+      const next = { ...prev };
+      delete next[filename];
+      return next;
+    });
+  };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -193,6 +240,7 @@ function App() {
     setMessages([]);
     sethasStartedChat(false);
     setUploadedFiles([]);
+    setFileStatuses({});
     setIsExplanationOpen(false);
   };
 
@@ -520,7 +568,7 @@ function App() {
       <div className="relative z-10 flex flex-row h-full w-full pointer-events-none">
 
         {/* Sidebar handles its own pointer events */}
-        <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} uploadedFiles={uploadedFiles} onNewConversation={handleNewConversation} />
+        <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} uploadedFiles={uploadedFiles} fileStatuses={fileStatuses} onNewConversation={handleNewConversation} onRemoveFile={handleRemoveFile} />
 
         {/* Central Chat Column */}
         <div className="flex-1 flex flex-col h-full relative overflow-hidden transition-all duration-300 pointer-events-auto">
@@ -543,6 +591,7 @@ function App() {
                     isLoading={isGenerating}
                     uploadedFiles={uploadedFiles}
                     setUploadedFiles={setUploadedFiles}
+                    onFilesUploaded={handleFilesUploaded}
                     useGlobalKG={useGlobalKG}
                     setUseGlobalKG={setUseGlobalKG}
                   />
@@ -599,6 +648,7 @@ function App() {
                       isLoading={isGenerating}
                       uploadedFiles={uploadedFiles}
                       setUploadedFiles={setUploadedFiles}
+                      onFilesUploaded={handleFilesUploaded}
                       useGlobalKG={useGlobalKG}
                       setUseGlobalKG={setUseGlobalKG}
                     />

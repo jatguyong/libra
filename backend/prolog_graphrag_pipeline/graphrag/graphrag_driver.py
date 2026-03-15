@@ -603,6 +603,92 @@ def clear_local_data():
         print(f"Error clearing local data: {e}")
     print("Database cleared successfully (KBPedia preserved).")
 
+
+def remove_document_from_kg(filename: str) -> dict:
+    """Delete a Document and its Chunks from Neo4j by filename.
+    
+    Uses the FROM_DOCUMENT relationship created by SimpleKGPipeline to scope
+    deletion to only the chunks belonging to this specific document.
+    Does NOT affect KBPedia, Wikidata, or other document nodes.
+    
+    Args:
+        filename: The filename (or path substring) to match against Document.path
+        
+    Returns:
+        Dict with deletion results (counts of deleted nodes)
+    """
+    ensure_driver_connected()
+    try:
+        with neo4j_driver.session(database="neo4j") as session:
+            # First, count what we're about to delete for reporting
+            count_result = session.run("""
+                MATCH (d:Document) WHERE d.path CONTAINS $filename
+                OPTIONAL MATCH (c:Chunk)-[:FROM_DOCUMENT]->(d)
+                RETURN count(DISTINCT d) as doc_count, count(DISTINCT c) as chunk_count
+            """, filename=filename)
+            counts = count_result.single()
+            doc_count = counts["doc_count"] if counts else 0
+            chunk_count = counts["chunk_count"] if counts else 0
+            
+            if doc_count == 0:
+                return {"status": "not_found", "message": f"No document matching '{filename}' found in Neo4j."}
+            
+            # Delete chunks first (they reference the document), then the document
+            session.run("""
+                MATCH (d:Document) WHERE d.path CONTAINS $filename
+                OPTIONAL MATCH (c:Chunk)-[:FROM_DOCUMENT]->(d)
+                DETACH DELETE c, d
+            """, filename=filename)
+            
+            print(f"Removed document '{filename}': {doc_count} Document node(s), {chunk_count} Chunk node(s) deleted.", flush=True)
+            return {
+                "status": "removed",
+                "filename": filename,
+                "documents_deleted": doc_count,
+                "chunks_deleted": chunk_count
+            }
+    except Exception as e:
+        print(f"Error removing document '{filename}': {e}", flush=True)
+        return {"status": "error", "message": str(e)}
+
+
+def list_ingested_documents() -> list:
+    """List all Document nodes currently in Neo4j with their chunk counts.
+    
+    Returns:
+        List of dicts with document path and chunk count.
+    """
+    ensure_driver_connected()
+    try:
+        with neo4j_driver.session(database="neo4j") as session:
+            result = session.run("""
+                MATCH (d:Document)
+                OPTIONAL MATCH (c:Chunk)-[:FROM_DOCUMENT]->(d)
+                RETURN d.path as path, count(c) as chunk_count
+                ORDER BY d.path
+            """)
+            return [{"path": record["path"], "chunk_count": record["chunk_count"]} for record in result]
+    except Exception as e:
+        print(f"Error listing documents: {e}", flush=True)
+        return []
+
+
+def ingest_pdf_files(file_paths: list[str]) -> list:
+    """Synchronous wrapper to ingest PDF files into the knowledge graph.
+    
+    Initializes the pipeline if needed, then processes each PDF.
+    
+    Args:
+        file_paths: List of absolute paths to PDF files.
+        
+    Returns:
+        List of result dicts with file, status, duration_s, etc.
+    """
+    init_globals()
+    from .encoder import process_pdf_documents
+    return _run_async(process_pdf_documents(kg_builder_pdf, file_paths=file_paths))
+
+
 def main():
     # Uncomment to clear data before running tests
     # clear_local_data() 

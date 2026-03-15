@@ -160,7 +160,7 @@ You are an expert Educational AI Assistant answering a student's question based 
 GRAPHRAG_TEMPLATE = RagTemplate(template=GRAPHRAG_TEMPLATE_STR, expected_inputs=['query_text', 'context'])
 GRAPHRAG_FALLBACK_TEMPLATE = RagTemplate(template=GRAPHRAG_FALLBACK_TEMPLATE_STR, expected_inputs=['query_text', 'context'])
 
-DOC_PATH = Path(__file__).resolve().parents[2] / "documents/science_mds"
+DOC_PATH = Path(__file__).resolve().parents[2] / "uploads"
 
 ENCODER_SYSTEM_PROMPT = '''
 ### ROLE
