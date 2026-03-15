@@ -9,7 +9,7 @@ from neo4j.exceptions import ServiceUnavailable, AuthError
 from langchain_core.documents import Document
 
 from neo4j_graphrag.retrievers.base import Retriever
-from neo4j_graphrag.retrievers import HybridRetriever, HybridCypherRetriever, VectorCypherRetriever
+from neo4j_graphrag.retrievers import HybridRetriever
 from neo4j_graphrag.generation import GraphRAG
 from neo4j_graphrag.generation.prompts import RagTemplate
 from neo4j_graphrag.types import RetrieverResult, RetrieverResultItem
@@ -178,7 +178,7 @@ def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
         # Search MCQ choices
         mcq_choices = re.findall(r'\b[A-D][.)]\s*(.+)', original_query)
         if mcq_choices:
-            print(f"DEBUG PROLOG-GRAPHRAG:[LocalDocs VectorCypher] Extracted {len(mcq_choices)} MCQ choices for independent search.", flush=True)
+            print(f"DEBUG PROLOG-GRAPHRAG:[LocalDocs CypherVector] Extracted {len(mcq_choices)} MCQ choices for independent search.", flush=True)
             choice_k = max(2, top_k // 2)
             for choice in mcq_choices:
                 res_choice = self._original_search(query_text=choice.strip(), top_k=choice_k, **kwargs)
@@ -252,7 +252,7 @@ def create_retriever(driver, embedder):
         return None
 
     # 6. Initialization
-    if RETRIEVER.value == "HybridRetriever":
+    if RETRIEVER == "HybridRetriever":
         r = HybridRetriever(
             driver=driver,
             vector_index_name="documentsVectorIndex",
@@ -265,31 +265,8 @@ def create_retriever(driver, embedder):
         r._original_search = r.search
         r.search = types.MethodType(patched_hybrid_search, r)
         return r
-        
-    elif RETRIEVER.value == "HybridCypherRetriever":
-        return HybridCypherRetriever(
-            driver=driver,
-            vector_index_name="documentsVectorIndex",
-            fulltext_index_name="documentsFulltextIndex",
-            retrieval_query=RETRIEVAL_QUERY,
-            embedder=embedder,
-            
-        )
-    elif RETRIEVER.value == "VectorCypherRetriever":
-        r = VectorCypherRetriever(
-            driver=driver,
-            index_name="documentsVectorIndex",
-            retrieval_query=RETRIEVAL_QUERY,
-            embedder=embedder,
-        )
-        r._driver = driver  # Store driver ref for KBPedia Neo4j queries
-        r.llm = None # Initialize llm attribute for patching
-        # Monkey-patch
-        r._original_search = r.search
-        r.search = types.MethodType(patched_vector_cypher_search, r)
-        return r
     else:
-        raise ValueError(f"Retriever {RETRIEVER.name} is invalid.")
+        raise ValueError(f"Retriever {RETRIEVER} is invalid.")
     
     # Monkey-patch driver if not present
     # This section is removed as it's no longer needed with the new patching approach.
@@ -388,7 +365,7 @@ def generate(llm, retriever, query, original_query: str = "", fallback: str = "p
                 for lc in local_ctx:
                     enriched_content += f"   - {lc.get('entity')} {lc.get('relationship')} {lc.get('target')}\n"
             
-            # Check for knowledge graph triples (from VectorCypherRetriever local chunks only).
+    
             # KBPedia items already embed triples inside clean_content ("Relevant Logical Facts"),
             # so skip to avoid duplicating them.
             kg_triples = metadata.get('triples', [])
