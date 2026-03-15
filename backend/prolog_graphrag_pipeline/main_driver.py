@@ -7,7 +7,7 @@ from .graphrag.config import SKIP_LOGICAL_EVIDENCE_LLM
 import time
 from typing import Literal
 
-def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bool = False, status_callback=None) -> dict:
+def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bool = False, use_global_kg: bool = False, status_callback=None) -> dict:
     start_time = time.perf_counter()
     
     if status_callback:
@@ -54,7 +54,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                 "logprobs": [output["logprobs"] for output in llm_output]
             }
     else:
-        graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback, status_callback=status_callback) if flag != "q" else None
+        graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback, use_global_kg=use_global_kg, status_callback=status_callback) if flag != "q" else None
         graphrag_answer = graphrag_output.get("answer", "") if graphrag_output else ""
         graphrag_logprobs = graphrag_output.get("logprobs", []) if graphrag_output else {}
         graphrag_retriever_results = graphrag_output.get("retriever_results", []) if graphrag_output else []
@@ -157,9 +157,9 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
             }
 
     
-def run_graphrag_pipeline(question: str, status_callback=None) -> dict:
+def run_graphrag_pipeline(question: str, use_global_kg: bool = False, status_callback=None) -> dict:
     """Wrapper function to run the entire pipeline with a given prompt and flag."""
-    return run_pipeline(question, flag="", status_callback=status_callback)
+    return run_pipeline(question, flag="", use_global_kg=use_global_kg, status_callback=status_callback)
 
 if __name__ == "__main__":
     prompt = "Which of the following parts of a plant cell has a function that is most similar to the function of an animal skeleton?"

@@ -89,7 +89,8 @@ def _sanitize_lucene_query(query_text: str) -> str:
 def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
     import re
     safe_query = _sanitize_lucene_query(query_text)
-    original_query = kwargs.get("original_query", "")
+    original_query = kwargs.pop("original_query", "")
+    use_global_kg = kwargs.pop("use_global_kg", False)
     all_items = []
     
     # --- NEW CODE: Inject Prolog logic filter ---
@@ -143,6 +144,7 @@ def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
     # `original_query` carries the full user prompt (with MCQ choices) for LLM filtering.
     # `query_text` is the extracted question stem (used for embedding/entity extraction).
     original_query = kwargs.pop("original_query", query_text)
+    use_global_kg = kwargs.pop("use_global_kg", False)
     
     # --- NEW CODE: Inject Baseline filter ---
     # if "filters" not in kwargs:
@@ -152,7 +154,7 @@ def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
 
     # 1. KBPedia Search (via Neo4j)
     kb_items = []
-    if hasattr(self, 'llm') and self.llm:
+    if use_global_kg and hasattr(self, 'llm') and self.llm:
         if not hasattr(self, 'kbpedia_retriever'):
              from .kbpedia_retriever import KBPediaRetriever
              self.kbpedia_retriever = KBPediaRetriever(driver=self._driver, llm=self.llm, top_k=top_k)
