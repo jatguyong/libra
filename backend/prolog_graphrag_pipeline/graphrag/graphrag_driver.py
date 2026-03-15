@@ -473,7 +473,7 @@ def init_globals():
 def generate_answer(query, retriever, llm, original_query: str = "") -> dict:
     return generate(llm, retriever, query, original_query=original_query)
 
-def run_pipeline(question: str, fallback: str, status_callback=None) -> dict:
+def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, status_callback=None) -> dict:
     init_globals()
     
     # 1. Clear stale Neo4j data from previous questions to prevent irrelevant retrieval
@@ -513,7 +513,7 @@ def run_pipeline(question: str, fallback: str, status_callback=None) -> dict:
     graph_rag = GraphRAG(llm=retriever_llm, retriever=retriever, prompt_template=GRAPHRAG_TEMPLATE if fallback == "prolog-graphrag" else GRAPHRAG_FALLBACK_TEMPLATE)
     retriever_result = []
     try:
-        graph_rag_results = graph_rag.search(query, retriever_config={'top_k': 5}, return_context=True)
+        graph_rag_results = graph_rag.search(query, retriever_config={'top_k': 5, 'use_global_kg': use_global_kg}, return_context=True)
         retriever_result = graph_rag_results.retriever_result
         # print(f"RESULTS:\n{retriever_result}")
         answer_dict = graph_rag_results.answer
