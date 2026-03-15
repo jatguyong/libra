@@ -43,7 +43,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUplo
                     setUploadedFiles([...uploadedFiles, ...validFiles]);
                 }
                 setShowBadge(true);
-                
+
                 // Upload to backend
                 const formData = new FormData();
                 validFiles.forEach(file => {
@@ -153,7 +153,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUplo
                     onKeyDown={handleKeyDown}
                     disabled={isLoading}
                     rows={1}
-                    placeholder="Ask me any educational questions..."
+                    placeholder="Ask Libra any educational question..."
                     className="w-full bg-transparent border-none outline-none text-white font-inter text-sm placeholder:text-white/40 resize-none overflow-y-auto min-h-[44px] max-h-[200px]"
                     style={{ whiteSpace: 'pre-wrap' }}
                 />
