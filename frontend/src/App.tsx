@@ -159,9 +159,19 @@ function App() {
   const [currentStep, setCurrentStep] = useState(1);
   const [currentFallback, setCurrentFallback] = useState<string | undefined>(undefined);
 
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
   const [hasStartedChat, setHasStartedChat] = useState(false);
+  const [isChatLayoutSettled, setIsChatLayoutSettled] = useState(false);
+
+  useEffect(() => {
+    if (hasStartedChat) {
+      const timer = setTimeout(() => setIsChatLayoutSettled(true), 500);
+      return () => clearTimeout(timer);
+    } else {
+      setIsChatLayoutSettled(false);
+    }
+  }, [hasStartedChat]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -177,7 +187,7 @@ function App() {
   const handleNewConversation = () => {
     setMessages([]);
     setHasStartedChat(false);
-    setUploadedFile(null);
+    setUploadedFiles([]);
     setIsExplanationOpen(false);
   };
 
@@ -188,7 +198,7 @@ function App() {
   }, [messages, isLoading]);
 
 
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (text: string, useGlobalKG: boolean = false) => {
     if (!hasStartedChat) {
       setHasStartedChat(true);
       const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
@@ -206,7 +216,7 @@ function App() {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ messages: updatedMessagesArray }),
+          body: JSON.stringify({ messages: updatedMessagesArray, useGlobalKG }),
         });
 
         if (!response.body) throw new Error("No response body");
@@ -296,7 +306,7 @@ function App() {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ messages: updatedMessagesArray }),
+          body: JSON.stringify({ messages: updatedMessagesArray, useGlobalKG }),
         });
 
         if (!response.body) throw new Error("No response body");
@@ -480,7 +490,7 @@ function App() {
 
       <div className="relative z-10 flex flex-row h-full w-full pointer-events-none">
 
-        <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} uploadedFile={uploadedFile} onNewConversation={handleNewConversation} />
+        <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} uploadedFiles={uploadedFiles} onNewConversation={handleNewConversation} />
 
         {/* Central Chat Column */}
         <div className="flex-1 flex flex-col h-full relative overflow-hidden transition-all duration-300">
@@ -513,12 +523,12 @@ function App() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
                 <WelcomeScreen />
               </motion.div>
-              <motion.div layout layoutId="chatbox-container" transition={{ duration: 0.5, ease: 'easeInOut' }} className="w-full max-w-4xl mx-auto mt-8 px-6 flex justify-center pointer-events-auto">
+              <motion.div layout layoutId="chatbox-container" transition={{ duration: 0, ease: 'easeInOut' }} className="w-full max-w-4xl mx-auto mt-8 px-6 flex justify-center pointer-events-auto">
                 <ChatBox
                   onSendMessage={handleSendMessage}
                   isLoading={isGenerating}
-                  uploadedFile={uploadedFile}
-                  setUploadedFile={setUploadedFile}
+                  uploadedFiles={uploadedFiles}
+                  setUploadedFiles={setUploadedFiles}
                 />
               </motion.div>
             </main>
@@ -559,12 +569,12 @@ function App() {
               </div>
 
               <div className="absolute bottom-0 left-0 right-0 z-50 pb-8 pt-12 bg-gradient-to-t from-[#060010] via-[#060010]/80 to-transparent pointer-events-none flex justify-center w-full">
-                <motion.div layout layoutId="chatbox-container" transition={{ duration: 0.5, ease: 'easeInOut' }} className="w-full max-w-[768px] mx-auto justify-center shrink-0 px-6 flex pointer-events-auto">
+                <motion.div layout layoutId="chatbox-container" transition={{ duration: isChatLayoutSettled ? 0 : 0.5, ease: 'easeInOut' }} className="w-full max-w-[768px] mx-auto justify-center shrink-0 px-6 flex pointer-events-auto">
                   <ChatBox
                     onSendMessage={handleSendMessage}
                     isLoading={isGenerating}
-                    uploadedFile={uploadedFile}
-                    setUploadedFile={setUploadedFile}
+                    uploadedFiles={uploadedFiles}
+                    setUploadedFiles={setUploadedFiles}
                   />
                 </motion.div>
               </div>

@@ -2,13 +2,13 @@ import React, { useState, type KeyboardEvent, useRef } from 'react';
 import { Plus, Send, FileText, X, Info } from 'lucide-react';
 
 interface ChatBoxProps {
-    onSendMessage: (message: string) => void;
+    onSendMessage: (message: string, useGlobalKG: boolean) => void;
     isLoading?: boolean;
-    uploadedFile?: File | null;
-    setUploadedFile?: (file: File | null) => void;
+    uploadedFiles?: File[];
+    setUploadedFiles?: (files: File[]) => void;
 }
 
-const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFile }: ChatBoxProps) => {
+const ChatBox = ({ onSendMessage, isLoading = false, uploadedFiles = [], setUploadedFiles }: ChatBoxProps) => {
     const [inputText, setInputText] = useState('');
     const [showBadge, setShowBadge] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -32,14 +32,37 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
         }
     }, [inputText]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            if (file.type === 'application/pdf') {
-                if (setUploadedFile) setUploadedFile(file);
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const newFiles = Array.from(e.target.files);
+            const validFiles = newFiles.filter(file => file.type === 'application/pdf');
+
+            if (validFiles.length > 0) {
+                // Update local state
+                if (setUploadedFiles) {
+                    setUploadedFiles([...uploadedFiles, ...validFiles]);
+                }
                 setShowBadge(true);
+                
+                // Upload to backend
+                const formData = new FormData();
+                validFiles.forEach(file => {
+                    formData.append('files', file);
+                });
+
+                try {
+                    const response = await fetch('http://localhost:5000/api/ingest', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    if (!response.ok) {
+                        console.error('Failed to upload files:', await response.text());
+                    }
+                } catch (error) {
+                    console.error('Error uploading files:', error);
+                }
             } else {
-                alert("Only PDF files are accepted.");
+                alert('Please upload valid PDF files.');
             }
         }
         if (fileInputRef.current) {
@@ -49,9 +72,9 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
 
     const handleSend = () => {
         if (inputText.trim() && !isLoading) {
-            onSendMessage(inputText);
+            onSendMessage(inputText, useGlobalKG);
             setInputText(''); // clears the box after sending
-            setShowBadge(false); // hides badge but keeps uploadedFile in sidebar
+            setShowBadge(false); // hides badge but keeps uploadedFiles in sidebar
         }
     };
 
@@ -101,19 +124,25 @@ const ChatBox = ({ onSendMessage, isLoading = false, uploadedFile, setUploadedFi
                 />
                 <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] w-[0%] opacity-0 group-hover:w-[40%] group-hover:opacity-100 bg-gradient-to-r from-transparent via-[#A278AE] to-transparent shadow-[0_0_12px_#A278AE] transition-all duration-500 ease-out" />
 
-                {showBadge && uploadedFile && setUploadedFile && (
-                    <div className="flex items-center gap-2 mb-3 bg-white/10 backdrop-blur-md rounded-lg px-3 py-2 w-max max-w-full">
-                        <FileText size={16} className="text-red-500 shrink-0" />
-                        <span className="text-sm text-white/90 truncate font-sans">{uploadedFile.name}</span>
-                        <button
-                            onClick={() => {
-                                setUploadedFile(null);
-                                setShowBadge(false);
-                            }}
-                            className="text-white/50 hover:text-white transition-colors"
-                        >
-                            <X size={14} />
-                        </button>
+                {showBadge && uploadedFiles.length > 0 && setUploadedFiles && (
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                        {uploadedFiles.map((file, index) => (
+                            <div key={index} className="flex items-center gap-2 bg-white/10 backdrop-blur-md rounded-lg px-3 py-2 w-max max-w-full">
+                                <FileText size={16} className="text-red-500 shrink-0" />
+                                <span className="text-sm text-white/90 truncate font-sans">{file.name}</span>
+                                <button
+                                    onClick={() => {
+                                        const newFiles = [...uploadedFiles];
+                                        newFiles.splice(index, 1);
+                                        setUploadedFiles(newFiles);
+                                        if (newFiles.length === 0) setShowBadge(false);
+                                    }}
+                                    className="text-white/50 hover:text-white transition-colors cursor-pointer"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        ))}
                     </div>
                 )}
 

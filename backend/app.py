@@ -28,6 +28,31 @@ IMPORTANT: USE LINE BREAKS IN THE FORM OF <br><br> FREQUENTLY TO IMPROVE READABI
 def index():
     return jsonify({"status": "Libra API Active"})
 
+@app.route("/api/ingest", methods=["POST"])
+def ingest():
+    if "files" not in request.files:
+        return jsonify({"error": "No files part in the request"}), 400
+
+    files = request.files.getlist("files")
+    if not files:
+        return jsonify({"error": "No selected files"}), 400
+
+    upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    saved_files = []
+    for file in files:
+        if file.filename:
+            # Need to secure filename in real app, but for now we'll just save it
+            filepath = os.path.join(upload_dir, file.filename)
+            file.save(filepath)
+            saved_files.append(file.filename)
+
+    # In a real scenario, here we would trigger the backend pipeline ingestion (e.g. `process_pdf_documents()`)
+    # on the newly uploaded files.
+
+    return jsonify({"message": f"Successfully uploaded {len(saved_files)} files.", "files": saved_files})
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
     from prolog_graphrag_pipeline.main_driver import run_pipeline
@@ -38,9 +63,10 @@ def chat():
     if not react_messages:
         return jsonify({"error": "No messages provided"}), 400
 
-    # Extract the user's latest question
+    # Extract the user's latest question and the boolean flag
     latest_msg = react_messages[-1]
     question = latest_msg.get("content", "")
+    use_global_kg = data.get("useGlobalKG", False)
 
     import queue
     import threading
@@ -55,7 +81,7 @@ def chat():
         def worker():
             try:
                 # Run the Prolog-GraphRAG pipeline with the callback
-                result = run_pipeline(question, flag="x", status_callback=status_callback)
+                result = run_pipeline(question, flag="x", use_global_kg=use_global_kg, status_callback=status_callback)
 
                 # Safely convert contexts to strings if they are objects
                 raw_contexts = result.get("contexts", [])
