@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { motion } from 'framer-motion';
 import Galaxy from './components/Backgrounds/Galaxy';
-import Navbar from './components/Navbar';
 import WelcomeScreen from './components/WelcomeScreen';
 import ChatBox from './components/ChatBox';
 import Sidebar from './components/Sidebar';
@@ -164,7 +163,7 @@ function App() {
 
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 
-  const [hasStartedChat, setHasStartedChat] = useState(false);
+  const [hasStartedChat, sethasStartedChat] = useState(false);
   const [isChatLayoutSettled, setIsChatLayoutSettled] = useState(false);
 
   useEffect(() => {
@@ -189,7 +188,7 @@ function App() {
 
   const handleNewConversation = () => {
     setMessages([]);
-    setHasStartedChat(false);
+    sethasStartedChat(false);
     setUploadedFiles([]);
     setIsExplanationOpen(false);
   };
@@ -203,7 +202,7 @@ function App() {
 
   const handleSendMessage = async (text: string, useGlobalKG: boolean = false) => {
     if (!hasStartedChat) {
-      setHasStartedChat(true);
+      sethasStartedChat(true);
       const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
       const updatedMessagesArray = [newUserMsg];
       setMessages(updatedMessagesArray);
@@ -492,32 +491,34 @@ function App() {
     <div className="relative h-screen w-full overflow-hidden bg-[#060010]">
 
       {/* Full-screen Galaxy Background */}
-      <div className="absolute inset-0 z-0 pointer-events-auto">
+      <div className="absolute inset-0 z-0 pointer-events-auto transition-opacity duration-1000">
         <Galaxy
           mouseRepulsion={false}
           mouseInteraction={!hasStartedChat}
           density={1.3}
-          glowIntensity={hasStartedChat ? 0.12 : 0.2}
+          glowIntensity={!hasStartedChat ? 0.2 : isGenerating ? 0.2 : 0.15}
           saturation={0}
           hueShift={140}
-          twinkleIntensity={hasStartedChat ? 0.1 : 0.3}
-          rotationSpeed={hasStartedChat ? 0 : 0.05}
-          repulsionStrength={10}
+          twinkleIntensity={!hasStartedChat ? 0.3 : isGenerating ? 0.5 : 0.1}
+          rotationSpeed={0}
+          repulsionStrength={0}
           autoCenterRepulsion={0}
-          starSpeed={hasStartedChat ? 0.05 : 0.2}
-          speed={hasStartedChat ? 0.2 : 0.8}
+          starSpeed={!hasStartedChat ? 0.3 : isGenerating ? 2 : 0}
+          speed={!hasStartedChat ? 0.3 : isGenerating ? 0.3 : 0.1}
         />
       </div>
 
       <div className="relative z-10 flex flex-row h-full w-full pointer-events-none">
 
+        {/* Sidebar handles its own pointer events */}
         <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} uploadedFiles={uploadedFiles} onNewConversation={handleNewConversation} />
 
         {/* Central Chat Column */}
-        <div className="flex-1 flex flex-col h-full relative overflow-hidden transition-all duration-300">
+        <div className="flex-1 flex flex-col h-full relative overflow-hidden transition-all duration-300 pointer-events-auto">
 
-          <div className="pointer-events-auto w-full shrink-0 relative z-50">
-            <Navbar />
+          {/* Reserved space for exactly where the logo sits so the layout doesn't overlap */}
+          <div className="w-full shrink-0 relative h-[72px] pointer-events-none">
+            {/* The actual Navbar with the logo is removed, we just need the 72px spacing to match the old Navbar height */}
           </div>
 
           {!hasStartedChat ? (
@@ -571,6 +572,9 @@ function App() {
                 {isLoading && (
                   <ThinkingProcess isFinished={false} currentStep={currentStep} fallback={currentFallback} />
                 )}
+
+                { }
+                {isLoading && <div className="h-[42vh] shrink-0" />}
 
                 {/* Auto-scroll target */}
                 <div ref={messagesEndRef} className="h-4 shrink-0" />
@@ -658,28 +662,63 @@ function App() {
                     return (hasValidContext || hasContexts) ? (
                       <div className="mb-4">
                         <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">GraphRAG Sources</h3>
-                        {hasValidContext && (
-                          <div className="mb-3">
-                            <p className="text-xs text-white/40 mb-1">Condensed Context</p>
-                            <div className="text-sm text-white/80 font-inter leading-relaxed max-h-48 overflow-y-auto pr-2">
-                              <ReactMarkdown
-                                components={{
-                                  p: ({ children }) => <p className="mb-3 last:mb-0">{children}</p>,
-                                  ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
-                                  ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
-                                  li: ({ children }) => <li className="mb-1">{children}</li>,
-                                  strong: ({ children }) => <strong className="font-bold text-white/90">{children}</strong>,
-                                  em: ({ children }) => <em className="italic">{children}</em>,
-                                  h1: ({ children }) => <h1 className="text-lg font-bold mt-4 mb-2 text-white/90">{children}</h1>,
-                                  h2: ({ children }) => <h2 className="text-base font-bold mt-4 mb-2 text-white/90">{children}</h2>,
-                                  h3: ({ children }) => <h3 className="text-sm font-bold mt-3 mb-1 text-white/90">{children}</h3>,
-                                }}
-                              >
-                                {selectedExplanation.condensed_context}
-                              </ReactMarkdown>
+                        {hasValidContext && (() => {
+                          // Split the condensed context string into its 4 named sections via regex.
+                          const sectionKeys = [
+                            'ATOMIC FACTS',
+                            'CONDITIONAL RULES',
+                            'EXCEPTIONS',
+                            'LOGICAL GAPS',
+                          ] as const;
+                          const pattern = /\*\*(ATOMIC FACTS|CONDITIONAL RULES|EXCEPTIONS|LOGICAL GAPS)\*\*:/g;
+                          const sections: Record<string, string> = {};
+                          let match: RegExpExecArray | null;
+                          const matches: { label: string; contentStart: number; headerStart: number }[] = [];
+                          while ((match = pattern.exec(cc)) !== null) {
+                            matches.push({ label: match[1], contentStart: match.index + match[0].length, headerStart: match.index });
+                          }
+                          matches.forEach((m, i) => {
+                            const end = i + 1 < matches.length ? matches[i + 1].headerStart : cc.length;
+                            sections[m.label] = cc.slice(m.contentStart, end).trim();
+                          });
+
+                          const hasSections = matches.length > 0;
+                          if (!hasSections) {
+                            // Fallback: render as plain markdown if headers aren't found
+                            return (
+                              <div className="text-sm text-white/80 font-inter leading-relaxed mb-3">
+                                <ReactMarkdown>{cc}</ReactMarkdown>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div className="space-y-2 mb-3">
+                              {sectionKeys.map((key) => {
+                                const content = sections[key];
+                                if (!content || content.toLowerCase() === 'none') return null;
+                                return (
+                                  <div key={key} className="rounded-lg bg-white/5 px-3 py-2">
+                                    <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-1">{key}</p>
+                                    <div className="text-sm text-white/80 font-inter leading-relaxed">
+                                      <ReactMarkdown
+                                        components={{
+                                          p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                                          ul: ({ children }) => <ul className="list-disc pl-4 space-y-0.5">{children}</ul>,
+                                          li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                                          strong: ({ children }) => <strong className="font-bold text-white/90">{children}</strong>,
+                                        }}
+                                      >
+                                        {content}
+                                      </ReactMarkdown>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
+
                         {Array.isArray(selectedExplanation.contexts) && selectedExplanation.contexts.length > 0 && (
                           <div>
                             <p className="text-xs text-white/40 mb-1">Retrieved Contexts ({selectedExplanation.contexts.length})</p>
@@ -779,29 +818,6 @@ function App() {
                     </div>
                   )}
 
-                  {/* Logprobs */}
-                  {selectedExplanation.logprobs && selectedExplanation.logprobs.length > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Token Log Probabilities</h3>
-                      <div className="bg-white/5 rounded-lg p-3 border border-white/5 max-h-64 overflow-y-auto">
-                        <div className="flex flex-wrap gap-1">
-                          {selectedExplanation.logprobs.map((lp: any, i: number) => {
-                            const prob = lp.logprob != null ? Math.exp(lp.logprob) : 0;
-                            const color = prob > 0.8 ? 'text-green-300' : prob > 0.4 ? 'text-yellow-300' : 'text-red-300';
-                            return (
-                              <span
-                                key={i}
-                                className={`${color} text-xs font-mono px-1 py-0.5 rounded bg-white/5 cursor-default`}
-                                title={`Token: ${lp.token || '?'}\nLogprob: ${lp.logprob?.toFixed(4) ?? 'N/A'}\nProb: ${(prob * 100).toFixed(1)}%`}
-                              >
-                                {lp.token || '?'}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </>
               ) : (
                 <p className="text-white/40 text-sm font-inter">Click "Explanation" on a response to view pipeline details.</p>

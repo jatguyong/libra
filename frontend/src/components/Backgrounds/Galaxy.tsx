@@ -20,10 +20,8 @@ uniform float uTime;
 uniform vec3 uResolution;
 uniform vec2 uFocal;
 uniform vec2 uRotation;
-uniform float uStarSpeed;
 uniform float uDensity;
 uniform float uHueShift;
-uniform float uSpeed;
 uniform vec2 uMouse;
 uniform float uGlowIntensity;
 uniform float uSaturation;
@@ -34,6 +32,10 @@ uniform float uRepulsionStrength;
 uniform float uMouseActiveFactor;
 uniform float uAutoCenterRepulsion;
 uniform bool uTransparent;
+
+uniform float uIntegratedTime;
+uniform float uStarSpeedAccum;
+uniform float uDepthOffset;
 
 varying vec2 vUv;
 
@@ -92,17 +94,17 @@ vec3 StarLayer(vec2 uv) {
       vec2 si = id + offset;
       float seed = Hash21(si);
       float size = fract(seed * 345.32);
-      float glossLocal = tri(uStarSpeed / (PERIOD * seed + 1.0));
+      float glossLocal = tri(uStarSpeedAccum / (PERIOD * seed + 1.0));
       float flareSize = smoothstep(0.9, 1.0, size) * glossLocal;
 
       vec3 base = vec3(1.0);
 
-      vec2 pad = vec2(tris(seed * 34.0 + uTime * uSpeed / 10.0), tris(seed * 38.0 + uTime * uSpeed / 30.0)) - 0.5;
+      vec2 pad = vec2(tris(seed * 34.0 + uIntegratedTime / 10.0), tris(seed * 38.0 + uIntegratedTime / 30.0)) - 0.5;
 
       float star = Star(gv - offset - pad, flareSize);
       vec3 color = base;
 
-      float twinkle = trisn(uTime * uSpeed + seed * 6.2831) * 0.5 + 1.0;
+      float twinkle = trisn(uIntegratedTime + seed * 6.2831) * 0.5 + 1.0;
       twinkle = mix(1.0, twinkle, uTwinkleIntensity);
       star *= twinkle;
       
@@ -144,7 +146,7 @@ void main() {
   vec3 col = vec3(0.0);
 
   for (float i = 0.0; i < 1.0; i += 1.0 / NUM_LAYER) {
-    float depth = fract(i + uStarSpeed * uSpeed);
+    float depth = fract(i + uDepthOffset);
     float scale = mix(20.0 * uDensity, 0.5 * uDensity, depth);
     float fade = depth * smoothstep(1.0, 0.9, depth);
     col += StarLayer(uv * scale + i * 453.32) * fade;
@@ -213,6 +215,21 @@ export default memo(function Galaxy({
   const targetMouseActive = useRef(0.0);
   const smoothMouseActive = useRef(0.0);
 
+  const targetSpeed = useRef(speed);
+  const targetStarSpeed = useRef(starSpeed);
+  const targetGlowIntensity = useRef(glowIntensity);
+  const targetTwinkleIntensity = useRef(twinkleIntensity);
+  const targetRotationSpeed = useRef(rotationSpeed);
+  
+  // Keep refs updated with latest props without re-running useEffect
+  useEffect(() => {
+    targetSpeed.current = speed;
+    targetStarSpeed.current = starSpeed;
+    targetGlowIntensity.current = glowIntensity;
+    targetTwinkleIntensity.current = twinkleIntensity;
+    targetRotationSpeed.current = rotationSpeed;
+  }, [speed, starSpeed, glowIntensity, twinkleIntensity, rotationSpeed]);
+
   useEffect(() => {
     if (!ctnDom.current) return;
     const ctn = ctnDom.current;
@@ -261,28 +278,38 @@ export default memo(function Galaxy({
         },
         uFocal: { value: new Float32Array(focal) },
         uRotation: { value: new Float32Array(rotation) },
-        uStarSpeed: { value: starSpeed },
         uDensity: { value: density },
         uHueShift: { value: hueShift },
-        uSpeed: { value: speed },
         uMouse: {
           value: new Float32Array([smoothMousePos.current.x, smoothMousePos.current.y])
         },
-        uGlowIntensity: { value: glowIntensity },
+        uGlowIntensity: { value: targetGlowIntensity.current },
         uSaturation: { value: saturation },
         uMouseRepulsion: { value: mouseRepulsion },
-        uTwinkleIntensity: { value: twinkleIntensity },
-        uRotationSpeed: { value: rotationSpeed },
+        uTwinkleIntensity: { value: targetTwinkleIntensity.current },
+        uRotationSpeed: { value: targetRotationSpeed.current },
         uRepulsionStrength: { value: repulsionStrength },
         uMouseActiveFactor: { value: 0.0 },
         uAutoCenterRepulsion: { value: autoCenterRepulsion },
-        uTransparent: { value: transparent }
+        uTransparent: { value: transparent },
+        uIntegratedTime: { value: 0 },
+        uStarSpeedAccum: { value: 0 },
+        uDepthOffset: { value: 0 }
       }
     });
 
     const mesh = new Mesh(gl, { geometry, program });
     let animateId: number;
     let lastFrameTime = 0;
+    
+    // JS accumulators
+    let integratedTime = 0;
+    let starSpeedAccum = 0;
+    let depthOffset = 0;
+    
+    // Local speed state
+    let currentSpeed = targetSpeed.current;
+    let currentStarSpeed = targetStarSpeed.current;
 
     function update(t: number) {
       animateId = requestAnimationFrame(update);
@@ -290,11 +317,32 @@ export default memo(function Galaxy({
       // Throttle to ~30fps
       const delta = t - lastFrameTime;
       if (delta < FRAME_INTERVAL) return;
+      
+      // Calculate delta T in seconds for integration
+      const deltaT = (t - (lastFrameTime || t)) * 0.001;
       lastFrameTime = t - (delta % FRAME_INTERVAL);
+      
+      const paramLerp = 0.08; // Smooth transition speed for properties
+
+      // Interpolate parameters smoothly
+      currentSpeed += (targetSpeed.current - currentSpeed) * paramLerp;
+      currentStarSpeed += (targetStarSpeed.current - currentStarSpeed) * paramLerp;
+      
+      program.uniforms.uGlowIntensity.value += (targetGlowIntensity.current - program.uniforms.uGlowIntensity.value) * paramLerp;
+      program.uniforms.uTwinkleIntensity.value += (targetTwinkleIntensity.current - program.uniforms.uTwinkleIntensity.value) * paramLerp;
+      program.uniforms.uRotationSpeed.value += (targetRotationSpeed.current - program.uniforms.uRotationSpeed.value) * paramLerp;
 
       if (!disableAnimation) {
         program.uniforms.uTime.value = t * 0.001;
-        program.uniforms.uStarSpeed.value = (t * 0.001 * starSpeed) / 10.0;
+        
+        // Continuous integration avoids jumps
+        integratedTime += deltaT * currentSpeed;
+        starSpeedAccum += deltaT * currentStarSpeed / 10.0;
+        depthOffset += deltaT * currentStarSpeed * currentSpeed;
+        
+        program.uniforms.uIntegratedTime.value = integratedTime;
+        program.uniforms.uStarSpeedAccum.value = starSpeedAccum;
+        program.uniforms.uDepthOffset.value = depthOffset / 10.0;
       }
 
       const lerpFactor = 0.05;
@@ -342,17 +390,12 @@ export default memo(function Galaxy({
   }, [
     focal,
     rotation,
-    starSpeed,
     density,
     hueShift,
     disableAnimation,
-    speed,
     mouseInteraction,
-    glowIntensity,
     saturation,
     mouseRepulsion,
-    twinkleIntensity,
-    rotationSpeed,
     repulsionStrength,
     autoCenterRepulsion,
     transparent
