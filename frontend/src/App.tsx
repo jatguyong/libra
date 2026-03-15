@@ -18,6 +18,8 @@ interface ExplanationData {
   fallback: string;
   prolog_error: string | null;
   logprobs: any[];
+  semantic_entropy?: number;
+  hallucination_flag?: string;
 }
 
 interface Message {
@@ -137,7 +139,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
               </div>
             )}
 
-            {message.explanationData && message.explanationData.fallback !== 'tuned' && (
+            {message.explanationData && (
               <button
                 onClick={() => onExplanationClick(message.explanationData!)}
                 className="text-base font-inter font-light text-white/40 hover:text-white/80 transition-colors ml-1 cursor-pointer"
@@ -165,6 +167,7 @@ function App() {
 
   const [hasStartedChat, sethasStartedChat] = useState(false);
   const [isChatLayoutSettled, setIsChatLayoutSettled] = useState(false);
+  const [useGlobalKG, setUseGlobalKG] = useState(false);
 
   useEffect(() => {
     if (hasStartedChat) {
@@ -260,6 +263,8 @@ function App() {
                     fallback: data.fallback || 'unknown',
                     prolog_error: data.prolog_error || null,
                     logprobs: data.logprobs || [],
+                    semantic_entropy: data.semantic_entropy,
+                    hallucination_flag: data.hallucination_flag,
                   };
 
                   const llmMsg: Message = {
@@ -284,7 +289,7 @@ function App() {
         const errorMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'llm',
-          content: "Error: Cannot connect to the Libra backend."
+          content: "There seems to be an error in the backend. Please try again."
         };
         setMessages((prev) => [...prev, errorMsg]);
       } finally {
@@ -350,6 +355,8 @@ function App() {
                     fallback: data.fallback || 'unknown',
                     prolog_error: data.prolog_error || null,
                     logprobs: data.logprobs || [],
+                    semantic_entropy: data.semantic_entropy,
+                    hallucination_flag: data.hallucination_flag,
                   };
 
                   const llmMsgId = (Date.now() + 1).toString();
@@ -375,7 +382,7 @@ function App() {
         const errorMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'llm',
-          content: "Error: Cannot connect to the Libra backend."
+          content: "There seems to be an error with the backend. Please try again."
         };
         setMessages((prev) => [...prev, errorMsg]);
       } finally {
@@ -455,6 +462,8 @@ function App() {
                   fallback: data.fallback || 'unknown',
                   prolog_error: data.prolog_error || null,
                   logprobs: data.logprobs || [],
+                  semantic_entropy: data.semantic_entropy,
+                  hallucination_flag: data.hallucination_flag,
                 };
 
                 setMessages((prev) =>
@@ -476,7 +485,7 @@ function App() {
       console.error(error);
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === llmMsgId ? { ...msg, content: "Error: Cannot connect to the Libra backend." } : msg
+          msg.id === llmMsgId ? { ...msg, content: "There seems to be an error in the backend. Please try again." } : msg
         )
       );
     } finally {
@@ -504,7 +513,7 @@ function App() {
           repulsionStrength={0}
           autoCenterRepulsion={0}
           starSpeed={!hasStartedChat ? 0.3 : isGenerating ? 2 : 0}
-          speed={!hasStartedChat ? 0.3 : isGenerating ? 0.3 : 0.1}
+          speed={!hasStartedChat ? 0.3 : isGenerating ? 0.4 : 0.1}
         />
       </div>
 
@@ -534,6 +543,8 @@ function App() {
                     isLoading={isGenerating}
                     uploadedFiles={uploadedFiles}
                     setUploadedFiles={setUploadedFiles}
+                    useGlobalKG={useGlobalKG}
+                    setUseGlobalKG={setUseGlobalKG}
                   />
                 </div>
                 <div className="font-normal text-white/70 text-[11px] font-inter tracking-wide text-center mt-4 select-none">
@@ -588,6 +599,8 @@ function App() {
                       isLoading={isGenerating}
                       uploadedFiles={uploadedFiles}
                       setUploadedFiles={setUploadedFiles}
+                      useGlobalKG={useGlobalKG}
+                      setUseGlobalKG={setUseGlobalKG}
                     />
                   </div>
                   <div className="font-normal text-white/70 text-[11px] font-inter tracking-wide text-center mt-3 select-none">
@@ -629,6 +642,45 @@ function App() {
                           '🧠 Tuned LLM'}
                     </span>
                   </div>
+
+                  {/* Semantic Entropy Section */}
+                  {(selectedExplanation.semantic_entropy !== undefined) && (
+                    <div className="mb-4 bg-white/5 rounded-lg p-3 border border-white/10 flex flex-col gap-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs uppercase tracking-wider font-semibold text-white/50">Semantic Entropy</span>
+                        <span className="text-sm font-mono text-white/90 bg-black/30 px-2 py-0.5 rounded">
+                          {selectedExplanation.semantic_entropy.toFixed(4)}
+                        </span>
+                      </div>
+                      {selectedExplanation.hallucination_flag && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs uppercase tracking-wider font-semibold text-white/50">Confidence</span>
+                          <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${selectedExplanation.hallucination_flag === 'likely_hallucination' ? 'bg-amber-500/20 text-amber-300' : 'bg-green-500/20 text-emerald-300'}`}>
+                            {selectedExplanation.hallucination_flag.replace('_', ' ')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Logprobs Section */}
+                  {selectedExplanation.logprobs && selectedExplanation.logprobs.length > 0 && (
+                    <div className="mb-4">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Token Log probabilities</h3>
+                      <div className="bg-white/5 rounded-lg border border-white/10 max-h-48 overflow-y-auto p-2 space-y-1">
+                        {selectedExplanation.logprobs.map((lp: any, i: number) => {
+                          const token = lp.token || (typeof lp === 'string' ? lp : JSON.stringify(lp));
+                          const prob = typeof lp.logprob === 'number' ? lp.logprob.toFixed(4) : (typeof lp === 'number' ? lp.toFixed(4) : 'N/A');
+                          return (
+                            <div key={i} className="flex justify-between items-center px-2 py-1 hover:bg-white/5 rounded">
+                              <span className="text-xs font-mono text-white/80 truncate max-w-[200px]">{token}</span>
+                              <span className="text-xs font-mono text-white/50">{prob}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Mapped Query Section */}
                   {selectedExplanation.query && (

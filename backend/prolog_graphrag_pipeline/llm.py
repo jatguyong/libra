@@ -72,7 +72,23 @@ def generate(question: str, retrieved_context: Optional[str], explainer_output: 
         )
         answer = dict()
         answer['text_answer'] = response.choices[0].message.content
-        answer['logprobs'] = response.choices[0].logprobs.content
+        # Extract logprobs - handle both OpenAI and Together AI formats
+        raw_logprobs = response.choices[0].logprobs
+        answer['logprobs'] = []
+        if raw_logprobs:
+            # OpenAI format: logprobs.content is a list of token logprob objects
+            if raw_logprobs.content:
+                answer['logprobs'] = [
+                    {"token": lp.token, "logprob": lp.logprob}
+                    if hasattr(lp, 'token') else lp
+                    for lp in raw_logprobs.content
+                ]
+            # Together AI format: tokens + token_logprobs as parallel arrays
+            elif hasattr(raw_logprobs, 'tokens') and hasattr(raw_logprobs, 'token_logprobs') and raw_logprobs.tokens:
+                answer['logprobs'] = [
+                    {"token": tok, "logprob": lp}
+                    for tok, lp in zip(raw_logprobs.tokens, raw_logprobs.token_logprobs)
+                ]
         return answer
 
     def _call_llm():

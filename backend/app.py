@@ -79,7 +79,7 @@ def chat():
         def worker():
             try:
                 # Run the Prolog-GraphRAG pipeline with the callback
-                result = run_pipeline(question, flag="x", use_global_kg=use_global_kg, status_callback=status_callback)
+                result = run_pipeline(question, flag="x", sample_mode=True, use_global_kg=use_global_kg, status_callback=status_callback)
 
                 # Safely convert contexts to strings if they are objects
                 raw_contexts = result.get("contexts", [])
@@ -88,10 +88,26 @@ def chat():
                 else:
                     contexts = str(raw_contexts) if raw_contexts else ""
 
+                best_answer_obj = result.get("best_answer")
+                if best_answer_obj and isinstance(best_answer_obj, dict):
+                    answer_text = best_answer_obj.get("text_answer", result.get("answer", "No answer generated."))
+                    answer_logprobs = best_answer_obj.get("logprobs", [])
+                else:
+                    answer_text = result.get("answer", "No answer generated.")
+                    # result["logprobs"] is a list-of-lists (one per sample); grab the first if available
+                    raw_lp = result.get("logprobs", [])
+                    if raw_lp and isinstance(raw_lp, list) and len(raw_lp) > 0 and isinstance(raw_lp[0], list):
+                        answer_logprobs = raw_lp[0]
+                    else:
+                        answer_logprobs = raw_lp if isinstance(raw_lp, list) else []
+
                 q.put({
                     "type": "result",
                     "data": {
-                        "answer": result.get("answer", "No answer generated."),
+                        "answer": answer_text,
+                        "logprobs": answer_logprobs,
+                        "semantic_entropy": result.get("semantic_entropy"),
+                        "hallucination_flag": result.get("hallucination_flag"),
                         "explainer_output": result.get("explainer_output", ""),
                         "prolog_explanation": result.get("prolog_explanation", ""),
                         "database": result.get("database", ""),

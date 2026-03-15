@@ -368,3 +368,133 @@ Traceback (most recent call last):
   File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\_base_client.py", line 1070, in request
     raise self._make_status_error_from_response(err.response) from None
 openai.BadRequestError: Error code: 400 - {'id': 'obB4Lan-2kFHot-9dccabedab7b1059', 'error': {'message': 'Unable to access non-serverless model meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo. Please visit https://api.together.ai/models/meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo to create and start a new dedicated endpoint for the model.', 'type': 'invalid_request_error', 'param': None, 'code': 'model_not_available'}}
+Traceback (most recent call last):
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask_cors\extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+                                                ^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask_cors\extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+                                                ^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 57, in chat
+    from prolog_graphrag_pipeline.main_driver import run_pipeline
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 5, in <module>
+    from .semantic_entropy import compute_semantic_entropy
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 4, in <module>
+    from config import ENTAILMENT_THRESHOLD, SampleSequencesFlags, CORRECTNESS_THRESHOLD
+ModuleNotFoundError: No module named 'config'
+Traceback (most recent call last):
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 1536, in __call__
+    return self.wsgi_app(environ, start_response)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 1514, in wsgi_app
+    response = self.handle_exception(e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask_cors\extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+                                                ^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask_cors\extension.py", line 176, in wrapped_function
+    return cors_after_request(app.make_response(f(*args, **kwargs)))
+                                                ^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 57, in chat
+    from prolog_graphrag_pipeline.main_driver import run_pipeline
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 5, in <module>
+    from .semantic_entropy import compute_semantic_entropy
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 4, in <module>
+    from config import ENTAILMENT_THRESHOLD, SampleSequencesFlags, CORRECTNESS_THRESHOLD
+ModuleNotFoundError: No module named 'config'
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 82, in worker
+    result = run_pipeline(question, flag="x", sample_mode=True, use_global_kg=use_global_kg, status_callback=status_callback)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 27, in run_pipeline
+    final_answer = llm_output.get("text_answer", "Error generating answer") if llm_output else "Error generating answer"
+                   ^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 82, in worker
+    result = run_pipeline(question, flag="x", sample_mode=True, use_global_kg=use_global_kg, status_callback=status_callback)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 49, in run_pipeline
+    se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 154, in compute_semantic_entropy
+    sum_of_cluster_probabilities = sum(compute_likelihood(cluster) for cluster in clusters)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 154, in <genexpr>
+    sum_of_cluster_probabilities = sum(compute_likelihood(cluster) for cluster in clusters)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 127, in compute_likelihood
+    likelihood += compute_aggregated_logprobs(seq)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 133, in compute_aggregated_logprobs
+    for token_logprob in response["logprobs"]:
+TypeError: 'NoneType' object is not iterable
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 82, in worker
+    result = run_pipeline(question, flag="x", sample_mode=True, use_global_kg=use_global_kg, status_callback=status_callback)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 124, in run_pipeline
+    final_answer = llm_output.get("text_answer", {"text_answer": "Error generating answer"}) if llm_output else {"text_answer": "Error generating answer"}
+                   ^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+Traceback (most recent call last):
+  File "C:\Users\John Reniel\libra-1\backend\app.py", line 82, in worker
+    result = run_pipeline(question, flag="x", sample_mode=True, use_global_kg=use_global_kg, status_callback=status_callback)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\main_driver.py", line 49, in run_pipeline
+    se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 161, in compute_semantic_entropy
+    clusters = cluster_sequences(sequences)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 113, in cluster_sequences
+    entailment = check_entailment(first_seq, sequences[m]["text_answer"])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 98, in check_entailment
+    answer = query_llm(prompt)
+             ^^^^^^^^^^^^^^^^^
+  File "C:\Users\John Reniel\libra-1\backend\prolog_graphrag_pipeline\semantic_entropy.py", line 72, in query_llm
+    response = client.chat.completions.create(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\_utils\_utils.py", line 286, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\resources\chat\completions\completions.py", line 1192, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\_base_client.py", line 1297, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\John Reniel\libra-1\.venv\Lib\site-packages\openai\_base_client.py", line 1070, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.InternalServerError: Error code: 500 - {'error': {'message': 'Internal Server Error'}}

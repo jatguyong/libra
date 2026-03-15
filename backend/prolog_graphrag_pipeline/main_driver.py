@@ -3,7 +3,7 @@ from .prolog import prolog_driver
 from .llm import generate, decide_fallback
 from .prompt_reconstructor import reconstruct_prompt
 from .semantic_entropy import compute_semantic_entropy
-from .graphrag.config import SKIP_LOGICAL_EVIDENCE_LLM
+
     
 import time
 from typing import Literal
@@ -24,8 +24,12 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
         if status_callback:
             status_callback({"type": "step", "step": 2, "fallback": fallback})
         llm_output = generate(question, retrieved_context=None, explainer_output=None, fallback=fallback, flag=flag, sample_mode=sample_mode, status_callback=status_callback)
-        final_answer = llm_output.get("text_answer", "Error generating answer") if llm_output else "Error generating answer"
-        logprobs = llm_output.get("logprobs", "") if llm_output else ""
+        if isinstance(llm_output, list) and len(llm_output) > 0:
+            final_answer = llm_output[0].get("text_answer", "Error generating answer")
+            logprobs = llm_output[0].get("logprobs", "")
+        else:
+            final_answer = llm_output.get("text_answer", "Error generating answer") if llm_output else "Error generating answer"
+            logprobs = llm_output.get("logprobs", "") if llm_output else ""
         
         # Return different dicts depending on sample_mode
         if not sample_mode:
@@ -40,8 +44,22 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                 "fallback": fallback
             }
         else:
+            answers = [output["text_answer"] for output in llm_output]
+            logprobs = [output["logprobs"] for output in llm_output]
+            se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
             return {
-                "answers": [output["text_answer"] for output in llm_output]
+                "answers": answers,
+                "logprobs": logprobs,
+                "best_answer": se_results["best_answer"],
+                "semantic_entropy": se_results["semantic_entropy"],
+                "hallucination_flag": se_results["hallucination_flag"],
+                "database": None,
+                "query": None,
+                "contexts": None,
+                "prolog_explanation": None,
+                "explainer_output": None,
+                "prolog_error": None,
+                "fallback": fallback
             }
     else:
         graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback, use_global_kg=use_global_kg, status_callback=status_callback) if flag != "q" else None
@@ -103,8 +121,12 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                 if status_callback:
                     status_callback({"type": "step", "step": 7})
                 llm_output = generate(question, retrieved_context_str, explainer_output, flag=flag, sample_mode=sample_mode, fallback=fallback, status_callback=status_callback) if prolog_error is None else pgr_results.get("final_answer", "")
-                final_answer = llm_output.get("text_answer", {"text_answer": "Error generating answer"}) if llm_output else {"text_answer": "Error generating answer"}
-                llm_logprobs = llm_output.get("logprobs", []) if llm_output else {}
+                if isinstance(llm_output, list) and len(llm_output) > 0:
+                    final_answer = llm_output[0].get("text_answer", {"text_answer": "Error generating answer"})
+                    llm_logprobs = llm_output[0].get("logprobs", [])
+                else:
+                    final_answer = llm_output.get("text_answer", {"text_answer": "Error generating answer"}) if llm_output else {"text_answer": "Error generating answer"}
+                    llm_logprobs = llm_output.get("logprobs", []) if llm_output else {}
         else:
             prolog_error = "Pipeline decided to fallback to GraphRAG, skipping Prolog execution."
             explainer_output = "No explainer output since Prolog was skipped."
@@ -133,9 +155,9 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
             }
         else:
             # NOTE: sample_mode MUST BE TRUE for all pipeline calls for the semantic entropy calculation to be carried out with each prompt
-            answers = [output["text_answer"] for output in llm_output],
-            logprobs =  [output["logprobs"] for output in llm_output],
-            se_results = compute_semantic_entropy(llm_output)
+            answers = [output["text_answer"] for output in llm_output]
+            logprobs = [output["logprobs"] for output in llm_output]
+            se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
             return {
                 "answers": answers,
                 "logprobs": logprobs,

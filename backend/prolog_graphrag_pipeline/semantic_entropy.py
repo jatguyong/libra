@@ -1,7 +1,7 @@
 OPTIMAL_SE_THRESHOLD = 0.3316
 
 import json
-from config import ENTAILMENT_THRESHOLD, SampleSequencesFlags, CORRECTNESS_THRESHOLD
+import json
 from . import main_driver
 
 import math
@@ -25,10 +25,8 @@ LOGS_DIR = ROOT / "logs/prolog_graphrag_pipeline_logs"
 
 from .llm_config import MODEL_NAME, get_openai_client
 
-from openai import OpenAI
-
 # For OpenAI
-client = OpenAI()
+client = get_openai_client()
 
 # ── System Prompt ────────────────────────────────────────────────────────────
 LLM_MESSAGES = [
@@ -72,9 +70,10 @@ def query_llm(prompt: str):
     """Send a prompt to the configured LLM and return the response text."""
     # try:
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL_NAME,
         messages=LLM_MESSAGES + [{"role": "user", "content": prompt}],
         temperature=0.3,
+        response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
     # except Exception as e:
@@ -131,9 +130,17 @@ def compute_likelihood(cluster: list[dict]) -> float:
 
 def compute_aggregated_logprobs(response: dict) -> float:
     sequence_probability = 0
-    for token_logprob in response["logprobs"]:
-        sequence_probability += token_logprob
+    if not response.get("logprobs"):
+        return 1.0
         
+    for token_logprob in response["logprobs"]:
+        if hasattr(token_logprob, "logprob"):
+            sequence_probability += token_logprob.logprob
+        elif isinstance(token_logprob, dict):
+            sequence_probability += token_logprob.get("logprob", 0)
+        elif isinstance(token_logprob, float) or isinstance(token_logprob, int):
+            sequence_probability += token_logprob
+            
     sequence_probability = math.e ** sequence_probability
     return sequence_probability
     
@@ -147,21 +154,26 @@ def compute_semantic_entropy(sequences):
         sequences.append(
             {
                 "text_answer": seq,
-                "logprobs": logprobs, 
+                "logprobs": logprobs,
             }
         )
     
     clusters = cluster_sequences(sequences)
-    sum_of_cluster_probabilities = sum(compute_likelihood(cluster) for cluster in clusters)
+    
     semantic_entropy = 0
-        
+    total_sequences = len(sequences)
+    
     highest_probability_cluster = None
     highest_probability = 0
+    
     for cluster in clusters:
-        p_Ci_x = compute_likelihood(cluster) / sum_of_cluster_probabilities
+        # P(C_i | x) = length of cluster / total length
+        p_Ci_x = len(cluster) / total_sequences
+        
         if p_Ci_x > highest_probability:
             highest_probability = p_Ci_x
             highest_probability_cluster = cluster
+            
         semantic_entropy += p_Ci_x * math.log(p_Ci_x)
             
     representative_sequence = highest_probability_cluster[0]
@@ -170,7 +182,5 @@ def compute_semantic_entropy(sequences):
     return {
         "best_answer": representative_sequence,
         "semantic_entropy": semantic_entropy,
-        "hallucination_flag": "likely_hallucination" if semantic_entropy < OPTIMAL_SE_THRESHOLD else "likely_correct"
+        "hallucination_flag": "likely_hallucination" if semantic_entropy > OPTIMAL_SE_THRESHOLD else "likely_correct"
     }
-    
-    
