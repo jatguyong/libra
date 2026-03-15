@@ -15,7 +15,7 @@ client = get_openai_client()
 
 # Stateless message template
 BASE_OLLAMA_MESSAGES = [
-            {'role': 'system', 'content': ENCODER_SYSTEM_PROMPT},
+            {'role': 'user', 'content': ENCODER_SYSTEM_PROMPT},
             
         ] + ENCODER_FEW_SHOT_EXAMPLES
 
