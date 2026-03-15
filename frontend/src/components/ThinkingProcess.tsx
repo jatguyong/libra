@@ -67,15 +67,13 @@ interface ThinkingProcessProps {
 const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback, currentStep = 1 }) => {
   const activeSteps = fallback === 'tuned' ? TUNED_LLM_STEPS : PROLOG_STEPS;
 
-  const [isExpanded, setIsExpanded] = useState(!isFinished);
+  const [isExpanded, setIsExpanded] = useState(false);
   
   const internalStep = isFinished ? activeSteps.length - 1 : Math.min(Math.max(0, currentStep - 1), activeSteps.length - 1);
 
   useEffect(() => {
     if (isFinished) {
       setIsExpanded(false);
-    } else {
-      setIsExpanded(true);
     }
   }, [isFinished]);
 
