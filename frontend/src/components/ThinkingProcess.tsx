@@ -84,7 +84,7 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback,
           onClick={() => setIsExpanded(!isExpanded)}
           className={`flex items-center gap-2 mb-2 group transition-colors w-auto cursor-pointer ${isFinished ? 'text-white/50 hover:text-white/80' : 'text-white/70 hover:text-white/90 animate-pulse'}`}
         >
-          <img src="/libra_logo.png" alt="Libra Logo" className={`w-4 h-4 object-contain ${isFinished ? 'opacity-70 group-hover:opacity-100' : 'opacity-100'}`} />
+          <img src="/libra_logo.png" alt="Libra Logo" className={`w-5 h-5 object-contain ${isFinished ? 'opacity-70 group-hover:opacity-100' : 'opacity-100'}`} />
           <span className="text-sm font-medium">{!isFinished ? "Libra is thinking" : "Libra's Thought Process"}</span>
           <ChevronDown
             size={14}
