@@ -139,8 +139,8 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
             )}
 
             {message.explanationData && message.explanationData.fallback !== 'tuned' && (
-              <button 
-                onClick={() => onExplanationClick(message.explanationData!)} 
+              <button
+                onClick={() => onExplanationClick(message.explanationData!)}
                 className="text-base font-inter font-light text-white/40 hover:text-white/80 transition-colors ml-1 cursor-pointer"
               >
                 Explanation
@@ -551,7 +551,7 @@ function App() {
                     {msg.role === 'user' ? (
                       <div className="flex w-full justify-end">
                         <div
-                          className="max-w-[80%] rounded-2xl rounded-tl-[4px] px-5 py-4 font-inter text-[15px] leading-relaxed bg-white/10 text-white border border-white/10 backdrop-blur-md"
+                          className="max-w-[80%] rounded-2xl rounded-tr-[4px] px-5 py-4 font-inter text-[15px] leading-relaxed bg-white/10 text-white border border-white/10 backdrop-blur-md"
                           style={{ whiteSpace: 'pre-wrap' }}
                         >
                           {msg.content.replace(/\n{3,}/g, '\n\n')}
