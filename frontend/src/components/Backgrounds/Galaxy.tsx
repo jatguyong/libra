@@ -220,6 +220,7 @@ export default memo(function Galaxy({
   const targetGlowIntensity = useRef(glowIntensity);
   const targetTwinkleIntensity = useRef(twinkleIntensity);
   const targetRotationSpeed = useRef(rotationSpeed);
+  const mouseInteractionRef = useRef(mouseInteraction);
   
   // Keep refs updated with latest props without re-running useEffect
   useEffect(() => {
@@ -228,7 +229,8 @@ export default memo(function Galaxy({
     targetGlowIntensity.current = glowIntensity;
     targetTwinkleIntensity.current = twinkleIntensity;
     targetRotationSpeed.current = rotationSpeed;
-  }, [speed, starSpeed, glowIntensity, twinkleIntensity, rotationSpeed]);
+    mouseInteractionRef.current = mouseInteraction;
+  }, [speed, starSpeed, glowIntensity, twinkleIntensity, rotationSpeed, mouseInteraction]);
 
   useEffect(() => {
     if (!ctnDom.current) return;
@@ -361,6 +363,7 @@ export default memo(function Galaxy({
     ctn.appendChild(gl.canvas);
 
     function handleMouseMove(e: MouseEvent) {
+      if (!mouseInteractionRef.current) return;
       const rect = ctn.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
       const y = 1.0 - (e.clientY - rect.top) / rect.height;
@@ -372,18 +375,15 @@ export default memo(function Galaxy({
       targetMouseActive.current = 0.0;
     }
 
-    if (mouseInteraction) {
-      ctn.addEventListener('mousemove', handleMouseMove);
-      ctn.addEventListener('mouseleave', handleMouseLeave);
-    }
+    // Always attach listeners — gated by mouseInteractionRef inside handler
+    ctn.addEventListener('mousemove', handleMouseMove);
+    ctn.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
       cancelAnimationFrame(animateId);
       window.removeEventListener('resize', resize);
-      if (mouseInteraction) {
-        ctn.removeEventListener('mousemove', handleMouseMove);
-        ctn.removeEventListener('mouseleave', handleMouseLeave);
-      }
+      ctn.removeEventListener('mousemove', handleMouseMove);
+      ctn.removeEventListener('mouseleave', handleMouseLeave);
       ctn.removeChild(gl.canvas);
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
@@ -393,7 +393,6 @@ export default memo(function Galaxy({
     density,
     hueShift,
     disableAnimation,
-    mouseInteraction,
     saturation,
     mouseRepulsion,
     repulsionStrength,

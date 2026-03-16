@@ -42,6 +42,47 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
 
   const currentDisplayContent = variants[viewIndex] || '';
 
+  // ── Typewriter effect ────────────────────────────────────────────
+  const hasAnimated = useRef(false);
+  const [revealedWordCount, setRevealedWordCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Skip animation if already animated, or content is empty, or viewing an older variant
+    if (hasAnimated.current || !currentDisplayContent || viewIndex !== variants.length - 1) {
+      setRevealedWordCount(null); // show full
+      return;
+    }
+
+    const words = currentDisplayContent.split(/(\s+)/); // preserve whitespace tokens
+    const totalTokens = words.length;
+    setRevealedWordCount(0);
+
+    // Reveal ~8 words per tick at 30ms intervals → ~250 words/sec
+    const WORDS_PER_TICK = 2;
+    const INTERVAL_MS = 30;
+
+    const timer = setInterval(() => {
+      setRevealedWordCount(prev => {
+        const next = (prev ?? 0) + WORDS_PER_TICK;
+        if (next >= totalTokens) {
+          clearInterval(timer);
+          hasAnimated.current = true;
+          return null; // null = show full content
+        }
+        return next;
+      });
+    }, INTERVAL_MS);
+
+    return () => clearInterval(timer);
+  }, [currentDisplayContent, viewIndex, variants.length]);
+
+  // Build the text to render
+  const textToRender = (() => {
+    if (revealedWordCount === null) return currentDisplayContent;
+    const words = currentDisplayContent.split(/(\s+)/);
+    return words.slice(0, revealedWordCount).join('');
+  })();
+
   const handleCopy = () => {
     navigator.clipboard.writeText(currentDisplayContent);
     setCopied(true);
@@ -83,7 +124,7 @@ const AiMessage = ({ message, onRedo, isFinished, onExplanationClick }: { messag
               h3: ({ children }) => <h3 className="text-lg font-bold mt-4 mb-2 text-[#DEE1E5]">{children}</h3>,
             }}
           >
-            {currentDisplayContent.replace(/<br\s*\/?>/gi, '\n')}
+            {textToRender.replace(/<br\s*\/?>/gi, '\n')}
           </ReactMarkdown>
         </div>
 
@@ -421,17 +462,17 @@ function App() {
       <div className="absolute inset-0 z-0 pointer-events-auto transition-opacity duration-1000">
         <Galaxy
           mouseRepulsion={false}
-          mouseInteraction={!hasStartedChat}
+          mouseInteraction={false}
           density={1.3}
-          glowIntensity={!hasStartedChat ? 0.2 : isGenerating ? 0.2 : 0.15}
+          glowIntensity={!hasStartedChat ? 0.4 : isGenerating ? 0.2 : 0.2}
           saturation={0}
           hueShift={140}
           twinkleIntensity={!hasStartedChat ? 0.3 : isGenerating ? 0.5 : 0.1}
           rotationSpeed={0}
           repulsionStrength={0}
           autoCenterRepulsion={0}
-          starSpeed={!hasStartedChat ? 0.3 : isGenerating ? 3.5 : 0}
-          speed={!hasStartedChat ? 0.3 : isGenerating ? 0.4 : 0.1}
+          starSpeed={!hasStartedChat ? 0.3 : isGenerating ? 10 : 0}
+          speed={!hasStartedChat ? 0.5 : isGenerating ? 0.4 : 0.1}
         />
       </div>
 
