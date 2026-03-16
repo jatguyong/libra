@@ -41,7 +41,7 @@ def warmup_prolog_model():
         return
         
     try:
-        print("[Prolog Warmup] Priming KV cache with few-shot prefix...", flush=True)
+        logger.info("[Prolog Warmup] Priming KV cache with few-shot prefix...")
         ollama.chat(
             model=PROLOG_MODEL,
             messages=GENERATOR_LLM_MESSAGES + [
@@ -50,9 +50,9 @@ def warmup_prolog_model():
             options={'temperature': 0, 'keep_alive': '20m', 'num_ctx': 4096},
         )
         _kv_cache_warmed = True
-        print("[Prolog Warmup] KV cache primed.", flush=True)
+        logger.info("[Prolog Warmup] KV cache primed.")
     except Exception as e:
-        print(f"[Prolog Warmup] Non-fatal warmup failure: {e}", flush=True)
+        logger.debug("[Prolog Warmup] Non-fatal warmup failure: %s", e)
 
 def reset_kv_cache_flag():
     """Call this before each new question so warmup re-runs after GraphRAG evicts the cache."""
@@ -89,15 +89,15 @@ def reset_ollama_model():
         return result_holder[0]
 
     try:
-        print("[Ollama Reset] Unloading prolog model to recover from hang...", flush=True)
+        logger.info("[Ollama Reset] Unloading prolog model to recover from hang...")
         run_with_timeout(lambda: ollama.generate(model=PROLOG_MODEL, prompt="", keep_alive=0))
-        print("[Ollama Reset] Model unloaded.", flush=True)
+        logger.info("[Ollama Reset] Model unloaded.")
     except Exception as e:
-        print(f"[Ollama Reset] Warning during unload: {e}", flush=True)
+        logger.warning("[Ollama Reset] Warning during unload: %s", e)
 
     # Verify the model reloads successfully with a simple ping
     try:
-        print("[Ollama Reset] Verifying model reloads...", flush=True)
+        logger.info("[Ollama Reset] Verifying model reloads...")
         test_response = run_with_timeout(
             lambda: ollama.chat(
                 model=PROLOG_MODEL,
@@ -106,9 +106,9 @@ def reset_ollama_model():
             )
         )
         reply = test_response.get('message', {}).get('content', '').strip()
-        print(f"[Ollama Reset] Model reloaded successfully. Ping reply: {reply[:50]}", flush=True)
+        logger.info("[Ollama Reset] Model reloaded. Ping reply: %s", reply[:50])
     except Exception as e:
-        print(f"[Ollama Reset] WARNING: Model failed to reload: {e}", flush=True)
+        logger.warning("[Ollama Reset] Model failed to reload: %s", e)
 
 def generate(prompt: str, flag: str) -> dict:
     if flag not in ["prolog", "explanation", "q"]:
@@ -191,12 +191,12 @@ def generate_response(prompt: str, flag: str) -> dict:
 
     if thread.is_alive():
         # LLM is hung — reset and raise
-        print(f"[LLM TIMEOUT] LLM call exceeded {LLM_TIMEOUT}s. Resetting model...", flush=True)
+        logger.error("[LLM TIMEOUT] Call exceeded %ds. Resetting model...", LLM_TIMEOUT)
         reset_ollama_model()
         raise TimeoutError(f"LLM call timed out after {LLM_TIMEOUT}s")
 
     if error_holder[0]:
-        print(f"Error during LLM interaction: {error_holder[0]}")
+        logger.error("LLM interaction error: %s", error_holder[0])
         return {}
 
     response = result_holder[0]
@@ -208,17 +208,5 @@ def generate_response(prompt: str, flag: str) -> dict:
         answer['logprobs'] = None
         return answer
     except Exception as e:
-        print(f"Error during LLM interaction: {e}")
+        logger.error("LLM response parsing error: %s", e)
         return {}
-    
-# import ollama
-# response = ollama.chat(
-#             model='llama3:instruct',
-#             messages=[{'role': 'user', 'content': "What is the Riemann sum definition of the definite integral?"}],
-#             options={
-#                 'temperature': 0  
-#             },
-#             logprobs=True     
-#         )
-    
-# print(response['message']['content'])

@@ -403,9 +403,8 @@ def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: s
         if re.search(pattern, unquoted_code):
             raise ValueError(f"{hint}")
 
-    # print(f"Iteration {i} | Extracted Database:\n{database}\n")
-    # print(f"Iteration {i} | Extracted Query:\n{query}\n")
-    
+
+
     # NOTE: Wikidata facts for missing KBPedia entities are now retrieved and
     # filtered upstream by kbpedia_retriever.py (ENABLE_WIKIDATA_FALLBACK) and
     # flow into `retrieved_context` as plain text triples — no Q-ID scanning needed here.

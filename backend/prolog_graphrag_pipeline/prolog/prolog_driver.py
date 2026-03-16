@@ -3,11 +3,14 @@ import re
 import sys
 import os
 import time
+import logging
 from typing import Optional
 from .prolog_generator import generate_prolog_code, capture_db_and_query, capture_predicate_and_arguments
 from .explainer import generate_safe_scasp_wrapper, generate_explanation
 from .prolog_llms import warmup_prolog_model, reset_kv_cache_flag
 from .. import llm
+
+logger = logging.getLogger(__name__)
 
 SCASP_AVAILABLE = False
 ALLOW_LLM_FALLBACK = True   # Enables LLM synthesis fallback when Prolog generation fails
@@ -61,23 +64,21 @@ def use_scasp():
     if SCASP_AVAILABLE:
         return
         
-    # print("Attempting to load s(CASP)...")
     try:
         # Try to load first
         list(janus.query("use_module(library(scasp))."))
         janus.query_once("use_module(library(scasp/human)).")
-        # print("s(CASP) loaded successfully.")
         SCASP_AVAILABLE = True
     except Exception:
-        print("s(CASP) not found locally. Attempting installation...")
+        logger.info("s(CASP) not found locally. Attempting installation...")
         try:
             janus.query_once("pack_install(scasp, [interactive(false)]).")
             list(janus.query("use_module(library(scasp))."))
             janus.query_once("use_module(library(scasp/human)).")
-            print("s(CASP) installed and loaded successfully.")
+            logger.info("s(CASP) installed and loaded successfully.")
             SCASP_AVAILABLE = True
         except Exception as e:
-            print(f"CRITICAL ERROR: Failed to install or load s(CASP): {e}")
+            logger.error("Failed to install or load s(CASP): %s", e)
             SCASP_AVAILABLE = False
 
 def run_pipeline(question: str, retrieved_context: str, status_callback=None) -> dict:
@@ -93,11 +94,9 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
         retrieved_context = ""
     
 
-    print(f"**User Question:**\n{question}")
+    logger.info("User Question: %s", question)
     
-    # Safely print retrieved context to avoid Windows charmap encoding errors with chars like \u2192 (→)
-    safe_context = retrieved_context.encode('utf-8', errors='replace').decode('utf-8')
-    # print(f"**Retrieved Context:**\n{safe_context}")
+
 
     # Re-prime Ollama's KV cache with the static few-shot prefix.
     # GraphRAG (same model) runs just before us and evicts the cache.
@@ -106,7 +105,6 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
     reset_kv_cache_flag()
     warmup_prolog_model()
 
-    # print("Generating Prolog...")
     final_context = retrieved_context + "\n"
 
     prolog_error: str | None = None  # None = success; str = error message on failure
@@ -123,47 +121,39 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
             retrieved_context=final_context,
             most_recent_error=None,
         )
-        # print(f"**Extracted database:**\n{database}")
-        # print(f"**Extracted query:**\n{query}")
 
         if not SCASP_AVAILABLE:
             raise RuntimeError("s(CASP) library is specifically required for this pipeline. Execution aborted.")
 
         wrapper = ""
 
-        # print("Generating s(CASP) wrapper...")
         wrapper = generate_safe_scasp_wrapper(query)
-        # print(f"**Wrapper:** \n{wrapper}")
         final_query = f"explain(Explanation)."
         
         if status_callback:
             status_callback({"type": "step", "step": 5})
             
-        print("Consulting database...", flush=True)
+        logger.debug("Consulting database...")
         janus.consult("user", database + "\n" + wrapper)
         try:
-        # if True:
-            # print("Querying database...", flush=True)
             result = janus.query_once(final_query)
-            print(f"**Query Results:** \n{result}", flush=True)
+            logger.debug("Query Results: %s", result)
             
             if result:
                 for arg in result.keys():  
                     if arg not in ["Explanation", "Tree", "Model"] and (arg.isupper() or arg == "truth"):  
                         val = result[arg]
-                        print(f"{arg} Found: {val}")    
+                        logger.debug("%s Found: %s", arg, val)
                         retrieved_values += f"{arg}: {val} "
                         # Capture specifically which multiple-choice letter was proven
                 
                 if SCASP_AVAILABLE and 'Explanation' in result:
-                    print("**Human-Readable Explanation**")
                     human_readable_explanation = result['Explanation']
-                    print(human_readable_explanation)
+                    logger.debug("Human-Readable Explanation: %s", human_readable_explanation)
             else:
-                print("No solution found.")
+                logger.warning("Prolog query returned no solution.")
         except Exception as e:
-        # else:
-            print(f"Error: {e}")
+            logger.error("Prolog query error: %s", e)
             
         if status_callback:
             status_callback({"type": "step", "step": 6})
@@ -176,26 +166,21 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
             retrieved_values=retrieved_values,
             human_readable_explanation=human_readable_explanation,
         )
-        if explainer_output:
-            # print(f"**Explainer Output:** \n{explainer_output}")
-            pass
-        else:
-            print("ERROR: Explainer failed to generate output.")
-    # else:
+        if not explainer_output:
+            logger.error("Explainer failed to generate output.")
     except Exception as gen_err:
         # ── Graceful fallback: Prolog generation failed ──────────────────────
         prolog_error = str(gen_err)
-        print(f"[Prolog FAILED] {prolog_error} — falling back to unverified GraphRAG answer.")
+        logger.warning("Prolog failed: %s — falling back to unverified GraphRAG answer.", prolog_error)
         explainer_output = None  # No Prolog proof; LLM will answer from context alone
         if not ALLOW_LLM_FALLBACK:
             raise gen_err
     final_answer = None
     # ── Final synthesis (always runs unless fallback disabled) ───────────────
     if prolog_error and not ALLOW_LLM_FALLBACK:
-        print("\n**LLM FALLBACK DISABLED: Skipping final synthesis because Prolog failed.")
+        logger.warning("LLM fallback disabled: skipping final synthesis because Prolog failed.")
         final_answer = {"text_answer": "Error: Prolog generation failed and LLM fallback is disabled."}
     else:
-        # print("\n**FINAL LLM OUTPUT:")
         final_answer = llm.generate(question, retrieved_context, explainer_output=None, flag="synthesis", fallback=True, status_callback=status_callback)
 
     

@@ -9,14 +9,16 @@ from .retriever import generate, create_retriever
 from .config import GRAPHRAG_TEMPLATE, GRAPHRAG_FALLBACK_TEMPLATE
 import os
 import glob
-from .config import PROMPT_TEMPLATE, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, SCHEMA_CONFIG, STATIC_SCHEMA # added dot for relative import, assuming config.py is in the same directory as graphrag_driver.py
-# However, this will fail when you run this file directly. For debugging purposes, you can run 'python -m graphrag-pipeline.graphrag.graphrag_driver' in the terminal.
+from .config import PROMPT_TEMPLATE, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, SCHEMA_CONFIG, STATIC_SCHEMA
 import asyncio
 import time
 import threading
 import sys
+import logging
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 from openai import RateLimitError, APITimeoutError, APIConnectionError
+
+logger = logging.getLogger(__name__)
 
 # Persistent event loop to avoid "RuntimeError: Event loop is closed" on Windows.
 # asyncio.run() creates and destroys a new loop each call, but httpx/httpcore
@@ -133,7 +135,7 @@ class DebugOllamaLLM(OllamaLLM):
             with open("debug.txt", "a", encoding="utf-8") as f:
                 f.write(message + "\n")
         except Exception as e:
-            print(f"[DebugOllamaLLM Error] Could not write to debug.txt: {e}")
+            logger.error("[DebugOllamaLLM] Could not write to debug.txt: %s", e)
 
     def _clean_response_text(self, text: str) -> str:
         """Helper: Extracts JSON object from the response string.
@@ -241,11 +243,11 @@ class DebugOllamaLLM(OllamaLLM):
         thread.join(timeout=(timeout_sec * (max_retries + 1)) + 30) # Wait for all retries
 
         if thread.is_alive():
-            print(f"  > [LLM TIMEOUT] Together AI call timed out even after retries.", flush=True)
+            logger.error("Together AI call timed out even after retries.")
             return LLMResponse(content="Error: Together AI call timed out.")
         
         if error_holder[0]:
-            print(f"  > [LLM ERROR] Together AI failed: {error_holder[0]}", flush=True)
+            logger.error("Together AI failed: %s", error_holder[0])
             return LLMResponse(content=f"Error: Together AI failed: {error_holder[0]}")
 
         response = result_holder[0]
@@ -265,14 +267,14 @@ class DebugOllamaLLM(OllamaLLM):
         self._log_to_file(f"\n--- [DEBUG] SENT PROMPT (Sync) ---\n{log_input}\n----------------------------------")
         
         input_len = len(input) if isinstance(input, str) else len(str(input))
-        print(f"  > Sending chunk to LLM ({input_len} chars)...", end="", flush=True)
+        logger.debug("Sending chunk to LLM (%d chars)...", input_len)
         
         response = super().invoke(
             input=clean_input,
             message_history=message_history,
             system_instruction=system_instruction
         )
-        print(" Done!")
+        logger.debug("Sync LLM call done.")
         
         raw_content = response.content if hasattr(response, 'content') else str(response)
         self._log_to_file(f"\n=== [DEBUG] RAW RESPONSE (Sync) ===\n{raw_content}\n===================================")
@@ -297,7 +299,7 @@ class DebugOllamaLLM(OllamaLLM):
         self._log_to_file(f"\n--- [DEBUG] SENT PROMPT (Async) ---\n{log_input}\n----------------------------------")
         
         input_len = len(input) if isinstance(input, str) else len(str(input))
-        print(f"  > [Async] Sending chunk to LLM ({input_len} chars) and waiting for extraction...", end="", flush=True)
+        logger.debug("[Async] Sending chunk to LLM (%d chars) and waiting for extraction...", input_len)
         
         # Bypass neo4j-graphrag's ainvoke and its broken rate limit decorator
         # Call the native async_client from ollama directly
@@ -316,10 +318,10 @@ class DebugOllamaLLM(OllamaLLM):
             raw_content = response_obj.message.content or ""
             response = LLMResponse(content=raw_content)
         except Exception as e:
-            print(f"\n[DebugOllamaLLM Error] Async call failed: {e}")
+            logger.error("[DebugOllamaLLM] Async call failed: %s", e)
             raise
         
-        print(" Done!")
+        logger.debug("Async LLM call done.")
         
         self._log_to_file(f"\n=== [DEBUG] RAW RESPONSE (Async) ===\n{raw_content}\n===================================")
         
@@ -365,7 +367,7 @@ def initialize_models():
         reraise=True # If it fails 8 times, raise the error so you know it died
     )
     def robust_invoke(*args, **kwargs):
-        print("DEBUG PROLOG-GRAPHRAG:Sending chunk to LLM...")
+        logger.debug("Sending chunk to LLM...")
         return original_invoke(*args, **kwargs)
 
     # 3. Apply the monkey-patch to your LLM instance
@@ -388,11 +390,10 @@ def initialize_models():
     if USE_TOGETHER_API:
         from ..llm_config import EMBED_MODEL
         embedder = TogetherAIEmbeddings()
-        # print(f"Together AI embedder loaded ({EMBED_MODEL}).")
     else:
         from ..llm_config import EMBED_MODEL
         embedder = OllamaEmbeddings(model=EMBED_MODEL)
-        print("Ollama embedder loaded.")
+        logger.info("Ollama embedder loaded.")
 
     return encoder_llm, retriever_llm, embedder
 
@@ -480,7 +481,6 @@ def init_globals():
     driver_recreated = ensure_driver_connected()
 
     if encoder_llm is None or driver_recreated:
-        # print("DEBUG PROLOG-GRAPHRAG:Re-initializing pipelines due to missing LLM or new driver...", flush=True)
         encoder_llm, retriever_llm, embedder = initialize_models()
         kg_builder_pdf, kg_builder_text = setup_kg_pipeline(encoder_llm, embedder)
         retriever = create_retriever(neo4j_driver, embedder)
@@ -492,13 +492,7 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
     init_globals()
     
     # 1. Clear stale Neo4j data from previous questions to prevent irrelevant retrieval
-    # print("DEBUG PROLOG-GRAPHRAG [run_pipeline]: Clearing local data...", flush=True)
-    # clear_local_data()
-    # print("DEBUG PROLOG-GRAPHRAG [run_pipeline]: Local data cleared. Starting extract_query_and_context...", flush=True)
-    
-    # 2. Extract query and context from user input
     query, text_context = extract_query_and_context(question)
-    # print(f"DEBUG PROLOG-GRAPHRAG [run_pipeline]: extract_query_and_context done. query={repr(query[:80])} | context items={len(text_context) if isinstance(text_context, list) else 'str'}", flush=True)
     
     # 3. OPT3: Only ingest into the KG if the encoder actually found real context
     #    (e.g. a passage-based question). For self-contained MCQs, context is empty —
@@ -507,19 +501,14 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
     context_was_extracted = bool(text_context)  # True only if encoder found real facts/passages
     
     if not context_was_extracted:
-        # print("DEBUG PROLOG-GRAPHRAG [run_pipeline]: No extracted context (MCQ). Skipping KG ingestion — querying KBPedia directly.", flush=True)
         text_context = [question]  # keep for logging/reference, but don't ingest
     else:
-        # print(f"DEBUG PROLOG-GRAPHRAG [run_pipeline]: Starting process_context (KG ingestion) with {len(text_context)} text chunk(s)...", flush=True)
         if PROCESS_CONTEXT:
             if status_callback:
                 status_callback({"type": "step", "step": 2})
             _run_async(process_context(neo4j_driver, kg_builder_pdf=kg_builder_pdf, kg_builder_text=kg_builder_text, texts=text_context))
-            # print("DEBUG PROLOG-GRAPHRAG [run_pipeline]: process_context done. Sleeping 2s for index update...", flush=True)
-        time.sleep(2) # Allow vector index to update
-        # print("DEBUG PROLOG-GRAPHRAG [run_pipeline]: Sleep done.", flush=True)
+        time.sleep(2)
 
-    # print("DEBUG PROLOG-GRAPHRAG [run_pipeline]: Starting generate (retriever + LLM)...", flush=True)
     success = False
     
     if status_callback:
@@ -530,15 +519,12 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
     try:
         graph_rag_results = graph_rag.search(query, retriever_config={'top_k': 5, 'use_global_kg': use_global_kg}, return_context=True)
         retriever_result = graph_rag_results.retriever_result
-        # print(f"RESULTS:\n{retriever_result}")
         answer_dict = graph_rag_results.answer
         answer = answer_dict.get("answer", "") if isinstance(answer_dict, dict) else str(answer_dict)
         logprobs = answer_dict.get("logprobs", {}) if isinstance(answer_dict, dict) else {}
-        # print(f"ANSWER:\n{answer}")
-        # print("DEBUG PROLOG-GRAPHRAG [run_pipeline]: generate done. Returning result.", flush=True)
         success = True
     except Exception as e:
-        print(f"ERROR during generation: {e}", flush=True)
+        logger.error("Error during generation: %s", e)
     
     return {
         "query": query,
@@ -548,20 +534,6 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
         "retriever_results": retriever_result,
     }
     
-
-async def test_process_pdf_context(kg_builder_pdf: SimpleKGPipeline):
-    await process_pdf_documents(kg_builder_pdf)
-    
-    
-async def test_process_text_context(kg_builder_text: SimpleKGPipeline, query: str):
-    await process_text_context(kg_builder_text)
-    
-    
-def test_extract_query_and_context(question: str):
-    query, context = extract_query_and_context(question)
-    print(f"Extracted query: {query}")
-    print(f"Extracted context: {context}")
-    return query, context
 
 
 def ensure_driver_connected():
@@ -575,7 +547,6 @@ def ensure_driver_connected():
                 neo4j_driver.verify_connectivity()
                 return False
 
-            # print("DEBUG PROLOG-GRAPHRAG:Initializing new Neo4j driver...", flush=True)
             neo4j_driver = neo4j.GraphDatabase.driver(
                 NEO4J_URI, 
                 auth=(NEO4J_USERNAME, NEO4J_PASSWORD),
@@ -584,10 +555,9 @@ def ensure_driver_connected():
                 encrypted=False
             )
             neo4j_driver.verify_connectivity()
-            # print("DEBUG PROLOG-GRAPHRAG:Neo4j driver initialized and connected.", flush=True)
             return True
         except Exception as e:
-            print(f"CRITICAL ERROR: Could not connect to Neo4j (attempt {attempt+1}/{MAX_RETRIES}): {e}", flush=True)
+            logger.error("Could not connect to Neo4j (attempt %d/%d): %s", attempt + 1, MAX_RETRIES, e)
             if neo4j_driver:
                 try:
                     neo4j_driver.close()
@@ -596,7 +566,7 @@ def ensure_driver_connected():
             neo4j_driver = None
             
             if attempt < MAX_RETRIES - 1:
-                print(f"Retrying in {RETRY_DELAY}s...", flush=True)
+                logger.info("Retrying Neo4j connection in %ds...", RETRY_DELAY)
                 import time
                 time.sleep(RETRY_DELAY)
             else:
@@ -609,13 +579,13 @@ def clear_local_data():
     but preserves KBPedia reference concepts which are a static knowledge base.
     """
     ensure_driver_connected()
-    print("WARNING: Clearing pipeline data (preserving KBPedia)...")
+    logger.warning("Clearing pipeline data (preserving KBPedia)...")
     try:
         with neo4j_driver.session(database="neo4j") as session:
             session.run("MATCH (n) WHERE NOT n:KBPediaConcept DETACH DELETE n")
     except Exception as e:
-        print(f"Error clearing local data: {e}")
-    print("Database cleared successfully (KBPedia preserved).")
+        logger.error("Error clearing local data: %s", e)
+    logger.info("Database cleared successfully (KBPedia preserved).")
 
 
 def remove_document_from_kg(filename: str) -> dict:
@@ -654,7 +624,7 @@ def remove_document_from_kg(filename: str) -> dict:
                 DETACH DELETE c, d
             """, filename=filename)
             
-            print(f"Removed document '{filename}': {doc_count} Document node(s), {chunk_count} Chunk node(s) deleted.", flush=True)
+            logger.info("Removed document '%s': %d Document node(s), %d Chunk node(s) deleted.", filename, doc_count, chunk_count)
             return {
                 "status": "removed",
                 "filename": filename,
@@ -662,7 +632,7 @@ def remove_document_from_kg(filename: str) -> dict:
                 "chunks_deleted": chunk_count
             }
     except Exception as e:
-        print(f"Error removing document '{filename}': {e}", flush=True)
+        logger.error("Error removing document '%s': %s", filename, e)
         return {"status": "error", "message": str(e)}
 
 
@@ -683,7 +653,7 @@ def list_ingested_documents() -> list:
             """)
             return [{"path": record["path"], "chunk_count": record["chunk_count"]} for record in result]
     except Exception as e:
-        print(f"Error listing documents: {e}", flush=True)
+        logger.error("Error listing documents: %s", e)
         return []
 
 
@@ -702,12 +672,6 @@ def ingest_pdf_files(file_paths: list[str]) -> list:
     from .encoder import process_pdf_documents
     return _run_async(process_pdf_documents(kg_builder_pdf, file_paths=file_paths))
 
-
-def main():
-    # Uncomment to clear data before running tests
-    # clear_local_data() 
-    # _run_async(perform_tests())
-    pass
 
 
 if __name__ == "__main__":

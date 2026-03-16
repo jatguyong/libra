@@ -4,6 +4,9 @@ import asyncio
 import json
 import re
 import types
+import logging
+
+logger = logging.getLogger(__name__)
 
 from neo4j.exceptions import ServiceUnavailable, AuthError
 from langchain_core.documents import Document
@@ -26,10 +29,10 @@ def check_db_health(driver):
     """Verifies the driver can connect to Neo4j."""
     try:
         driver.verify_connectivity()
-        print("DEBUG PROLOG-GRAPHRAG:Initializing new Neo4j driver...\nPre-flight check: Database connection verified.")
+        logger.info("Neo4j driver connected. Pre-flight check passed.")
         return True
     except (ServiceUnavailable, AuthError) as e:
-        print(f"Pre-flight check failed: {e}")
+        logger.error("Pre-flight check failed: %s", e)
         return False
 
 def create_indexes(driver):
@@ -49,7 +52,6 @@ def create_indexes(driver):
         CREATE FULLTEXT INDEX documentsFulltextIndex IF NOT EXISTS 
         FOR (n:Chunk) ON EACH [n.text]
     """, database_="neo4j")
-    # print("PROLOG-GRAPHRAG: Index creation commands sent.")
 
 def wait_for_indexes(driver, timeout=30):
     target_indexes = ['documentsVectorIndex', 'documentsFulltextIndex']
@@ -67,11 +69,9 @@ def wait_for_indexes(driver, timeout=30):
         
         states = [record["state"] for record in records]
         if len(states) == 2 and all(s == "ONLINE" for s in states):
-            # print("Database is ready for retrieval.")
             break
             
         elapsed = int(time.time() - start_time)
-        # print(f"[{elapsed}s] Waiting for indexes... Status: {states}")
         time.sleep(2)
 
 def _sanitize_lucene_query(query_text: str) -> str:

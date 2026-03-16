@@ -10,6 +10,10 @@ from ..llm_config import MODEL_NAME, get_openai_client, log_llm_event, retry_wit
 import json
 import asyncio
 import time
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 client = get_openai_client()
 
@@ -38,7 +42,7 @@ def generate_with_ollama(messages) -> Optional[str]:
         log_llm_event("ENCODER_EXTRACT", duration=duration)
         return response.choices[0].message.content
     except Exception as e:
-        print(f"Error during LLM interaction ({MODEL_NAME}): {e}")
+        logger.error("Encoder LLM error (%s): %s", MODEL_NAME, e)
         return None
     
     
@@ -60,21 +64,18 @@ def extract_query_and_context(question: str) -> tuple[str, str]:
             
             response = generate_with_ollama(current_messages)
             safe_response = str(response).encode('ascii', 'replace').decode('ascii')
-            # print("LLM Response:", safe_response) # verbose
             
             if response is None:
                 raise ValueError("Failed to get a response from the LLM.")
             
             try:
                 extracted_data = json.loads(response)
-                # print(f"DEBUG PROLOG-GRAPHRAG:Parsed JSON: {extracted_data}")
 
                 if not isinstance(extracted_data, dict):
                     raise ValueError(f"Expected dict, got {type(extracted_data)}")
 
                 # Normalize keys (handle case variations)
                 data = {k.lower(): v for k, v in extracted_data.items()}
-                # print(f"DEBUG PROLOG-GRAPHRAG:Normalized keys: {list(data.keys())}")
                 
                 # Map alternative keys to standard keys
                 if "cleaned_query" in data and "question" not in data:
@@ -86,17 +87,14 @@ def extract_query_and_context(question: str) -> tuple[str, str]:
                      raise ValueError(f"Missing required keys 'question' or 'context' in JSON response. Keys found: {list(data.keys())}")
                 
                 safe_query = str(data.get('question', 'N/A')).encode('ascii', 'replace').decode('ascii')
-                # print(f"DEBUG PROLOG-GRAPHRAG:EXTRACTED QUERY: {safe_query}")
-                # print(f"DEBUG PROLOG-GRAPHRAG:EXTRACTED CONTEXT (Len: {len(data.get('context', []))}): {data.get('context', [])}")
                 return data["question"], data["context"]
             except json.JSONDecodeError as e:
-                print(f"JSON decoding error: {e}")
+                logger.warning("JSON decoding error: %s", e)
                 current_messages.append({'role': 'assistant', 'content': response})
                 most_recent_error = f"JSON Decode Error: {e}"
                 
         except Exception as e:
-            print(f"DEBUG PROLOG-GRAPHRAG:Exception in loop: {type(e).__name__}: {e}")
-            import traceback
+            logger.error("Exception in extract_query_and_context: %s: %s", type(e).__name__, e)
             traceback.print_exc()
             most_recent_error = str(e)
             if i < 4:
@@ -130,16 +128,16 @@ async def process_pdf_documents(
     
     async def _process_one(path: str) -> dict:
         async with semaphore:
-            print(f"[INGEST] Processing: {os.path.basename(path)}", flush=True)
+            logger.info("[INGEST] Processing: %s", os.path.basename(path))
             start = _time.perf_counter()
             try:
                 pdf_result = await kg_builder_pdf.run_async(file_path=path)
                 duration = _time.perf_counter() - start
-                print(f"[INGEST] Done in {duration:.2f}s: {os.path.basename(path)}", flush=True)
+                logger.info("[INGEST] Done in %.2fs: %s", duration, os.path.basename(path))
                 return {"file": path, "result": str(pdf_result), "duration_s": round(duration, 2), "status": "done"}
             except Exception as e:
                 duration = _time.perf_counter() - start
-                print(f"[INGEST] Error after {duration:.2f}s on {os.path.basename(path)}: {e}", flush=True)
+                logger.error("[INGEST] Error after %.2fs on %s: %s", duration, os.path.basename(path), e)
                 return {"file": path, "error": str(e), "duration_s": round(duration, 2), "status": "error"}
     
     if len(file_paths) == 1:
@@ -147,7 +145,7 @@ async def process_pdf_documents(
         results = [await _process_one(file_paths[0])]
     else:
         # Multiple files — process concurrently
-        print(f"[INGEST] Processing {len(file_paths)} PDFs (max {max_concurrent} concurrent)...", flush=True)
+        logger.info("[INGEST] Processing %d PDFs (max %d concurrent)...", len(file_paths), max_concurrent)
         tasks = [_process_one(path) for path in file_paths]
         results = await asyncio.gather(*tasks)
         results = list(results)
@@ -156,21 +154,21 @@ async def process_pdf_documents(
 
 async def process_text_context(kg_builder_text: SimpleKGPipeline, texts: list[str]):
     for text in texts:
-        print(f"Processing text context: {text}")
+        logger.info("Processing text context: %s", text[:100])
         text_result = await kg_builder_text.run_async(text=text)
-        print(f"Text context processed: {text_result}")
+        logger.debug("Text context processed")
 
 async def process_markdown_documents(kg_builder_text: SimpleKGPipeline):
-    print(DOC_PATH)
+    logger.debug("Processing markdown docs from: %s", DOC_PATH)
     paths = glob.glob(os.path.join(DOC_PATH, "*.md"))
-    print("PATHS: ", paths)
+    logger.debug("Found markdown paths: %s", paths)
     for path in paths:
         markdown_text = ""
         with open(path, "r", encoding="utf-8") as f:
             markdown_text = f.read()
-        print(f"Processing markdown document: {path}")
+        logger.info("Processing markdown document: %s", path)
         text_result = await kg_builder_text.run_async(text=markdown_text)
-        print(f"Text context processed: {text_result}")
+        logger.debug("Markdown document processed")
 
 async def process_context(driver, kg_builder_pdf, kg_builder_text, texts):
     await asyncio.gather(process_markdown_documents(kg_builder_text))
@@ -184,7 +182,3 @@ async def process_context(driver, kg_builder_pdf, kg_builder_text, texts):
     #     // Also exclude by label if KBPedia uses a specific one, e.g., AND NOT n:KBPediaNode
     #     SET n.subgraph = 'prolog-graphrag'
     # """)
-        
-# query, context = extract_query_and_context("Francis is a student studying computer science. Like any CS major, he is interested in machine learning and artificial intelligence. What courses should he take to specialize in these fields?")
-# print("Extracted Query:", query)
-# print("\nExtracted Context:", context)
