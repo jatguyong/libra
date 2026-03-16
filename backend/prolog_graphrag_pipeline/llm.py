@@ -51,7 +51,7 @@ def decide_fallback(question: str):
     return data["route_to"] # True means fallback to GraphRAG
 
 
-def generate(question: str, retrieved_context: Optional[str], explainer_output: Optional[str] | None, flag: str, sample_mode: bool = False, fallback: str = "prolog-graphrag", status_callback=None) -> Union[dict, List[dict]]:
+def generate(question: str, retrieved_context: Optional[str], explainer_output: Optional[str], flag: str, sample_mode: bool = False, fallback: str = "prolog-graphrag", status_callback=None) -> Union[dict, List[dict]]:
     if fallback != "prolog-graphrag":
         final_prompt = question
         messages = LLM_SYSTEM_PROMPT_FALLBACK + [{"role": "user", "content": final_prompt}]
@@ -99,11 +99,8 @@ def generate(question: str, retrieved_context: Optional[str], explainer_output: 
         except Exception as e:
             err_msg = f"Error during synthesis LLM interaction ({MODEL_NAME}): {e}"
             print(err_msg)
-            try:
-                with open("debug_synthesis_llm.txt", "a", encoding="utf-8") as f:
-                    f.write(err_msg + f"\nPROMPT LENGTH: {len(final_prompt)}\n\n")
-            except:
-                pass
+            import logging
+            logging.getLogger(__name__).error(f"{err_msg} | PROMPT LENGTH: {len(final_prompt)}")
             raise
 
     if sample_mode:
