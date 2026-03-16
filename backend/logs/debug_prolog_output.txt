@@ -3493,3 +3493,195 @@ The reasoning is straightforward: when two samples of gases occupy the same volu
 Would you like to explore the implications of this equivalence on the behavior of these gases?**
 ====The pipeline executed in 63.4009 seconds. Prolog verified: True===
     Clustering sequences...
+    Question: Based on the photosynthesis document, can you teach me photosynthesis?
+
+================================================================================
+GRAPHRAG CONDENSED CONTEXT
+================================================================================
+**ATOMIC FACTS**:
+* Life on Earth is solar powered.
+* Chloroplasts of plants use photosynthesis to capture light energy from the sun and convert it to chemical energy stored in sugars and other organic molecules.
+* Photosynthesis nourishes almost all the living world directly or indirectly.
+* All organisms use organic compounds for energy and for carbon skeletons.
+* Autotrophs produce organic molecules from CO2 and other inorganic raw materials obtained from the environment.
+* Autotrophs are the ultimate sources of organic compounds for all heterotrophic organisms.
+* Almost all plants are autotrophs.
+* Plants require water and minerals from the soil and carbon dioxide from the air.
+* Plants are photoautotrophs, using light as a source of energy to synthesize organic compounds.
+* Photosynthesis also occurs in algae, some other protists, and some prokaryotes.
+* Heterotrophs live on organic compounds produced by other organisms.
+* Heterotrophs are the consumers of the biosphere.
+* Almost all heterotrophs are completely dependent on photoautotrophs for food and for oxygen, a by-product of photosynthesis.
+
+**CONDITIONAL RULES**:
+* IF an organism is an autotroph, THEN it produces organic molecules from CO2 and other inorganic raw materials.
+* IF an organism is a heterotroph, THEN it lives on organic compounds produced by other organisms.
+* IF an organism is a photoautotroph, THEN it uses light as a source of energy to synthesize organic compounds.
+
+**EXCEPTIONS**:
+* None
+
+**LOGICAL GAPS**:
+* The specific steps and chemical reactions involved in the process of photosynthesis are not provided in the context.
+* The context does not explain how photosynthesis is regulated or controlled in different organisms.
+* The context does not discuss the importance of other factors such as temperature, water, and nutrients in photosynthesis.
+================================================================================
+
+DEBUG PROLOG-GRAPHRAG:Transferring evidence to Prolog engine...
+
+**User Question:**
+Based on the photosynthesis document, can you teach me photosynthesis?
+Iteration 0 | Prolog code generation success
+Consulting database...
+**Query Results:** 
+{'truth': True, 'Explanation': '   explain_photosynthesis holds for chloroplasts, because\n      captures_light_energy holds for chloroplasts, and\n      converts_to_chemical_energy holds for chloroplasts, light_energy, and chemical_energy\n\n'}
+truth Found: True
+**Human-Readable Explanation**
+   explain_photosynthesis holds for chloroplasts, because
+      captures_light_energy holds for chloroplasts, and
+      converts_to_chemical_energy holds for chloroplasts, light_energy, and chemical_energy
+
+
+FINAL PROMPT:
+Based on the photosynthesis document, can you teach me photosynthesis?
+FINAL PROMPT:
+### FINAL SYNTHESIS TASK
+
+USER QUESTION:
+Based on the photosynthesis document, can you teach me photosynthesis?
+
+CONCLUSION: The system successfully explains photosynthesis for chloroplasts.
+
+LOGICAL EVIDENCE: **Conclusion:** 
+
+**Logical Path:** The solver's explanation for photosynthesis in chloroplasts is based on the following logical steps:
+
+1. **Capturing Light Energy:** Chloroplasts capture light energy, which is a crucial step in the process of photosynthesis.
+2. **Converting Light Energy to Chemical Energy:** Chloroplasts convert the captured light energy into chemical energy, which is stored in sugars and other organic molecules.
+
+The system's explanation is a direct result of the logical rules and facts provided in the context, specifically the rules related to photosynthesis and the characteristics of chloroplasts.
+
+    
+Prolog executed successfully without errors.
+**FINAL LLM OUTPUT: 
+**Photosynthesis is the process by which chloroplasts capture light energy and convert it into chemical energy, stored in sugars and other organic molecules.**
+
+Here's how it works:
+
+- **Light Energy Capture:** Chloroplasts are responsible for capturing light energy from the sun, which is essential for photosynthesis.
+- **Energy Conversion:** This captured light energy is then converted into chemical energy, which is stored in the form of sugars and other organic molecules.
+
+By understanding the role of chloroplasts in capturing and converting light energy, we can appreciate the intricate process of photosynthesis that sustains life on Earth.
+
+Would you like to explore the importance of photosynthesis in the ecosystem?**
+====The pipeline executed in 44.0693 seconds. Prolog verified: True===
+    Clustering sequences...
+    Question: Provide a comprehensive overview of the photosynthesis document.
+
+================================================================================
+GRAPHRAG CONDENSED CONTEXT
+================================================================================
+**ATOMIC FACTS**:
+* Life on Earth is solar powered.
+* Chloroplasts of plants use photosynthesis to capture light energy from the sun and convert it to chemical energy stored in sugars and other organic molecules.
+* Photosynthesis nourishes almost all the living world directly or indirectly.
+* All organisms use organic compounds for energy and for carbon skeletons.
+* Organisms obtain organic compounds by one of two major modes: autotrophic nutrition or heterotrophic nutrition.
+* Autotrophs produce organic molecules from CO2 and other inorganic raw materials obtained from the environment.
+* Autotrophs are the ultimate sources of organic compounds for all heterotrophic organisms.
+* Autotrophs are the producers of the biosphere.
+* Almost all plants are autotrophs; the only nutrients they require are water and minerals from the soil and carbon dioxide from the air.
+* Plants are photoautotrophs, using light as a source of energy to synthesize organic compounds.
+* Photosynthesis also occurs in algae, some other protists, and some prokaryotes.
+* Heterotrophs live on organic compounds produced by other organisms.
+* Heterotrophs are the consumers of the biosphere.
+* Almost all heterotrophs are completely dependent on photoautotrophs for food and for oxygen, a by-product of photosynthesis.
+
+**CONDITIONAL RULES**:
+* IF an organism is an autotroph, THEN it produces organic molecules from CO2 and other inorganic raw materials obtained from the environment.
+* IF an organism is a heterotroph, THEN it lives on organic compounds produced by other organisms.
+* IF an organism is a photoautotroph, THEN it uses light as a source of energy to synthesize organic compounds.
+
+**EXCEPTIONS**:
+* None
+
+**LOGICAL GAPS**:
+* The exact biochemical pathways of photosynthesis are not specified in the context.
+* The quantitative relationship between light energy input and chemical energy output in photosynthesis is not provided.
+* The context does not discuss the regulatory mechanisms of photosynthesis or how it is affected by environmental factors.
+================================================================================
+
+DEBUG PROLOG-GRAPHRAG:Transferring evidence to Prolog engine...
+
+**User Question:**
+Provide a comprehensive overview of the photosynthesis document.
+Iteration 0 | Prolog code generation success
+Consulting database...
+**Query Results:** 
+{'truth': True, 'Explanation': '   overview_of_photosynthesis holds, because\n      solar_powered holds for life_on_earth, and\n      uses_photosynthesis holds for chloroplasts, and plants, and\n      nourishes holds for living_world, and photosynthesis, and\n      are_producers holds for autotrophs, and\n      are_consumers holds for heterotrophs\n\n'}
+truth Found: True
+**Human-Readable Explanation**
+   overview_of_photosynthesis holds, because
+      solar_powered holds for life_on_earth, and
+      uses_photosynthesis holds for chloroplasts, and plants, and
+      nourishes holds for living_world, and photosynthesis, and
+      are_producers holds for autotrophs, and
+      are_consumers holds for heterotrophs
+
+
+FINAL PROMPT:
+Provide a comprehensive overview of the photosynthesis document.
+FINAL PROMPT:
+### FINAL SYNTHESIS TASK
+
+USER QUESTION:
+Provide a comprehensive overview of the photosynthesis document.
+
+CONCLUSION: The overview of photosynthesis is a comprehensive summary of the process by which life on Earth is solar-powered.
+
+LOGICAL EVIDENCE: **Conclusion:** 
+
+**Logical Path:** The system arrived at this conclusion by tracing the relationships between the various components of the photosynthetic process:
+
+1. **Solar Power:** The system first established that life on Earth is solar-powered, which sets the stage for the rest of the overview.
+
+2. **Photosynthesis:** The system then identified that chloroplasts of plants use photosynthesis to capture light energy from the sun and convert it to chemical energy stored in sugars and other organic molecules.
+
+3. **Nourishment:** The system noted that photosynthesis nourishes almost all the living world directly or indirectly, which highlights the importance of this process.
+
+4. **Autotrophs and Heterotrophs:** The system distinguished between autotrophs, which produce organic molecules from CO2 and other inorganic raw materials, and heterotrophs, which live on organic compounds produced by other organisms.
+
+5. **Producers and Consumers:** The system identified autotrophs as the producers of the biosphere and heterotrophs as the consumers, emphasizing the interconnectedness of the ecosystem.
+
+6. **Conclusion:** The system concluded that the overview of photosynthesis is a comprehensive summary of the process by which life on Earth is solar-powered, highlighting the key roles of autotrophs and heterotrophs in the ecosystem.
+
+    
+Prolog executed successfully without errors.
+**FINAL LLM OUTPUT: 
+**The overview of photosynthesis is a comprehensive summary of the process by which life on Earth is solar-powered.**
+
+Photosynthesis is the process by which life on Earth is nourished by the sun's energy. Chloroplasts of plants use photosynthesis to capture light energy from the sun and convert it to chemical energy stored in sugars and other organic molecules. This process is crucial, as it nourishes almost all the living world directly or indirectly.
+
+There are two main types of organisms: autotrophs and heterotrophs. Autotrophs, such as plants, produce organic molecules from CO2 and other inorganic raw materials, while heterotrophs, such as animals, live on organic compounds produced by other organisms. Autotrophs are the producers of the biosphere, while heterotrophs are the consumers.
+
+In this context, the overview of photosynthesis highlights the key roles of autotrophs and heterotrophs in the ecosystem, emphasizing the interconnectedness of the ecosystem.
+
+Would you like to explore the intricacies of the photosynthetic process and its impact on the environment?**
+====The pipeline executed in 42.7335 seconds. Prolog verified: True===
+    Clustering sequences...
+[REMOVE] Removing document: Photosynthesis-1.pdf
+Removed document 'Photosynthesis-1.pdf': 2 Document node(s), 4 Chunk node(s) deleted.
+[REMOVE] Result: {'status': 'removed', 'filename': 'Photosynthesis-1.pdf', 'documents_deleted': 2, 'chunks_deleted': 4}
+[REMOVE] File deleted from disk: C:\Users\John Reniel\libra-1\backend\uploads\Photosynthesis-1.pdf
+Pipeline Error: Connection error.
+Pipeline Error: Connection error.
+    Question: hello there!
+FINAL PROMPT:
+hello there!
+    Clustering sequences...
+    Question: how do leaves turn sunshine into food?
+FINAL PROMPT:
+how do leaves turn sunshine into food?
+  > [LLM BACKOFF] Attempt 1 failed (InternalServerError). Retrying in 1.90s...
+    Clustering sequences...
+Pipeline Error: Error code: 503 - {'id': 'obFnd75-62bZhn-9dd1c67a4850fed4', 'error': {'message': 'Service unavailable', 'type': 'service_unavailable', 'param': None, 'code': None}}
