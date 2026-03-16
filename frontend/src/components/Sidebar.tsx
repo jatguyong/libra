@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import { Edit, FileText, ExternalLink, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
