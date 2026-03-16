@@ -1,0 +1,30 @@
+# Dependencies
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+
+# Version control
+.git/
+.gitignore
+
+# IDE
+.vscode/
+
+# Data (volume-mounted at runtime)
+neo4j_kbpedia/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug artifacts
+backend/debug*.txt
+backend/logs/
+*.log
+
+# Build artifacts
+frontend/dist/
+
+# Misc
+unuploaded_documents/
