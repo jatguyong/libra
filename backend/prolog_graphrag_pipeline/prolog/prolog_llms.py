@@ -4,22 +4,16 @@ import sys
 import signal
 import threading
 import time
+import logging
 
 from ..llm_config import PROLOG_GENERATOR_NAME, MODEL_NAME, USE_TOGETHER_API, get_openai_client, log_llm_event, retry_with_exponential_backoff
+
+logger = logging.getLogger(__name__)
 
 # Prolog code generation and NL tasks both use the configured model
 PROLOG_MODEL = PROLOG_GENERATOR_NAME
 NL_MODEL = MODEL_NAME
 LLM_TIMEOUT = 120  # seconds per LLM call (2 minutes)
-DEBUG_FILE = "debug.txt"
-
-def _log_to_file(message: str):
-    """Appends a message to debug.txt with UTF-8 encoding."""
-    try:
-        with open(DEBUG_FILE, "a", encoding="utf-8") as f:
-            f.write(message + "\n")
-    except Exception as e:
-        print(f"[Prolog LLM Error] Could not write to {DEBUG_FILE}: {e}")
 
 client = get_openai_client()
 
@@ -166,7 +160,7 @@ def generate_response(prompt: str, flag: str) -> dict:
     def _call_llm():
         try:
             # Log the outgoing prompt
-            _log_to_file(f"\n--- [DEBUG] PROLOG PROMPT ({flag.upper()}) ---\n{dynamic_prompt if 'dynamic_prompt' in locals() else str(llm_messages)}\n----------------------------------")
+            logger.debug(f"PROLOG PROMPT ({flag.upper()}): {dynamic_prompt if 'dynamic_prompt' in locals() else '(KV-cache mode)'}")
             
             start_time = time.perf_counter()
             
@@ -187,7 +181,7 @@ def generate_response(prompt: str, flag: str) -> dict:
             # Log the response content
             if response and response.choices:
                 content = response.choices[0].message.content
-                _log_to_file(f"\n=== [DEBUG] PROLOG RESPONSE ({flag.upper()}) ===\n{content}\n===================================")
+                logger.debug(f"PROLOG RESPONSE ({flag.upper()}): {content[:500]}")
         except Exception as e:
             error_holder[0] = e
 
