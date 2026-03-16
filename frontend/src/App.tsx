@@ -430,7 +430,7 @@ function App() {
           rotationSpeed={0}
           repulsionStrength={0}
           autoCenterRepulsion={0}
-          starSpeed={!hasStartedChat ? 0.3 : isGenerating ? 2 : 0}
+          starSpeed={!hasStartedChat ? 0.3 : isGenerating ? 3.5 : 0}
           speed={!hasStartedChat ? 0.3 : isGenerating ? 0.4 : 0.1}
         />
       </div>
@@ -566,12 +566,12 @@ function App() {
                   </div>
 
                   {/* Semantic Entropy Section */}
-                  {(selectedExplanation.semantic_entropy !== undefined) && (
+                  {(selectedExplanation.semantic_entropy != null) && (
                     <div className="mb-4 bg-white/5 rounded-lg p-3 border border-white/10 flex flex-col gap-2">
                       <div className="flex justify-between items-center">
                         <span className="text-xs uppercase tracking-wider font-semibold text-white/50">Semantic Entropy</span>
                         <span className="text-sm font-mono text-white/90 bg-black/30 px-2 py-0.5 rounded">
-                          {selectedExplanation.semantic_entropy.toFixed(4)}
+                          {selectedExplanation.semantic_entropy!.toFixed(4)}
                         </span>
                       </div>
                       {selectedExplanation.hallucination_flag && (

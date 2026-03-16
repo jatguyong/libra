@@ -23,44 +23,26 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
     if fallback == "tuned":
         if status_callback:
             status_callback({"type": "step", "step": 2, "fallback": fallback})
-        llm_output = generate(question, retrieved_context=None, explainer_output=None, fallback=fallback, flag=flag, sample_mode=sample_mode, status_callback=status_callback)
-        if isinstance(llm_output, list) and len(llm_output) > 0:
-            final_answer = llm_output[0].get("text_answer", "Error generating answer")
-            logprobs = llm_output[0].get("logprobs", "")
+        # Tuned LLM never uses sample_mode — no semantic entropy for simple responses
+        llm_output = generate(question, retrieved_context=None, explainer_output=None, fallback=fallback, flag=flag, sample_mode=False, status_callback=status_callback)
+        if isinstance(llm_output, dict):
+            final_answer = llm_output.get("text_answer", "Error generating answer")
+            logprobs = llm_output.get("logprobs", [])
         else:
-            final_answer = llm_output.get("text_answer", "Error generating answer") if llm_output else "Error generating answer"
-            logprobs = llm_output.get("logprobs", "") if llm_output else ""
+            final_answer = "Error generating answer"
+            logprobs = []
         
-        # Return different dicts depending on sample_mode
-        if not sample_mode:
-            return {
-                "answer": final_answer,
-                "database": None,
-                "query": None,
-                "contexts": None,
-                "prolog_explanation": None,
-                "explainer_output": None,
-                "prolog_error": None,
-                "fallback": fallback
-            }
-        else:
-            answers = [output["text_answer"] for output in llm_output]
-            logprobs = [output["logprobs"] for output in llm_output]
-            se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
-            return {
-                "answers": answers,
-                "logprobs": logprobs,
-                "best_answer": se_results["best_answer"],
-                "semantic_entropy": se_results["semantic_entropy"],
-                "hallucination_flag": se_results["hallucination_flag"],
-                "database": None,
-                "query": None,
-                "contexts": None,
-                "prolog_explanation": None,
-                "explainer_output": None,
-                "prolog_error": None,
-                "fallback": fallback
-            }
+        return {
+            "answer": final_answer,
+            "logprobs": logprobs,
+            "database": None,
+            "query": None,
+            "contexts": None,
+            "prolog_explanation": None,
+            "explainer_output": None,
+            "prolog_error": None,
+            "fallback": fallback
+        }
     else:
         graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback, use_global_kg=use_global_kg, status_callback=status_callback) if flag != "q" else None
         graphrag_answer = graphrag_output.get("answer", "") if graphrag_output else ""
