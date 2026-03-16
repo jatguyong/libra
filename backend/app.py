@@ -1,9 +1,10 @@
 import os
+import json
+import queue
 import threading
 import logging
 
 from dotenv import load_dotenv
-
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -11,6 +12,11 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
+# ── Logging ──────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -22,10 +28,22 @@ CORS(app, resources={r"/*": {"origins": CORS_ORIGIN}})
 def index():
     return jsonify({"status": "Libra API Active"})
 
+@app.route("/api/health", methods=["GET"])
+def health():
+    """Health check endpoint for Docker and monitoring."""
+    health_status = {"api": "ok"}
+    try:
+        from prolog_graphrag_pipeline.graphrag.graphrag_driver import ensure_driver_connected
+        ensure_driver_connected()
+        health_status["neo4j"] = "ok"
+    except Exception as e:
+        health_status["neo4j"] = f"error: {e}"
+    return jsonify(health_status)
+
 
 # --- PDF Ingestion state tracking ---
 _ingestion_status = {}  # {filename: {status, duration_s, error}}
-_cancellation_flags = {}  # {filename: threading.Event}  — set to cancel mid-ingest
+_cancellation_flags = {}  # {filename: threading.Event}
 _ingestion_lock = threading.Lock()
 
 
@@ -50,8 +68,8 @@ def ingest():
             saved_files.append({"filename": safe_name, "filepath": filepath})
             cancel_event = threading.Event()
             with _ingestion_lock:
-                _ingestion_status[file.filename] = {"status": "processing", "duration_s": 0}
-                _cancellation_flags[file.filename] = cancel_event
+                _ingestion_status[safe_name] = {"status": "processing", "duration_s": 0}
+                _cancellation_flags[safe_name] = cancel_event
 
     # Trigger KG ingestion in a background thread
 
@@ -66,12 +84,12 @@ def ingest():
                     flag = _cancellation_flags.get(fname)
                 # If cancelled mid-run, clean up the partial data
                 if flag and flag.is_set():
-                    print(f"[INGEST] Cancellation detected post-ingest for {fname}. Cleaning up...", flush=True)
+                    logger.info(f"Cancellation detected post-ingest for {fname}. Cleaning up...")
                     try:
                         result = gd.remove_document_from_kg(fname)
-                        print(f"[INGEST] Cancel cleanup result for {fname}: {result}", flush=True)
+                        logger.info(f"Cancel cleanup result for {fname}: {result}")
                     except Exception as ex:
-                        print(f"[INGEST] Cancel cleanup error for {fname}: {ex}", flush=True)
+                        logger.error(f"Cancel cleanup error for {fname}: {ex}")
                     # File already removed by /api/ingest/cancel, skip status update
                     continue
                 with _ingestion_lock:
@@ -81,7 +99,7 @@ def ingest():
                         "error": r.get("error"),
                     }
         except Exception as e:
-            print(f"[INGEST] Background ingestion error: {e}", flush=True)
+            logger.error(f"Background ingestion error: {e}")
             with _ingestion_lock:
                 for f in file_list:
                     _ingestion_status[f["filename"]] = {"status": "error", "error": str(e)}
@@ -114,7 +132,7 @@ def cancel_ingest():
 
     if flag:
         flag.set()
-        print(f"[INGEST] Cancellation requested for: {filename}", flush=True)
+        logger.info(f"Cancellation requested for: {filename}")
 
     if status.get("status") != "processing":
         # Already done — just do a regular remove instead
@@ -125,17 +143,17 @@ def cancel_ingest():
 def cancel_and_remove(filename: str):
     """Remove a document from Neo4j and disk, with debug output."""
     from prolog_graphrag_pipeline.graphrag import graphrag_driver as gd
-    print(f"[REMOVE] Removing document: {filename}", flush=True)
+    logger.info(f"Removing document: {filename}")
     result = gd.remove_document_from_kg(filename)
-    print(f"[REMOVE] Result: {result}", flush=True)
+    logger.info(f"Removal result: {result}")
 
     upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
     filepath = os.path.join(upload_dir, filename)
     if os.path.exists(filepath):
         os.remove(filepath)
-        print(f"[REMOVE] File deleted from disk: {filepath}", flush=True)
+        logger.info(f"File deleted from disk: {filepath}")
     else:
-        print(f"[REMOVE] File not on disk (already gone): {filepath}", flush=True)
+        logger.info(f"File not on disk (already gone): {filepath}")
 
     with _ingestion_lock:
         _ingestion_status.pop(filename, None)
@@ -157,7 +175,7 @@ def remove_document():
         status = _ingestion_status.get(filename, {}).get("status")
     if flag and status == "processing":
         flag.set()
-        print(f"[REMOVE] Cancellation flagged for in-progress ingest: {filename}", flush=True)
+        logger.info(f"Cancellation flagged for in-progress ingest: {filename}")
 
     return cancel_and_remove(filename)
 
@@ -182,9 +200,7 @@ def chat():
     question = latest_msg.get("content", "")
     use_global_kg = data.get("useGlobalKG", False)
 
-    import queue
-    import threading
-    import json
+    import traceback as tb_module
 
     def generate_events():
         q = queue.Queue()
@@ -237,9 +253,8 @@ def chat():
                 })
                 
             except Exception as e:
-                import traceback
-                traceback.print_exc()
-                print(f"Pipeline Error: {e}")
+                tb_module.print_exc()
+                logger.error(f"Pipeline Error: {e}")
                 q.put({"type": "error", "error": "Failed to process the request through the pipeline.", "details": str(e)})
 
         thread = threading.Thread(target=worker, daemon=True)
@@ -254,4 +269,8 @@ def chat():
     return Response(generate_events(), mimetype='text/event-stream')
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(
+        host=os.environ.get("FLASK_HOST", "0.0.0.0"),
+        port=int(os.environ.get("PORT", 5000)),
+        debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true",
+    )
