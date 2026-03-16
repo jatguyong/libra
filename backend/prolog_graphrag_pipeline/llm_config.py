@@ -1,10 +1,8 @@
 """
 Centralized LLM provider configuration.
 
-Toggle USE_TOGETHER_API to switch every pipeline module between
-a local Ollama instance and the Together AI cloud API.
-
-Both providers are accessed through the standard `openai` Python package.
+All pipeline modules use the Together AI cloud API via the
+standard `openai` Python package.
 """
 
 import os
@@ -16,7 +14,6 @@ from openai import OpenAI, APIConnectionError, APITimeoutError, InternalServerEr
 
 logger = logging.getLogger(__name__)
 
-USE_TOGETHER_API = os.environ.get("USE_TOGETHER_API", "true").lower() == "true"
 
 def retry_with_exponential_backoff(
     func,
@@ -46,7 +43,7 @@ def retry_with_exponential_backoff(
                     actual_sleep += random.uniform(0, 1)
                 
                 log_llm_event(f"RETRY_BACKOFF_ATTEMPT_{attempt+1}", error=f"Waiting {actual_sleep:.2f}s after error: {type(e).__name__}")
-                print(f"  > [LLM BACKOFF] Attempt {attempt+1} failed ({type(e).__name__}). Retrying in {actual_sleep:.2f}s...", flush=True)
+                logger.warning("[LLM BACKOFF] Attempt %d failed (%s). Retrying in %.2fs...", attempt + 1, type(e).__name__, actual_sleep)
                 
                 time.sleep(actual_sleep)
                 sleep_time *= backoff_factor

@@ -7,7 +7,6 @@ import logging
 from typing import Optional
 from .prolog_generator import generate_prolog_code, capture_db_and_query, capture_predicate_and_arguments
 from .explainer import generate_safe_scasp_wrapper, generate_explanation
-from .prolog_llms import warmup_prolog_model, reset_kv_cache_flag
 from .. import llm
 
 logger = logging.getLogger(__name__)
@@ -97,13 +96,6 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
     logger.info("User Question: %s", question)
     
 
-
-    # Re-prime Ollama's KV cache with the static few-shot prefix.
-    # GraphRAG (same model) runs just before us and evicts the cache.
-    # Resetting the flag then calling warmup ensures all retry attempts
-    # within this question benefit from the cached prefix.
-    reset_kv_cache_flag()
-    warmup_prolog_model()
 
     final_context = retrieved_context + "\n"
 

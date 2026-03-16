@@ -18,14 +18,14 @@ logger = logging.getLogger(__name__)
 client = get_openai_client()
 
 # Stateless message template
-BASE_OLLAMA_MESSAGES = [
+ENCODER_SYSTEM_MESSAGES = [
             {'role': 'user', 'content': ENCODER_SYSTEM_PROMPT},
             
         ] + ENCODER_FEW_SHOT_EXAMPLES
 
 from typing import Optional
 
-def generate_with_ollama(messages) -> Optional[str]: 
+def generate_with_llm(messages) -> Optional[str]: 
     try:
         start_time = time.perf_counter()
         
@@ -49,7 +49,7 @@ def generate_with_ollama(messages) -> Optional[str]:
 def extract_query_and_context(question: str) -> tuple[str, str]:
     most_recent_error = None
     
-    current_messages = list(BASE_OLLAMA_MESSAGES)
+    current_messages = list(ENCODER_SYSTEM_MESSAGES)
 
     for i in range(5):
         try:
@@ -62,7 +62,7 @@ def extract_query_and_context(question: str) -> tuple[str, str]:
             
             current_messages.append(turn_message)
             
-            response = generate_with_ollama(current_messages)
+            response = generate_with_llm(current_messages)
             safe_response = str(response).encode('ascii', 'replace').decode('ascii')
             
             if response is None:
