@@ -1,19 +1,5 @@
 import janus_swi as janus
 
-def generate_explanation_prompt(question: str, retrieved_context: str, retrieved_values: str) -> str:
-    prompt = f"""
-Your Prolog database has been successfully generated and consulted. Now, provide a detailed, logical, and step-by-step human-readable explanation of the justification Prolog gave. It should serve as context for answering the user's question.
-User Question:
-{question}
-
-Context:
-{retrieved_context}
-
-The values retrieved from the query are:
-{retrieved_values}
-"""
-
-    return prompt
 
 def generate_safe_scasp_wrapper(query):
     query = query.replace(".", "").replace("\n", "")
@@ -61,10 +47,7 @@ STRICT RULES:
     return prompt
 
 def generate_explanation(question: str, retrieved_context: str, database: str, query: str, retrieved_values: str, human_readable_explanation: str) -> str:
-    try:
-        from .prolog_llms import generate
-    except ImportError:
-        from .prolog_llms import generate
+    from .prolog_llms import generate
     explanation = generate(prompt=generate_explanation_prompt(question=question, retrieved_context=retrieved_context, database=database, query=query, retrieved_values=retrieved_values, human_readable_explanation=human_readable_explanation), flag="explanation")
     if explanation:
         return explanation['text_answer']
