@@ -14,8 +14,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
     if status_callback:
         status_callback({"type": "step", "step": 1})
 
-    if flag != "q":
-        pass
+
     
     # Separate inference run for deciding if pipeline would fall back to GraphRAG
     fallback = decide_fallback(question)
@@ -46,7 +45,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
     else:
         graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback, use_global_kg=use_global_kg, status_callback=status_callback) if flag != "q" else None
         graphrag_answer = graphrag_output.get("answer", "") if graphrag_output else ""
-        graphrag_logprobs = graphrag_output.get("logprobs", []) if graphrag_output else {}
+        graphrag_logprobs = graphrag_output.get("logprobs", []) if graphrag_output else []
         graphrag_retriever_results = graphrag_output.get("retriever_results", []) if graphrag_output else []
         query = graphrag_output.get("query", question) if graphrag_output else question
         raw_context_strings = []
