@@ -78,7 +78,7 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
             print("="*80 + "\n")
             print("DEBUG PROLOG-GRAPHRAG:Transferring evidence to Prolog engine...\n")
             condensed_context = graphrag_answer
-            raw_context_strings = graphrag_retriever_results
+            raw_context_strings = list(graphrag_retriever_results)
         else:
             condensed_context = ""
             raw_context_strings = []
@@ -122,16 +122,22 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
                     status_callback({"type": "step", "step": 7})
                 llm_output = generate(question, retrieved_context_str, explainer_output, flag=flag, sample_mode=sample_mode, fallback=fallback, status_callback=status_callback) if prolog_error is None else pgr_results.get("final_answer", "")
                 if isinstance(llm_output, list) and len(llm_output) > 0:
-                    final_answer = llm_output[0].get("text_answer", {"text_answer": "Error generating answer"})
+                    final_answer = llm_output[0].get("text_answer", "Error generating answer")
                     llm_logprobs = llm_output[0].get("logprobs", [])
+                elif isinstance(llm_output, dict):
+                    final_answer = llm_output.get("text_answer", "Error generating answer")
+                    llm_logprobs = llm_output.get("logprobs", [])
                 else:
-                    final_answer = llm_output.get("text_answer", {"text_answer": "Error generating answer"}) if llm_output else {"text_answer": "Error generating answer"}
-                    llm_logprobs = llm_output.get("logprobs", []) if llm_output else {}
+                    final_answer = str(llm_output) if llm_output else "Error generating answer"
+                    llm_logprobs = []
         else:
             prolog_error = "Pipeline decided to fallback to GraphRAG, skipping Prolog execution."
             explainer_output = "No explainer output since Prolog was skipped."
 
-            final_answer = graphrag_output.get("answer", {"text_answer": "Error generating answer"}) if graphrag_output else {"text_answer": "Error generating answer"}
+            final_answer = graphrag_output.get("answer", "Error generating answer") if graphrag_output else "Error generating answer"
+            # In sample_mode with graphrag-only fallback, llm_output is not available.
+            # Return the single graphrag answer directly.
+            llm_output = None
 
         logprobs = llm_logprobs if fallback == "prolog-graphrag" else graphrag_logprobs
         print(f"PROLOG ERROR: {prolog_error}" if prolog_error else "Prolog executed successfully without errors.")
@@ -155,6 +161,20 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
             }
         else:
             # NOTE: sample_mode MUST BE TRUE for all pipeline calls for the semantic entropy calculation to be carried out with each prompt
+            if not isinstance(llm_output, list) or len(llm_output) == 0:
+                # Fallback: llm_output is not a list (e.g. graphrag-only path), so skip SE and return single answer
+                return {
+                    "answer": final_answer if final_answer else "Error generating answer",
+                    "database": pgr_results.get("database", "") if pgr_results else "No database generated.",
+                    "prolog_query": pgr_results.get("query", "") if pgr_results else "No prolog query generated.",
+                    "query": query,
+                    "condensed_context": condensed_context,
+                    "contexts": retrieved_context_str,
+                    "prolog_explanation": pgr_results.get("prolog_explanation", "") if pgr_results else "",
+                    "explainer_output": pgr_results.get("explainer_output", "") if pgr_results else "No explainer output generated.",
+                    "prolog_error": pgr_results.get("prolog_error") if pgr_results else prolog_error,
+                    "fallback": fallback
+                }
             answers = [output["text_answer"] for output in llm_output]
             logprobs = [output["logprobs"] for output in llm_output]
             se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
