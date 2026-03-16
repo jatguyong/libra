@@ -1,4 +1,7 @@
 import os
+import threading
+import logging
+
 from dotenv import load_dotenv
 
 
@@ -6,23 +9,14 @@ load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-import ollama
+from werkzeug.utils import secure_filename
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-
-CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
-
-
-MODEL_NAME = 'gemma3:1b'
-
-SYSTEM_INSTRUCTION = """
-Your responses should be precise, logical, and slightly technical but accessible.
-When answering complex queries, briefly outline the logical steps you are taking.
-Maintain a professional, helpful, and futuristic persona.
-IMPORTANT: NEVER use asterisks, bold or italic formatting in your responses.
-IMPORTANT: USE LINE BREAKS IN THE FORM OF <br><br> FREQUENTLY TO IMPROVE READABILITY.
-"""
+CORS_ORIGIN = os.environ.get("CORS_ORIGIN", "http://localhost:5173")
+CORS(app, resources={r"/*": {"origins": CORS_ORIGIN}})
 
 @app.route("/", methods=["GET"])
 def index():
@@ -32,7 +26,7 @@ def index():
 # --- PDF Ingestion state tracking ---
 _ingestion_status = {}  # {filename: {status, duration_s, error}}
 _cancellation_flags = {}  # {filename: threading.Event}  — set to cancel mid-ingest
-_ingestion_lock = __import__('threading').Lock()
+_ingestion_lock = threading.Lock()
 
 @app.route("/api/ingest", methods=["POST"])
 def ingest():
@@ -49,16 +43,16 @@ def ingest():
     saved_files = []
     for file in files:
         if file.filename:
-            filepath = os.path.join(upload_dir, file.filename)
+            safe_name = secure_filename(file.filename)
+            filepath = os.path.join(upload_dir, safe_name)
             file.save(filepath)
-            saved_files.append({"filename": file.filename, "filepath": filepath})
-            cancel_event = __import__('threading').Event()
+            saved_files.append({"filename": safe_name, "filepath": filepath})
+            cancel_event = threading.Event()
             with _ingestion_lock:
                 _ingestion_status[file.filename] = {"status": "processing", "duration_s": 0}
                 _cancellation_flags[file.filename] = cancel_event
 
     # Trigger KG ingestion in a background thread
-    import threading
 
     def _bg_ingest(file_list):
         from prolog_graphrag_pipeline.graphrag import graphrag_driver as gd
