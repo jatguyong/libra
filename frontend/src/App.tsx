@@ -252,6 +252,7 @@ function App() {
     setIsExplanationOpen(false);
   };
 
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -259,192 +260,109 @@ function App() {
   }, [messages, isLoading]);
 
 
+  // ── Shared SSE utilities ──────────────────────────────────────────
+
+  const parseExplanationData = (data: any): ExplanationData => ({
+    explainer_output: data.explainer_output || '',
+    prolog_explanation: data.prolog_explanation || '',
+    database: data.database || '',
+    query: data.query || '',
+    prolog_query: data.prolog_query || '',
+    contexts: data.contexts || [],
+    condensed_context: data.condensed_context || '',
+    fallback: data.fallback || 'unknown',
+    prolog_error: data.prolog_error || null,
+    logprobs: data.logprobs || [],
+    semantic_entropy: data.semantic_entropy,
+    hallucination_flag: data.hallucination_flag,
+  });
+
+  const streamChat = async (
+    payload: object,
+    onResult: (data: any, explanationData: ExplanationData) => void,
+  ) => {
+    const response = await fetch('http://localhost:5000/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.body) throw new Error("No response body");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop() || '';
+
+      for (const part of parts) {
+        if (part.startsWith('data: ')) {
+          try {
+            const eventData = JSON.parse(part.slice(6));
+
+            if (eventData.type === 'step') {
+              setCurrentStep(eventData.step);
+              if (eventData.fallback) {
+                setCurrentFallback(eventData.fallback);
+              }
+            } else if (eventData.type === 'result') {
+              const data = eventData.data;
+              if (data.error) throw new Error(data.details || data.error);
+              onResult(data, parseExplanationData(data));
+            } else if (eventData.type === 'error') {
+              throw new Error(eventData.error || "Unknown pipeline error");
+            }
+          } catch (err) {
+            console.error("Error parsing SSE data:", err);
+          }
+        }
+      }
+    }
+  };
+
+  // ── Handlers ──────────────────────────────────────────────────────
+
   const handleSendMessage = async (text: string, useGlobalKG: boolean = false) => {
-    if (!hasStartedChat) {
-      sethasStartedChat(true);
-      const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
-      const updatedMessagesArray = [newUserMsg];
-      setMessages(updatedMessagesArray);
-      setIsLoading(true);
-      setIsGenerating(true);
+    if (!hasStartedChat) sethasStartedChat(true);
 
-      setCurrentStep(1);
-      setCurrentFallback(undefined);
+    const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
+    const updatedMessagesArray = hasStartedChat ? [...messages, newUserMsg] : [newUserMsg];
+    setMessages(updatedMessagesArray);
+    setIsLoading(true);
+    setIsGenerating(true);
+    setCurrentStep(1);
+    setCurrentFallback(undefined);
 
-      try {
-        const response = await fetch('http://localhost:5000/api/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ messages: updatedMessagesArray, useGlobalKG }),
-        });
-
-        if (!response.body) throw new Error("No response body");
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split('\n\n');
-          buffer = parts.pop() || '';
-
-          for (const part of parts) {
-            if (part.startsWith('data: ')) {
-              try {
-                const eventData = JSON.parse(part.slice(6));
-
-                if (eventData.type === 'step') {
-                  setCurrentStep(eventData.step);
-                  if (eventData.fallback) {
-                    setCurrentFallback(eventData.fallback);
-                  }
-                } else if (eventData.type === 'result') {
-                  const data = eventData.data;
-                  if (data.error) throw new Error(data.details || data.error);
-
-                  const explanationData: ExplanationData = {
-                    explainer_output: data.explainer_output || '',
-                    prolog_explanation: data.prolog_explanation || '',
-                    database: data.database || '',
-                    query: data.query || '',
-                    prolog_query: data.prolog_query || '',
-                    contexts: data.contexts || [],
-                    condensed_context: data.condensed_context || '',
-                    fallback: data.fallback || 'unknown',
-                    prolog_error: data.prolog_error || null,
-                    logprobs: data.logprobs || [],
-                    semantic_entropy: data.semantic_entropy,
-                    hallucination_flag: data.hallucination_flag,
-                  };
-
-                  const llmMsg: Message = {
-                    id: (Date.now() + 1).toString(),
-                    role: 'llm',
-                    content: data.answer || 'No answer generated.',
-                    explanationData,
-                  };
-                  setMessages((prev) => [...prev, llmMsg]);
-                } else if (eventData.type === 'error') {
-                  throw new Error(eventData.error || "Unknown pipeline error");
-                }
-              } catch (err) {
-                console.error("Error parsing SSE data:", err);
-              }
-            }
-          }
-        }
-
-      } catch (error) {
-        console.error(error);
-        const errorMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'llm',
-          content: "There seems to be an error in the backend. Please try again."
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-      } finally {
-        setIsLoading(false);
-        setIsGenerating(false);
-      }
-
-    } else {
-      const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
-      const updatedMessagesArray = [...messages, newUserMsg];
-      setMessages(updatedMessagesArray);
-      setIsLoading(true);
-      setIsGenerating(true);
-
-      setCurrentStep(1);
-      setCurrentFallback(undefined);
-
-      try {
-        const response = await fetch('http://localhost:5000/api/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ messages: updatedMessagesArray, useGlobalKG }),
-        });
-
-        if (!response.body) throw new Error("No response body");
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const parts = buffer.split('\n\n');
-          buffer = parts.pop() || '';
-
-          for (const part of parts) {
-            if (part.startsWith('data: ')) {
-              try {
-                const eventData = JSON.parse(part.slice(6));
-
-                if (eventData.type === 'step') {
-                  setCurrentStep(eventData.step);
-                  if (eventData.fallback) {
-                    setCurrentFallback(eventData.fallback);
-                  }
-                } else if (eventData.type === 'result') {
-                  const data = eventData.data;
-                  if (data.error) throw new Error(data.details || data.error);
-
-                  const explanationData: ExplanationData = {
-                    explainer_output: data.explainer_output || '',
-                    prolog_explanation: data.prolog_explanation || '',
-                    database: data.database || '',
-                    query: data.query || '',
-                    prolog_query: data.prolog_query || '',
-                    contexts: data.contexts || [],
-                    condensed_context: data.condensed_context || '',
-                    fallback: data.fallback || 'unknown',
-                    prolog_error: data.prolog_error || null,
-                    logprobs: data.logprobs || [],
-                    semantic_entropy: data.semantic_entropy,
-                    hallucination_flag: data.hallucination_flag,
-                  };
-
-                  const llmMsgId = (Date.now() + 1).toString();
-                  const llmMsg: Message = {
-                    id: llmMsgId,
-                    role: 'llm',
-                    content: data.answer || 'No answer generated.',
-                    explanationData,
-                  };
-                  setMessages((prev) => [...prev, llmMsg]);
-                } else if (eventData.type === 'error') {
-                  throw new Error(eventData.error || "Unknown pipeline error");
-                }
-              } catch (err) {
-                console.error("Error parsing SSE data:", err);
-              }
-            }
-          }
-        }
-
-      } catch (error) {
-        console.error(error);
-        const errorMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'llm',
-          content: "There seems to be an error with the backend. Please try again."
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-      } finally {
-        setIsLoading(false);
-        setIsGenerating(false);
-      }
+    try {
+      await streamChat(
+        { messages: updatedMessagesArray, useGlobalKG },
+        (data, explanationData) => {
+          const llmMsg: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'llm',
+            content: data.answer || 'No answer generated.',
+            explanationData,
+          };
+          setMessages((prev) => [...prev, llmMsg]);
+        },
+      );
+    } catch (error) {
+      console.error(error);
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'llm',
+        content: "There seems to be an error in the backend. Please try again."
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+      setIsGenerating(false);
     }
   };
 
@@ -467,76 +385,20 @@ function App() {
 
     setIsLoading(true);
     setIsGenerating(true);
-
     setCurrentStep(1);
     setCurrentFallback(undefined);
 
     try {
-      const response = await fetch('http://localhost:5000/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      await streamChat(
+        { messages: contextMessages },
+        (data, explanationData) => {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === llmMsgId ? { ...msg, content: data.answer || 'No answer generated.', explanationData } : msg
+            )
+          );
         },
-        body: JSON.stringify({ messages: contextMessages }),
-      });
-
-      if (!response.body) throw new Error("No response body");
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() || '';
-
-        for (const part of parts) {
-          if (part.startsWith('data: ')) {
-            try {
-              const eventData = JSON.parse(part.slice(6));
-
-              if (eventData.type === 'step') {
-                setCurrentStep(eventData.step);
-                if (eventData.fallback) {
-                  setCurrentFallback(eventData.fallback);
-                }
-              } else if (eventData.type === 'result') {
-                const data = eventData.data;
-                if (data.error) throw new Error(data.details || data.error);
-
-                const explanationData: ExplanationData = {
-                  explainer_output: data.explainer_output || '',
-                  prolog_explanation: data.prolog_explanation || '',
-                  database: data.database || '',
-                  query: data.query || '',
-                  contexts: data.contexts || [],
-                  condensed_context: data.condensed_context || '',
-                  fallback: data.fallback || 'unknown',
-                  prolog_error: data.prolog_error || null,
-                  logprobs: data.logprobs || [],
-                  semantic_entropy: data.semantic_entropy,
-                  hallucination_flag: data.hallucination_flag,
-                };
-
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === llmMsgId ? { ...msg, content: data.answer || 'No answer generated.', explanationData } : msg
-                  )
-                );
-              } else if (eventData.type === 'error') {
-                throw new Error(eventData.error || "Unknown pipeline error");
-              }
-            } catch (err) {
-              console.error("Error parsing SSE data:", err);
-            }
-          }
-        }
-      }
-
+      );
     } catch (error) {
       console.error(error);
       setMessages((prev) =>
