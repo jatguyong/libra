@@ -425,10 +425,7 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
     try:
         from .prolog_llms import generate as generate_fn
     except ImportError:
-        try:
-            from .prolog_llms import generate as generate_fn
-        except ImportError:
-            from prolog.prolog_llms import generate as generate_fn
+        from prolog.prolog_llms import generate as generate_fn
 
     # ── Phase 1: Normal attempts (5 tries) ───────────────────────────────────
     NORMAL_ATTEMPTS = 5
