@@ -39,7 +39,7 @@ def generate_with_ollama(messages) -> Optional[str]:
         return response.choices[0].message.content
     except Exception as e:
         print(f"Error during LLM interaction ({MODEL_NAME}): {e}")
-        return {}
+        return None
     
     
 def extract_query_and_context(question: str) -> tuple[str, str]:
