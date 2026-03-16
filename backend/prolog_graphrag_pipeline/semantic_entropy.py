@@ -1,13 +1,11 @@
 OPTIMAL_SE_THRESHOLD = 0.3316
 
 import json
-import json
 from . import main_driver
 
 import math
 import csv
 import sys
-import json
 import os
 from pathlib import Path
 from typing import Tuple

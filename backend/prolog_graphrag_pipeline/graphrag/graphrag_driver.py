@@ -17,7 +17,6 @@ import threading
 import sys
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 from openai import RateLimitError, APITimeoutError, APIConnectionError
-from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 
 # Persistent event loop to avoid "RuntimeError: Event loop is closed" on Windows.
 # asyncio.run() creates and destroys a new loop each call, but httpx/httpcore
@@ -540,7 +539,6 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
         success = True
     except Exception as e:
         print(f"ERROR during generation: {e}", flush=True)
-        generation_result = {"answer": f"Error during generation: {e}", "retriever_results": []}
     
     return {
         "query": query,
@@ -593,7 +591,7 @@ def ensure_driver_connected():
             if neo4j_driver:
                 try:
                     neo4j_driver.close()
-                except:
+                except Exception:
                     pass
             neo4j_driver = None
             

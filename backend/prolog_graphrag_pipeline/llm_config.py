@@ -8,14 +8,13 @@ Both providers are accessed through the standard `openai` Python package.
 """
 
 import os
-from openai import OpenAI
-import httpx
 import logging
-
 import time
 import random
 import httpx
 from openai import OpenAI, APIConnectionError, APITimeoutError, InternalServerError, RateLimitError, APIError, APIStatusError
+
+logger = logging.getLogger(__name__)
 
 USE_TOGETHER_API = True
 
@@ -74,18 +73,13 @@ if not API_KEY:
 
 
 def log_llm_event(event_type: str, duration: float = None, error: str = None):
-    """Log LLM events to debug.txt for performance tracking."""
-    log_msg = f"\n[LLM_EVENT] {event_type}"
+    """Log LLM events for performance tracking."""
+    log_msg = f"[LLM_EVENT] {event_type}"
     if duration is not None:
         log_msg += f" | LATENCY: {duration:.4f}s"
     if error:
         log_msg += f" | ERROR: {error}"
-    
-    try:
-        with open("debug.txt", "a", encoding="utf-8") as f:
-            f.write(log_msg + "\n")
-    except:
-        pass
+    logger.info(log_msg)
 
 def get_openai_client() -> OpenAI:
     """Return a configured OpenAI client for the active provider."""

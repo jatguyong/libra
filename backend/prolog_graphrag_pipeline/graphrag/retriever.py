@@ -87,7 +87,6 @@ def _sanitize_lucene_query(query_text: str) -> str:
     return ''.join(sanitized)
 
 def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
-    import re
     safe_query = _sanitize_lucene_query(query_text)
     original_query = kwargs.pop("original_query", "")
     use_global_kg = kwargs.pop("use_global_kg", False)
@@ -139,7 +138,6 @@ def expand_query(self, query):
     return query
 
 def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
-    import re
     from neo4j_graphrag.retrievers.base import RetrieverResult
     # `original_query` carries the full user prompt (with MCQ choices) for LLM filtering.
     # `query_text` is the extracted question stem (used for embedding/entity extraction).
@@ -335,7 +333,6 @@ def generate(llm, retriever, query, original_query: str = "", fallback: str = "p
             score = metadata.get('score', 0.0) 
 
             # Add Metadata Dump (requested by user)
-            import json
             f.write(f"\n[Metadata Dump]\n{json.dumps(metadata, indent=2)}\n") 
             
             # Fix Content: Unwrap if it is a Neo4j Record string representation or just use metadata text
