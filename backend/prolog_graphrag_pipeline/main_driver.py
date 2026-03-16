@@ -1,36 +1,47 @@
+import logging
+import time
+from typing import Literal
+
 from .graphrag import graphrag_driver
 from .prolog import prolog_driver
 from .llm import generate, decide_fallback
 from .prompt_reconstructor import reconstruct_prompt
 from .semantic_entropy import compute_semantic_entropy
 
-    
-import time
-from typing import Literal
+logger = logging.getLogger(__name__)
 
-def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bool = False, use_global_kg: bool = False, status_callback=None) -> dict:
+
+def run_pipeline(
+    question: str,
+    flag: Literal['q', r"x\c", "x"],
+    sample_mode: bool = False,
+    use_global_kg: bool = False,
+    status_callback=None,
+) -> dict:
     start_time = time.perf_counter()
-    
+
     if status_callback:
         status_callback({"type": "step", "step": 1})
 
-
-    
-    # Separate inference run for deciding if pipeline would fall back to GraphRAG
+    # Router decides which pipeline path to take
     fallback = decide_fallback(question)
-    print(f"    Question: {question}")
+    logger.info(f"Question: {question}")
+
     if fallback == "tuned":
         if status_callback:
             status_callback({"type": "step", "step": 2, "fallback": fallback})
         # Tuned LLM never uses sample_mode — no semantic entropy for simple responses
-        llm_output = generate(question, retrieved_context=None, explainer_output=None, fallback=fallback, flag=flag, sample_mode=False, status_callback=status_callback)
+        llm_output = generate(
+            question, retrieved_context=None, explainer_output=None,
+            fallback=fallback, flag=flag, sample_mode=False, status_callback=status_callback,
+        )
         if isinstance(llm_output, dict):
             final_answer = llm_output.get("text_answer", "Error generating answer")
             logprobs = llm_output.get("logprobs", [])
         else:
             final_answer = "Error generating answer"
             logprobs = []
-        
+
         return {
             "answer": final_answer,
             "logprobs": logprobs,
@@ -40,151 +51,154 @@ def run_pipeline(question: str, flag: Literal['q', r"x\c", "x"], sample_mode: bo
             "prolog_explanation": None,
             "explainer_output": None,
             "prolog_error": None,
-            "fallback": fallback
+            "fallback": fallback,
         }
-    else:
-        graphrag_output = graphrag_driver.run_pipeline(question=question, fallback=fallback, use_global_kg=use_global_kg, status_callback=status_callback) if flag != "q" else None
-        graphrag_answer = graphrag_output.get("answer", "") if graphrag_output else ""
-        graphrag_logprobs = graphrag_output.get("logprobs", []) if graphrag_output else []
-        graphrag_retriever_results = graphrag_output.get("retriever_results", []) if graphrag_output else []
-        query = graphrag_output.get("query", question) if graphrag_output else question
-        raw_context_strings = []
-        condensed_context = ""
-        
-        if flag != "q" and graphrag_output and fallback != "tuned":
-            print("\n" + "="*80)
-            print("GRAPHRAG CONDENSED CONTEXT")
-            print("="*80)
-            print(graphrag_output.get("answer", "No condensed context found."))
-            print("="*80 + "\n")
-            print("DEBUG PROLOG-GRAPHRAG:Transferring evidence to Prolog engine...\n")
-            condensed_context = graphrag_answer
-            raw_context_strings = list(graphrag_retriever_results)
-        else:
-            condensed_context = ""
-            raw_context_strings = []
-            
-        # Split KBPedia vs Wikidata retrieved items
-        if isinstance(raw_context_strings, list):
-            kbpedia_items = []
-            wikidata_items = []
-            for item in graphrag_retriever_results:
-                src = ""
-                if hasattr(item, "metadata"):
-                    src = (item.metadata or {}).get("source", "")
-                elif isinstance(item, dict):
-                    src = item.get("metadata", {}).get("source", "")
-                item_str = str(item)
-                raw_context_strings.append(item_str)
-                if src == "Wikidata":
-                    wikidata_items.append(item_str)
-                else:
-                    kbpedia_items.append(item_str)
 
-            retrieved_context_str = condensed_context if graphrag_output else ""
-            # Append Wikidata facts to context_from_prompt so they reach the synthesis LLM
-            if wikidata_items:
-                wikidata_block = "\n\nWikidata Background Facts (for context, not Prolog logic):\n" + "\n".join(wikidata_items)
-                # context_from_prompt = (context_from_prompt or "") + wikidata_block
-        else:
-            retrieved_context_str = raw_context_strings
+    # Non-tuned path: run GraphRAG retrieval first
+    graphrag_output = (
+        graphrag_driver.run_pipeline(
+            question=question, fallback=fallback,
+            use_global_kg=use_global_kg, status_callback=status_callback,
+        )
+        if flag != "q" else None
+    )
+    graphrag_answer = graphrag_output.get("answer", "") if graphrag_output else ""
+    graphrag_logprobs = graphrag_output.get("logprobs", []) if graphrag_output else []
+    graphrag_retriever_results = graphrag_output.get("retriever_results", []) if graphrag_output else []
+    query = graphrag_output.get("query", question) if graphrag_output else question
 
-        pgr_results = {}
-        prolog_error, explainer_output, final_answer = None, None, None
-        llm_logprobs = []
-        if fallback == "prolog-graphrag":
-            try:
-                pgr_results = prolog_driver.run_pipeline(question=question, retrieved_context=condensed_context, status_callback=status_callback) if flag != "q" else None
-            except Exception as e:
-                prolog_error = f"Error occurred while running Prolog pipeline: {e}"
+    # Build context strings from retriever results
+    condensed_context = ""
+    raw_context_strings = []
+
+    if flag != "q" and graphrag_output and fallback != "tuned":
+        logger.debug("GRAPHRAG CONDENSED CONTEXT:\n%s", graphrag_output.get("answer", "No condensed context found."))
+        condensed_context = graphrag_answer
+
+        # Classify retriever results by source (KBPedia vs Wikidata)
+        for item in graphrag_retriever_results:
+            src = ""
+            if hasattr(item, "metadata"):
+                src = (item.metadata or {}).get("source", "")
+            elif isinstance(item, dict):
+                src = item.get("metadata", {}).get("source", "")
+            raw_context_strings.append(str(item))
+
+    retrieved_context_str = condensed_context if graphrag_output else ""
+
+    # Prolog-GraphRAG path
+    pgr_results = {}
+    prolog_error, explainer_output, final_answer = None, None, None
+    llm_logprobs = []
+
+    if fallback == "prolog-graphrag":
+        try:
+            pgr_results = (
+                prolog_driver.run_pipeline(
+                    question=question, retrieved_context=condensed_context,
+                    status_callback=status_callback,
+                )
+                if flag != "q" else None
+            )
+        except Exception as e:
+            prolog_error = f"Error occurred while running Prolog pipeline: {e}"
+        else:
+            explainer_output = pgr_results.get("explainer_output", "") if pgr_results else ""
+            if status_callback:
+                status_callback({"type": "step", "step": 7})
+            llm_output = (
+                generate(
+                    question, retrieved_context_str, explainer_output,
+                    flag=flag, sample_mode=sample_mode, fallback=fallback,
+                    status_callback=status_callback,
+                )
+                if prolog_error is None
+                else pgr_results.get("final_answer", "")
+            )
+            if isinstance(llm_output, list) and len(llm_output) > 0:
+                final_answer = llm_output[0].get("text_answer", "Error generating answer")
+                llm_logprobs = llm_output[0].get("logprobs", [])
+            elif isinstance(llm_output, dict):
+                final_answer = llm_output.get("text_answer", "Error generating answer")
+                llm_logprobs = llm_output.get("logprobs", [])
             else:
-                explainer_output = pgr_results.get("explainer_output", "") if pgr_results else ""
-                if status_callback:
-                    status_callback({"type": "step", "step": 7})
-                llm_output = generate(question, retrieved_context_str, explainer_output, flag=flag, sample_mode=sample_mode, fallback=fallback, status_callback=status_callback) if prolog_error is None else pgr_results.get("final_answer", "")
-                if isinstance(llm_output, list) and len(llm_output) > 0:
-                    final_answer = llm_output[0].get("text_answer", "Error generating answer")
-                    llm_logprobs = llm_output[0].get("logprobs", [])
-                elif isinstance(llm_output, dict):
-                    final_answer = llm_output.get("text_answer", "Error generating answer")
-                    llm_logprobs = llm_output.get("logprobs", [])
-                else:
-                    final_answer = str(llm_output) if llm_output else "Error generating answer"
-                    llm_logprobs = []
-        else:
-            prolog_error = "Pipeline decided to fallback to GraphRAG, skipping Prolog execution."
-            explainer_output = "No explainer output since Prolog was skipped."
+                final_answer = str(llm_output) if llm_output else "Error generating answer"
+                llm_logprobs = []
+    else:
+        # GraphRAG-only fallback (Prolog skipped)
+        prolog_error = "Pipeline decided to fallback to GraphRAG, skipping Prolog execution."
+        explainer_output = "No explainer output since Prolog was skipped."
+        final_answer = graphrag_output.get("answer", "Error generating answer") if graphrag_output else "Error generating answer"
+        llm_output = None
 
-            final_answer = graphrag_output.get("answer", "Error generating answer") if graphrag_output else "Error generating answer"
-            # In sample_mode with graphrag-only fallback, llm_output is not available.
-            # Return the single graphrag answer directly.
-            llm_output = None
+    logprobs = llm_logprobs if fallback == "prolog-graphrag" else graphrag_logprobs
 
-        logprobs = llm_logprobs if fallback == "prolog-graphrag" else graphrag_logprobs
-        print(f"PROLOG ERROR: {prolog_error}" if prolog_error else "Prolog executed successfully without errors.")
-        print(f"**FINAL LLM OUTPUT: \n{final_answer}**")
-        end_time = time.perf_counter()
-        duration = end_time - start_time
-        print(f"====The pipeline executed in {duration:.4f} seconds. Prolog verified: {prolog_error is None}===")
-        
-        if not sample_mode:
-            return {
-                "answer": final_answer if final_answer else "Error generating answer",
-                "database": pgr_results.get("database", "") if pgr_results else "No database generated.",
-                "prolog_query": pgr_results.get("query", "") if pgr_results else "No prolog query generated.",
-                "query": query,
-                "condensed_context": condensed_context,
-                "contexts": retrieved_context_str,
-                "prolog_explanation": pgr_results.get("prolog_explanation", "") if pgr_results else "",
-                "explainer_output": pgr_results.get("explainer_output", "") if pgr_results else "No explainer output generated.",
-                "prolog_error": pgr_results.get("prolog_error") if pgr_results else None,
-                "fallback": fallback
-            }
-        else:
-            # NOTE: sample_mode MUST BE TRUE for all pipeline calls for the semantic entropy calculation to be carried out with each prompt
-            if not isinstance(llm_output, list) or len(llm_output) == 0:
-                # Fallback: llm_output is not a list (e.g. graphrag-only path), so skip SE and return single answer
-                return {
-                    "answer": final_answer if final_answer else "Error generating answer",
-                    "database": pgr_results.get("database", "") if pgr_results else "No database generated.",
-                    "prolog_query": pgr_results.get("query", "") if pgr_results else "No prolog query generated.",
-                    "query": query,
-                    "condensed_context": condensed_context,
-                    "contexts": retrieved_context_str,
-                    "prolog_explanation": pgr_results.get("prolog_explanation", "") if pgr_results else "",
-                    "explainer_output": pgr_results.get("explainer_output", "") if pgr_results else "No explainer output generated.",
-                    "prolog_error": pgr_results.get("prolog_error") if pgr_results else prolog_error,
-                    "fallback": fallback
-                }
-            answers = [output["text_answer"] for output in llm_output]
-            logprobs = [output["logprobs"] for output in llm_output]
-            se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
-            return {
-                "answers": answers,
-                "logprobs": logprobs,
-                "best_answer": se_results["best_answer"],
-                "semantic_entropy": se_results["semantic_entropy"],
-                "hallucination_flag": se_results["hallucination_flag"],
-                "database": pgr_results.get("database", "") if pgr_results else "No database generated.",
-                "prolog_query": pgr_results.get("query", "") if pgr_results else "No prolog query generated.",
-                "query": query,
-                "condensed_context": condensed_context,
-                "contexts": retrieved_context_str,
-                "prolog_explanation": pgr_results.get("prolog_explanation", "") if pgr_results else "",
-                "explainer_output": pgr_results.get("explainer_output", "") if pgr_results else "No explainer output generated.",
-                "prolog_error": pgr_results.get("prolog_error") if pgr_results else None,
-                "fallback": fallback
-            }
+    if prolog_error:
+        logger.warning("Prolog error: %s", prolog_error)
+    else:
+        logger.info("Prolog executed successfully.")
 
-    
-def run_graphrag_pipeline(question: str, use_global_kg: bool = False, status_callback=None) -> dict:
-    """Wrapper function to run the entire pipeline with a given prompt and flag."""
-    return run_pipeline(question, flag="", use_global_kg=use_global_kg, status_callback=status_callback)
+    duration = time.perf_counter() - start_time
+    logger.info("Pipeline finished in %.4fs. Prolog verified: %s", duration, prolog_error is None)
+
+    # Helper to safely pull from pgr_results (may be None or {})
+    def _pgr(key: str, default=""):
+        return pgr_results.get(key, default) if pgr_results else default
+
+    if not sample_mode:
+        return {
+            "answer": final_answer or "Error generating answer",
+            "database": _pgr("database", "No database generated."),
+            "prolog_query": _pgr("query", "No prolog query generated."),
+            "query": query,
+            "condensed_context": condensed_context,
+            "contexts": retrieved_context_str,
+            "prolog_explanation": _pgr("prolog_explanation"),
+            "explainer_output": _pgr("explainer_output", "No explainer output generated."),
+            "prolog_error": _pgr("prolog_error") or None,
+            "fallback": fallback,
+        }
+
+    # sample_mode: run semantic entropy if we have multiple LLM samples
+    if not isinstance(llm_output, list) or len(llm_output) == 0:
+        # No multi-sample output (e.g. graphrag-only path) — skip SE
+        return {
+            "answer": final_answer or "Error generating answer",
+            "database": _pgr("database", "No database generated."),
+            "prolog_query": _pgr("query", "No prolog query generated."),
+            "query": query,
+            "condensed_context": condensed_context,
+            "contexts": retrieved_context_str,
+            "prolog_explanation": _pgr("prolog_explanation"),
+            "explainer_output": _pgr("explainer_output", "No explainer output generated."),
+            "prolog_error": _pgr("prolog_error") or prolog_error,
+            "fallback": fallback,
+        }
+
+    answers = [output["text_answer"] for output in llm_output]
+    logprobs = [output["logprobs"] for output in llm_output]
+    se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
+
+    return {
+        "answers": answers,
+        "logprobs": logprobs,
+        "best_answer": se_results["best_answer"],
+        "semantic_entropy": se_results["semantic_entropy"],
+        "hallucination_flag": se_results["hallucination_flag"],
+        "database": _pgr("database", "No database generated."),
+        "prolog_query": _pgr("query", "No prolog query generated."),
+        "query": query,
+        "condensed_context": condensed_context,
+        "contexts": retrieved_context_str,
+        "prolog_explanation": _pgr("prolog_explanation"),
+        "explainer_output": _pgr("explainer_output", "No explainer output generated."),
+        "prolog_error": _pgr("prolog_error") or None,
+        "fallback": fallback,
+    }
+
 
 if __name__ == "__main__":
     prompt = "Which of the following parts of a plant cell has a function that is most similar to the function of an animal skeleton?"
-    print(f"--- Running Pipeline with prompt: '{prompt}' ---")
-    # flag default to empty string to run everything
+    logger.info("Running pipeline with prompt: '%s'", prompt)
     output = run_pipeline(prompt, flag="x")
-    print("\n--- Final Answer ---")
-    print(output.get("answer"))
+    logger.info("Final Answer: %s", output.get("answer"))
