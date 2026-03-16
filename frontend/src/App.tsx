@@ -7,6 +7,8 @@ import ChatBox from './components/ChatBox';
 import Sidebar from './components/Sidebar';
 import { Copy, RefreshCw, ChevronLeft, ChevronRight, X, AlertTriangle } from 'lucide-react';
 import ThinkingProcess from './components/ThinkingProcess';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 interface ExplanationData {
   explainer_output: string;
   prolog_explanation: string;
@@ -227,7 +229,7 @@ function App() {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/ingest/status');
+        const res = await fetch(`${API_BASE}/api/ingest/status`);
         if (res.ok) {
           const data = await res.json();
           setFileStatuses(data);
@@ -260,7 +262,7 @@ function App() {
     const isProcessing = fileStatuses[filename]?.status === 'processing';
     const endpoint = isProcessing ? '/api/ingest/cancel' : '/api/ingest/remove';
     try {
-      await fetch(`http://localhost:5000${endpoint}`, {
+      await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename }),
@@ -322,7 +324,7 @@ function App() {
     payload: object,
     onResult: (data: any, explanationData: ExplanationData) => void,
   ) => {
-    const response = await fetch('http://localhost:5000/api/chat', {
+    const response = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

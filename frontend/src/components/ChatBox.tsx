@@ -1,6 +1,8 @@
 import React, { useState, type KeyboardEvent, useRef } from 'react';
 import { Plus, Send, FileText, X, Info } from 'lucide-react';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 interface ChatBoxProps {
     onSendMessage: (message: string, useGlobalKG: boolean) => void;
     isLoading?: boolean;
@@ -48,7 +50,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                 });
 
                 try {
-                    const response = await fetch('http://localhost:5000/api/ingest', {
+                    const response = await fetch(`${API_BASE}/api/ingest`, {
                         method: 'POST',
                         body: formData,
                     });
