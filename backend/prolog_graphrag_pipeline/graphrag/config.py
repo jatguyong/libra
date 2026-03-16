@@ -1,10 +1,11 @@
+import os
 from pathlib import Path
 from enum import Enum
 from neo4j_graphrag.generation.prompts import RagTemplate
 
-NEO4J_URI = "neo4j://127.0.0.1:7687"
-NEO4J_USERNAME = "neo4j"
-NEO4J_PASSWORD = "graphrag"
+NEO4J_URI = os.environ.get("NEO4J_URI", "neo4j://127.0.0.1:7687")
+NEO4J_USERNAME = os.environ.get("NEO4J_USERNAME", "neo4j")
+NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "graphrag")
 DB_NAME = "graphrag-kg"
 GLOBAL_KB = "KBPEDIA"
 
@@ -121,7 +122,7 @@ Output ONLY the ATOMIC FACTS, CONDITIONAL RULES, EXCEPTIONS, and LOGICAL GAPS wi
 **CONDITIONAL RULES**:
    List of conditional rules
 **EXCEPTIONS**:
-   List of exceptipns
+   List of exceptions
 **LOGICAL GAPS**:
    List of logical gaps
    
