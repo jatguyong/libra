@@ -33,6 +33,15 @@ class _TeeLogger:
     def fileno(self):
         return self._orig.fileno()
 
+    def close(self):
+        self._log.close()
+
+    def __del__(self):
+        try:
+            self._log.close()
+        except Exception:
+            pass
+
 def _install_prolog_logger():
     """Install the TeeLogger on stdout if not already installed for this process."""
     if isinstance(sys.stdout, _TeeLogger):
@@ -275,29 +284,6 @@ if __name__ == "__main__":
     ]
 
     use_scasp()
-    # Calculate the path to the directory you want to import from.
-    # '..' refers to the parent directory.
 
     for test in tests[:1]:
         decoder_explanation = run_pipeline(test["question"], test["context"], "")
-    
-# question = "Will prices go up if people are reluctant to take out loans?"
-# retrieved_context = "When interest rates are high, people will be less likely to take out loans. When people take less loan out, demand for goods decrease. When demand for goods decrease, interest rates spike up. Prices go down when demand is down."
-# run_prolog_pipeline(question, retrieved_context)
-
-# question = "Who does Vito believe he should keep closer?"
-# retrieved_context = "Tomasinno is the friend of Vito. Solozzo is the enemy of Vito. Vito believes that he should keep his enemies closer than his friends."
-# run_prolog_pipeline(question, retrieved_context)
-
-# question = "If the grass is contaminated, are the snakes affected?"
-# retrieved_context = "In a food web, grass is a producer. Grasshoppers eat grass. Frogs eat grasshoppers. Snakes eat frogs. "
-# run_prolog_pipeline(question, retrieved_context)
-
-        
-        
-    
-
-        
-    
-    
-    
