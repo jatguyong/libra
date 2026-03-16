@@ -1,5 +1,5 @@
 """
-Grounded KBPedia Retriever — Neo4j Edition
+Grounded KBPedia Retriever
 Queries KBPedia concepts stored in Neo4j (:KBPediaConcept nodes).
 
 Two modes (controlled by `triple_filter` at construction time):
