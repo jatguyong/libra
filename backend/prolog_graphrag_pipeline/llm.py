@@ -1,22 +1,24 @@
 import sys
 import os
 import json
-from typing import Literal
+import logging
+import traceback
+from typing import Literal, Optional, Union, List
+
 from pydantic import BaseModel
 
-from .llm_config import MODEL_NAME, get_openai_client
-from .config import FALLBACK_MESSAGES
-
-from .config import LLM_SYSTEM_PROMPT, LLM_MESSAGES, LLM_SYSTEM_PROMPT_FALLBACK
+from .llm_config import MODEL_NAME, get_openai_client, retry_with_exponential_backoff
+from .config import FALLBACK_MESSAGES, LLM_SYSTEM_PROMPT, LLM_MESSAGES, LLM_SYSTEM_PROMPT_FALLBACK
 from .prompt_reconstructor import reconstruct_prompt
 
-from typing import Optional, Union, List
+logger = logging.getLogger(__name__)
 
 client = get_openai_client()
 
+
 class Reasoning(BaseModel):
     reasoning: str
-    
+
 class Checklist(BaseModel):
     requires_external_context_or_retrieval: Literal["pass", "fail"]
     involves_reasoning_or_rules: Literal["pass", "fail"]
@@ -26,41 +28,61 @@ class RoutingResponse(BaseModel):
     reasoning: Reasoning
     checklist: Checklist
     route_to: Literal["prolog-graphrag", "graphrag", "tuned"]
-    
-def decide_fallback(question: str):
+
+
+def decide_fallback(question: str) -> str:
+    """Ask the LLM to route the question to the appropriate pipeline path.
+
+    Returns one of: "prolog-graphrag", "graphrag", "tuned".
+    Falls back to "tuned" on any parsing failure so the app never crashes.
+    """
     response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=FALLBACK_MESSAGES + [{"role": "user", "content": question}],
-            temperature=0.7,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "routing_schema",
-                    "strict": True,
-                    "schema": RoutingResponse.model_json_schema()
-                }
-            }
-        )
+        model=MODEL_NAME,
+        messages=FALLBACK_MESSAGES + [{"role": "user", "content": question}],
+        temperature=0.7,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "routing_schema",
+                "strict": True,
+                "schema": RoutingResponse.model_json_schema(),
+            },
+        },
+    )
     content_str = response.choices[0].message.content
     try:
         data = json.loads(content_str)
     except json.JSONDecodeError:
-        # Handle cases where the model might still fail or return an empty string
-        print("Failed to decode JSON:", content_str)
-        return False
-    return data["route_to"] # True means fallback to GraphRAG
+        logger.warning("Router JSON decode failed, falling back to tuned. Raw: %s", content_str)
+        return "tuned"
+    return data["route_to"]
 
 
-def generate(question: str, retrieved_context: Optional[str], explainer_output: Optional[str], flag: str, sample_mode: bool = False, fallback: str = "prolog-graphrag", status_callback=None) -> Union[dict, List[dict]]:
+def generate(
+    question: str,
+    retrieved_context: Optional[str],
+    explainer_output: Optional[str],
+    flag: str,
+    sample_mode: bool = False,
+    fallback: str = "prolog-graphrag",
+    status_callback=None,
+) -> Union[dict, List[dict]]:
+    """Generate a final answer using the synthesis LLM.
+
+    Returns a single dict in normal mode, or a list of dicts in sample_mode.
+    """
     if fallback != "prolog-graphrag":
         final_prompt = question
         messages = LLM_SYSTEM_PROMPT_FALLBACK + [{"role": "user", "content": final_prompt}]
     else:
-        final_prompt = reconstruct_prompt(question=question, retrieved_context=retrieved_context, explainer_output=explainer_output, flag=flag)
+        final_prompt = reconstruct_prompt(
+            question=question, retrieved_context=retrieved_context,
+            explainer_output=explainer_output, flag=flag,
+        )
         messages = LLM_MESSAGES + [{"role": "user", "content": final_prompt}]
-        
-    print(f"FINAL PROMPT:\n{final_prompt}")
-    
+
+    logger.debug("Final prompt:\n%s", final_prompt)
+
     def _do_call_llm():
         if status_callback and fallback == "prolog-graphrag":
             status_callback({"type": "step", "step": 8})
@@ -68,23 +90,24 @@ def generate(question: str, retrieved_context: Optional[str], explainer_output: 
             model=MODEL_NAME,
             messages=messages,
             temperature=0.3,
-            logprobs=True
+            logprobs=True,
         )
-        answer = dict()
+        answer = {}
         answer['text_answer'] = response.choices[0].message.content
-        # Extract logprobs - handle both OpenAI and Together AI formats
+
+        # Extract logprobs — handle both OpenAI and Together AI formats
         raw_logprobs = response.choices[0].logprobs
         answer['logprobs'] = []
         if raw_logprobs:
-            # OpenAI format: logprobs.content is a list of token logprob objects
             if raw_logprobs.content:
+                # OpenAI format: logprobs.content is a list of token logprob objects
                 answer['logprobs'] = [
                     {"token": lp.token, "logprob": lp.logprob}
                     if hasattr(lp, 'token') else lp
                     for lp in raw_logprobs.content
                 ]
-            # Together AI format: tokens + token_logprobs as parallel arrays
             elif hasattr(raw_logprobs, 'tokens') and hasattr(raw_logprobs, 'token_logprobs') and raw_logprobs.tokens:
+                # Together AI format: tokens + token_logprobs as parallel arrays
                 answer['logprobs'] = [
                     {"token": tok, "logprob": lp}
                     for tok, lp in zip(raw_logprobs.tokens, raw_logprobs.token_logprobs)
@@ -92,15 +115,11 @@ def generate(question: str, retrieved_context: Optional[str], explainer_output: 
         return answer
 
     def _call_llm():
-        from .llm_config import retry_with_exponential_backoff
         try:
             func = retry_with_exponential_backoff(_do_call_llm)
             return func()
         except Exception as e:
-            err_msg = f"Error during synthesis LLM interaction ({MODEL_NAME}): {e}"
-            print(err_msg)
-            import logging
-            logging.getLogger(__name__).error(f"{err_msg} | PROMPT LENGTH: {len(final_prompt)}")
+            logger.error("Synthesis LLM error (%s): %s | prompt length: %d", MODEL_NAME, e, len(final_prompt))
             raise
 
     if sample_mode:
@@ -109,12 +128,12 @@ def generate(question: str, retrieved_context: Optional[str], explainer_output: 
             try:
                 sequences.append(_call_llm())
             except Exception as e:
-                print(f"Error during LLM interaction ({MODEL_NAME}): {e}")
-                return {}
+                logger.error("Sample %d failed (%s): %s", i, MODEL_NAME, e)
+                return []  # caller expects a list
         return sequences
     else:
         try:
             return _call_llm()
         except Exception as e:
-            print(f"Error during LLM interaction ({MODEL_NAME}): {e}")
+            logger.error("LLM call failed (%s): %s", MODEL_NAME, e)
             return {}

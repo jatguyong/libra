@@ -1,33 +1,23 @@
-OPTIMAL_SE_THRESHOLD = 0.3316
+"""Semantic entropy calculation for hallucination detection.
+
+Clusters multiple LLM responses by bidirectional entailment, then
+computes entropy over the cluster distribution. High entropy → likely hallucination.
+"""
 
 import json
-from . import main_driver
-
 import math
-import csv
-import sys
-import os
-from pathlib import Path
-from typing import Tuple
-
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.append(str(ROOT))
-IO_DIR = ROOT / "explainability_evaluation_results/data"
-TEST_DIR = ROOT / "test_cases"
-LOGS_DIR = ROOT / "logs/prolog_graphrag_pipeline_logs"
-
-# Ensure project root is on the path so llm_config can be imported
-# _project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-# if _project_root not in sys.path:
-#     sys.path.insert(0, _project_root)
+import logging
+from typing import Optional
 
 from .llm_config import MODEL_NAME, get_openai_client
 
-# For OpenAI
+logger = logging.getLogger(__name__)
+
+OPTIMAL_SE_THRESHOLD = 0.3316
+
 client = get_openai_client()
 
-# ── System Prompt ────────────────────────────────────────────────────────────
-LLM_MESSAGES = [
+NLI_SYSTEM_PROMPT = [
     {
         "role": "system",
         "content": """\
@@ -63,28 +53,19 @@ Reject equivalence immediately if ANY of the following apply:
 ]
 
 
-# ── Unified Generation Function ─────────────────────────────────────────────
-def query_llm(prompt: str):
-    """Send a prompt to the configured LLM and return the response text."""
-    # try:
+def query_llm(prompt: str) -> Optional[str]:
+    """Send a prompt to the NLI judge and return the JSON response text."""
     response = client.chat.completions.create(
         model=MODEL_NAME,
-        messages=LLM_MESSAGES + [{"role": "user", "content": prompt}],
+        messages=NLI_SYSTEM_PROMPT + [{"role": "user", "content": prompt}],
         temperature=0.3,
-        response_format={"type": "json_object"}
+        response_format={"type": "json_object"},
     )
     return response.choices[0].message.content
-    # except Exception as e:
-    #     print(f"Error during LLM interaction ({MODEL_NAME}): {e}")
-    #     return None
-
-
-def sample_sequences(prompt: str) -> dict:
-    response = main_driver.run_pipeline(question=prompt, flag="x", sample_mode=True)
-    return response
 
 
 def check_entailment(seq1: str, seq2: str) -> bool:
+    """Check bidirectional entailment between two LLM responses."""
     prompt = f"""
 Given the following two responses to the same question, determine if they are semantically equivalent.
 
@@ -92,24 +73,20 @@ Response 1: {seq1}
 
 Response 2: {seq2}
     """
-    
     answer = query_llm(prompt)
-    # print(answer)
     answer_dict = json.loads(answer)
     verdict = answer_dict.get("verdict", "").lower()
-    return verdict.lower() == "yes"
+    return verdict == "yes"
 
 
 def cluster_sequences(sequences: list[dict]) -> list[list[dict]]:
-    print(f"    Clustering sequences...")
+    """Group sequences into clusters where members are semantically equivalent."""
+    logger.debug("Clustering %d sequences...", len(sequences))
     C = [[sequences[0]]]
-    M = 5
-    for m in range(1, M):
+    for m in range(1, len(sequences)):
         assigned = False
         for c in C:
-            first_seq = c[0]["text_answer"]
-            entailment = check_entailment(first_seq, sequences[m]["text_answer"])
-            if entailment:
+            if check_entailment(c[0]["text_answer"], sequences[m]["text_answer"]):
                 assigned = True
                 c.append(sequences[m])
                 break
@@ -118,67 +95,59 @@ def cluster_sequences(sequences: list[dict]) -> list[list[dict]]:
     return C
 
 
-def compute_likelihood(cluster: list[dict]) -> float:
-    likelihood = 0
-    for seq in cluster:
-        # print(f"Here's a SEQUENCE: {seq}")
-        likelihood += compute_aggregated_logprobs(seq)
-    return likelihood
-
-
 def compute_aggregated_logprobs(response: dict) -> float:
-    sequence_probability = 0
+    """Sum logprobs for a single response and convert to probability."""
     if not response.get("logprobs"):
         return 1.0
-        
+
+    sequence_probability = 0
     for token_logprob in response["logprobs"]:
         if hasattr(token_logprob, "logprob"):
             sequence_probability += token_logprob.logprob
         elif isinstance(token_logprob, dict):
             sequence_probability += token_logprob.get("logprob", 0)
-        elif isinstance(token_logprob, float) or isinstance(token_logprob, int):
+        elif isinstance(token_logprob, (float, int)):
             sequence_probability += token_logprob
-            
-    sequence_probability = math.e ** sequence_probability
-    return sequence_probability
-    
 
-def compute_semantic_entropy(sequences):
-    sequences_str = sequences["sequences"]
-    logprobs_list = sequences["logprobs"]
+    return math.e ** sequence_probability
 
-    sequences = []
-    for seq, logprobs in zip(sequences_str, logprobs_list):
-        sequences.append(
-            {
-                "text_answer": seq,
-                "logprobs": logprobs,
-            }
-        )
-    
+
+def compute_semantic_entropy(sequences_input: dict) -> dict:
+    """Compute semantic entropy over clustered LLM responses.
+
+    Args:
+        sequences_input: {"sequences": [str, ...], "logprobs": [[...], ...]}
+
+    Returns:
+        {"best_answer": dict, "semantic_entropy": float, "hallucination_flag": str}
+    """
+    sequences_str = sequences_input["sequences"]
+    logprobs_list = sequences_input["logprobs"]
+
+    sequences = [
+        {"text_answer": seq, "logprobs": logprobs}
+        for seq, logprobs in zip(sequences_str, logprobs_list)
+    ]
+
     clusters = cluster_sequences(sequences)
-    
-    semantic_entropy = 0
+
     total_sequences = len(sequences)
-    
-    highest_probability_cluster = None
+    semantic_entropy = 0
     highest_probability = 0
-    
+    highest_probability_cluster = None
+
     for cluster in clusters:
-        # P(C_i | x) = length of cluster / total length
         p_Ci_x = len(cluster) / total_sequences
-        
         if p_Ci_x > highest_probability:
             highest_probability = p_Ci_x
             highest_probability_cluster = cluster
-            
         semantic_entropy += p_Ci_x * math.log(p_Ci_x)
-            
-    representative_sequence = highest_probability_cluster[0]
+
     semantic_entropy *= -1
-    
+    representative_sequence = highest_probability_cluster[0]
+
     return {
         "best_answer": representative_sequence,
         "semantic_entropy": semantic_entropy,
-        "hallucination_flag": "likely_hallucination" if semantic_entropy > OPTIMAL_SE_THRESHOLD else "likely_correct"
+        "hallucination_flag": "likely_hallucination" if semantic_entropy > OPTIMAL_SE_THRESHOLD else "likely_correct",
     }

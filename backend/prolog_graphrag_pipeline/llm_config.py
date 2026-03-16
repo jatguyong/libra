@@ -16,7 +16,7 @@ from openai import OpenAI, APIConnectionError, APITimeoutError, InternalServerEr
 
 logger = logging.getLogger(__name__)
 
-USE_TOGETHER_API = True
+USE_TOGETHER_API = os.environ.get("USE_TOGETHER_API", "true").lower() == "true"
 
 def retry_with_exponential_backoff(
     func,

@@ -3,6 +3,7 @@ import json
 import queue
 import threading
 import logging
+import traceback
 
 from dotenv import load_dotenv
 
@@ -200,7 +201,6 @@ def chat():
     question = latest_msg.get("content", "")
     use_global_kg = data.get("useGlobalKG", False)
 
-    import traceback as tb_module
 
     def generate_events():
         q = queue.Queue()
@@ -253,7 +253,7 @@ def chat():
                 })
                 
             except Exception as e:
-                tb_module.print_exc()
+                traceback.print_exc()
                 logger.error(f"Pipeline Error: {e}")
                 q.put({"type": "error", "error": "Failed to process the request through the pipeline.", "details": str(e)})
 
