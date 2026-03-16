@@ -65,8 +65,10 @@ export default function AiMessage({ message, onRedo, isFinished, onExplanationCl
     return () => clearInterval(timer);
   }, [currentDisplayContent, viewIndex, variants.length]);
 
+  const shouldAnimate = !hasAnimated.current && Boolean(currentDisplayContent) && viewIndex === variants.length - 1;
+
   const textToRender = revealedWordCount === null
-    ? currentDisplayContent
+    ? (shouldAnimate ? '' : currentDisplayContent)
     : currentDisplayContent.split(/(\s+)/).slice(0, revealedWordCount).join('');
 
   // ── Actions ─────────────────────────────────────────────────────
