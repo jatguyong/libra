@@ -324,7 +324,7 @@ If none are relevant, output an empty list [].
             elif "```" in res:
                 res = res.split("```")[1].split("```")[0].strip()
 
-            # Guard: DebugOllamaLLM._clean_response_text() strips everything outside {},
+            # Guard: GraphRAGLLM._clean_response_text() strips everything outside {},
             # so a JSON array comes back empty. Try to find brackets first.
             bracket_start = res.find('[')
             bracket_end = res.rfind(']')

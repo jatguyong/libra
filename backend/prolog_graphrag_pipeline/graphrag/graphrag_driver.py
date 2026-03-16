@@ -1,22 +1,22 @@
-import neo4j
-from neo4j_graphrag.llm import OllamaLLM
-from neo4j_graphrag.embeddings.ollama import OllamaEmbeddings
+"""GraphRAG pipeline orchestration.
+
+Coordinates encoder, retriever, LLM, and Neo4j components to answer questions
+via knowledge graph construction and retrieval-augmented generation.
+"""
+
+import asyncio
+import time
+import logging
+
 from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import FixedSizeSplitter
 from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 from neo4j_graphrag.generation import GraphRAG
+
 from .encoder import process_pdf_documents, process_text_context, process_context, extract_query_and_context
 from .retriever import generate, create_retriever
-from .config import GRAPHRAG_TEMPLATE, GRAPHRAG_FALLBACK_TEMPLATE
-import os
-import glob
-from .config import PROMPT_TEMPLATE, NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, SCHEMA_CONFIG, STATIC_SCHEMA
-import asyncio
-import time
-import threading
-import sys
-import logging
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
-from openai import RateLimitError, APITimeoutError, APIConnectionError
+from .config import GRAPHRAG_TEMPLATE, GRAPHRAG_FALLBACK_TEMPLATE, PROMPT_TEMPLATE, SCHEMA_CONFIG, STATIC_SCHEMA
+from .neo4j_manager import ensure_driver_connected, get_driver
+from .llm_wrapper import initialize_models
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 # By reusing a single loop, we keep it alive for the entire process lifetime.
 _persistent_loop = None
 
+
 def _run_async(coro):
     """Run an async coroutine using a persistent event loop (avoids httpx cleanup crash)."""
     global _persistent_loop
@@ -34,438 +35,76 @@ def _run_async(coro):
         asyncio.set_event_loop(_persistent_loop)
     return _persistent_loop.run_until_complete(coro)
 
-from pathlib import Path
 
-from ..llm_config import ENCODER_MODEL_NAME as _LLM_MODEL, USE_TOGETHER_API, get_openai_client, BASE_URL, API_KEY, log_llm_event, retry_with_exponential_backoff
+# -- KG Pipeline setup --------------------------------------------------------
 
-if USE_TOGETHER_API:
-    from neo4j_graphrag.embeddings.base import Embedder
+def setup_kg_pipeline(llm, embedder) -> SimpleKGPipeline:
+    """Build the SimpleKGPipeline instances for PDF and text ingestion."""
+    neo4j_driver = get_driver()
 
-    class TogetherAIEmbeddings(Embedder):
-        """Embedder that calls the Together AI OpenAI-compatible embeddings endpoint."""
-        def embed_query(self, text: str):
-            from ..llm_config import EMBED_MODEL
-            _client = get_openai_client()
-            start_time = time.perf_counter()
-            
-            # Wrap with exponential backoff
-            invoke_func = retry_with_exponential_backoff(_client.embeddings.create)
-            
-            response = invoke_func(
-                model=EMBED_MODEL,
-                input=text,
-            )
-            duration = time.perf_counter() - start_time
-            log_llm_event("EMBED_QUERY", duration=duration)
-            return response.data[0].embedding
-
-        async def async_embed_chunks(self, texts: list[str]) -> list[list[float]]:
-            """Batch embed a list of texts using the Together AI API."""
-            from ..llm_config import EMBED_MODEL
-            import asyncio
-            _client = get_openai_client()
-            loop = asyncio.get_event_loop()
-            
-            def _do_batch():
-                # The openai client can take a list of strings
-                start_time = time.perf_counter()
-                
-                # Wrap with exponential backoff
-                invoke_func = retry_with_exponential_backoff(_client.embeddings.create)
-                
-                resp = invoke_func(model=EMBED_MODEL, input=texts)
-                duration = time.perf_counter() - start_time
-                log_llm_event(f"EMBED_BATCH_{len(texts)}", duration=duration)
-                return [d.embedding for d in resp.data]
-            
-            return await loop.run_in_executor(None, _do_batch)
-
-    # Monkeypatch neo4j_graphrag's TextChunkEmbedder to use batching if available
-    try:
-        from neo4j_graphrag.experimental.components.embedder import TextChunkEmbedder
-        from neo4j_graphrag.experimental.components.types import TextChunks, TextChunk
-        _original_embedder_run = TextChunkEmbedder.run
-
-        from typing import Union
-        async def _patched_embedder_run(self, text_chunks: Union[TextChunks, dict]) -> TextChunks:
-            if hasattr(self._embedder, "async_embed_chunks"):
-                # Handle dictionary input
-                if isinstance(text_chunks, dict):
-                    raw_chunks = text_chunks.get("chunks", [])
-                    # convert dict to TextChunk objects if needed
-                    chunk_objs = []
-                    for c in raw_chunks:
-                        if isinstance(c, dict):
-                            chunk_objs.append(TextChunk(**c))
-                        else:
-                            chunk_objs.append(c)
-                else:
-                    chunk_objs = text_chunks.chunks
-
-                texts = [c.text for c in chunk_objs]
-                embeddings = []
-                batch_size = 100
-                for i in range(0, len(texts), batch_size):
-                    batch = texts[i:i+batch_size]
-                    batch_emb = await self._embedder.async_embed_chunks(batch)
-                    embeddings.extend(batch_emb)
-                    
-                chunks = []
-                for i, c in enumerate(chunk_objs):
-                    metadata = c.metadata if c.metadata else {}
-                    metadata["embedding"] = embeddings[i]
-                    chunks.append(TextChunk(text=c.text, index=c.index, metadata=metadata, uid=c.uid))
-                return TextChunks(chunks=chunks)
-            else:
-                return await _original_embedder_run(self, text_chunks)
-
-        TextChunkEmbedder.run = _patched_embedder_run
-    except ImportError:
-        pass
-
-ENCODER_MODEL = _LLM_MODEL
-RETRIEVER_MODEL = _LLM_MODEL
-
-class DebugOllamaLLM(OllamaLLM):
-    """Wrapper to clean input prompts and log raw LLM responses to debug.txt."""
-    
-    def _log_to_file(self, message: str):
-        """Appends a message to debug.txt with UTF-8 encoding."""
-        try:
-            with open("debug.txt", "a", encoding="utf-8") as f:
-                f.write(message + "\n")
-        except Exception as e:
-            logger.error("[DebugOllamaLLM] Could not write to debug.txt: %s", e)
-
-    def _clean_response_text(self, text: str) -> str:
-        """Helper: Extracts JSON object from the response string.
-
-        Always prefers {…} objects because SimpleKGPipeline strictly requires
-        {"nodes": […], "relationships": […]}. The triple filter (filter_triples_for_query)
-        does its own independent [bracket] extraction and does NOT rely on this method
-        to return arrays, so reverting to object-only is safe for both callers.
-        """
-        if not text:
-            return ""
-        obj_start = text.find('{')
-        obj_end   = text.rfind('}')
-        if obj_start != -1 and obj_end != -1 and obj_start < obj_end:
-            return text[obj_start : obj_end + 1]
-        return text   # nothing to strip — return as-is
-
-    def _clean_prompt(self, text: str) -> str:
-        """Removes newlines only from PDF-extracted prose.
-
-        Structured filter prompts (KBPedia batch filter, concept filter) use
-        intentional newlines to separate concept blocks. Stripping them collapses
-        all structure into one line, which confuses the model and causes hangs.
-        We detect structured prompts by the presence of known marker strings.
-        """
-        STRUCTURED_MARKERS = ("Concept: '", "  - ", "Facts:\n", "Candidates (")
-        if any(m in text for m in STRUCTURED_MARKERS):
-            return text   # preserve structured prompt formatting
-        return text.replace('\n', ' ')
-
-    def _clean_input_data(self, input_data):
-        """Applies _clean_prompt either to a string or to the 'content' of a list of message dicts."""
-        if isinstance(input_data, str):
-            return self._clean_prompt(input_data)
-        elif isinstance(input_data, list):
-            # Neo4j GraphRAG passes List[LLMMessage] which are dicts with 'role' and 'content'
-            cleaned_list = []
-            for msg in input_data:
-                cleaned_msg = msg.copy() if isinstance(msg, dict) else msg
-                if isinstance(cleaned_msg, dict) and 'content' in cleaned_msg:
-                    cleaned_msg['content'] = self._clean_prompt(str(cleaned_msg['content']))
-                cleaned_list.append(cleaned_msg)
-            return cleaned_list
-        return input_data
-
-    def _openai_invoke(self, input, message_history=None, system_instruction=None):
-        """Route through the openai client when USE_TOGETHER_API=True with retries and hard timeouts."""
-        from neo4j_graphrag.llm.types import LLMResponse
-        _client = get_openai_client()
-        
-        if isinstance(input, list):
-            messages = input
-        else:
-            messages = []
-            if system_instruction:
-                messages.append({"role": "system", "content": str(system_instruction)})
-            if message_history:
-                messages.extend([{"role": m.get("role", "user"), "content": m.get("content", "")} for m in message_history])
-            messages.append({"role": "user", "content": str(input)})
-
-        # Log prompt if it's an answer generation (not just a tiny fragment)
-        log_input = str(messages[-1]['content']) if messages else ""
-        if len(log_input) > 100:
-             self._log_to_file(f"\n--- [DEBUG] SENT PROMPT (Together AI) ---\n{log_input}\n----------------------------------")
-
-        max_retries = 5
-        timeout_sec = 120.0
-        
-        result_holder = [None]
-        error_holder = [None]
-
-        def _do_invoke():
-            response = _client.chat.completions.create(
-                model=ENCODER_MODEL,
-                messages=messages,
-                temperature=0.3,
-                timeout=timeout_sec,
-                max_tokens=4096,
-                logprobs=True
-            )
-            
-            response.content = {
-                "answer": response.choices[0].message.content,
-                "logprobs": response.choices[0].logprobs.token_logprobs
-            }
-            
-            return response
-
-        def _target():
-            try:
-                start_time = time.perf_counter()
-                # Use centralized exponential backoff
-                backoff_invoke = retry_with_exponential_backoff(_do_invoke, max_retries=max_retries)
-                resp = backoff_invoke()
-                
-                duration = time.perf_counter() - start_time
-                log_llm_event(f"GRAG_INVOKE", duration=duration)
-                result_holder[0] = resp
-            except Exception as e:
-                log_llm_event(f"GRAG_INVOKE_FAIL", error=str(e))
-                error_holder[0] = e
-
-        thread = threading.Thread(target=_target, daemon=True)
-        thread.start()
-        thread.join(timeout=(timeout_sec * (max_retries + 1)) + 30) # Wait for all retries
-
-        if thread.is_alive():
-            logger.error("Together AI call timed out even after retries.")
-            return LLMResponse(content="Error: Together AI call timed out.")
-        
-        if error_holder[0]:
-            logger.error("Together AI failed: %s", error_holder[0])
-            return LLMResponse(content=f"Error: Together AI failed: {error_holder[0]}")
-
-        response = result_holder[0]
-        if response:
-            content = response.choices[0].message.content or ""
-            self._log_to_file(f"\n=== [DEBUG] RAW RESPONSE (Together AI) ===\n{content}\n===================================")
-            return LLMResponse(content=self._clean_response_text(content))
-
-    def invoke(self, input, message_history=None, system_instruction=None, **kwargs):
-        if USE_TOGETHER_API:
-            return self._openai_invoke(input, message_history, system_instruction)
-        kwargs.pop('response_format', None) # neo4j_graphrag OllamaLLM hates response_format
-        clean_input = self._clean_input_data(input)
-        
-        # Format for logging
-        log_input = clean_input if isinstance(clean_input, str) else str(clean_input)
-        self._log_to_file(f"\n--- [DEBUG] SENT PROMPT (Sync) ---\n{log_input}\n----------------------------------")
-        
-        input_len = len(input) if isinstance(input, str) else len(str(input))
-        logger.debug("Sending chunk to LLM (%d chars)...", input_len)
-        
-        response = super().invoke(
-            input=clean_input,
-            message_history=message_history,
-            system_instruction=system_instruction
-        )
-        logger.debug("Sync LLM call done.")
-        
-        raw_content = response.content if hasattr(response, 'content') else str(response)
-        self._log_to_file(f"\n=== [DEBUG] RAW RESPONSE (Sync) ===\n{raw_content}\n===================================")
-        
-        clean_content = self._clean_response_text(raw_content)
-        if hasattr(response, 'content'):
-            response.content = clean_content
-            return response
-        else:
-            from neo4j_graphrag.llm.types import LLMResponse
-            return LLMResponse(content=clean_content)
-
-    async def ainvoke(self, input, message_history=None, system_instruction=None, **kwargs):
-        if USE_TOGETHER_API:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, self._openai_invoke, input, message_history, system_instruction)
-        kwargs.pop('response_format', None)
-        clean_input = self._clean_input_data(input)
-        
-        log_input = clean_input if isinstance(clean_input, str) else str(clean_input)
-        self._log_to_file(f"\n--- [DEBUG] SENT PROMPT (Async) ---\n{log_input}\n----------------------------------")
-        
-        input_len = len(input) if isinstance(input, str) else len(str(input))
-        logger.debug("[Async] Sending chunk to LLM (%d chars) and waiting for extraction...", input_len)
-        
-        # Bypass neo4j-graphrag's ainvoke and its broken rate limit decorator
-        # Call the native async_client from ollama directly
-        from neo4j_graphrag.llm.types import LLMResponse
-        try:
-            if isinstance(clean_input, str):
-                messages = self.get_messages(clean_input, message_history=message_history, system_instruction=system_instruction)
-            else:
-                messages = self.get_messages_v2(clean_input)
-                
-            response_obj = await self.async_client.chat(
-                model=self.model_name,
-                messages=messages,
-                options={**self.model_params, **kwargs},
-            )
-            raw_content = response_obj.message.content or ""
-            response = LLMResponse(content=raw_content)
-        except Exception as e:
-            logger.error("[DebugOllamaLLM] Async call failed: %s", e)
-            raise
-        
-        logger.debug("Async LLM call done.")
-        
-        self._log_to_file(f"\n=== [DEBUG] RAW RESPONSE (Async) ===\n{raw_content}\n===================================")
-        
-        clean_content = self._clean_response_text(raw_content)
-        if hasattr(response, 'content'):
-            response.content = clean_content
-            return response
-        else:
-            return clean_content
-
-
-neo4j_driver = None
-
-
-def initialize_models():
-    encoder_llm = DebugOllamaLLM(
-        model_name=ENCODER_MODEL,
-        model_params={
-            "keep_alive": "20m",
-            "options": {
-                "temperature": 0,
-                "num_ctx": 4096,
-                "format": "json",
-                "repeat_penalty": 1.2,
-                "seed": 42
-            }
-        }
-    )
-
-    original_invoke = encoder_llm.invoke
-
-    # 2. Define the retry rules using Tenacity decorators
-    @retry(
-        # Wait exponentially: 2s, 4s, 8s, 16s... up to a max of 60 seconds per wait
-        wait=wait_exponential(multiplier=1, min=2, max=60),
-        
-        # Give up completely after 8 failed attempts to prevent infinite hangs
-        stop=stop_after_attempt(8),
-        
-        # ONLY retry on network or rate limit errors (don't retry on bad prompts)
-        retry=retry_if_exception_type((RateLimitError, APITimeoutError, APIConnectionError)),
-        
-        reraise=True # If it fails 8 times, raise the error so you know it died
-    )
-    def robust_invoke(*args, **kwargs):
-        logger.debug("Sending chunk to LLM...")
-        return original_invoke(*args, **kwargs)
-
-    # 3. Apply the monkey-patch to your LLM instance
-    encoder_llm.invoke = robust_invoke
-    
-    retriever_llm = DebugOllamaLLM(
-        model_name=RETRIEVER_MODEL,
-        model_params={
-            "keep_alive": "20m",
-            "options": {
-                "temperature": 0.1,
-                "num_ctx": 4096,
-                "format": "json",
-                "repeat_penalty": 1.2,
-                "seed": 42
-            }
-        }
-    )
-
-    if USE_TOGETHER_API:
-        from ..llm_config import EMBED_MODEL
-        embedder = TogetherAIEmbeddings()
-    else:
-        from ..llm_config import EMBED_MODEL
-        embedder = OllamaEmbeddings(model=EMBED_MODEL)
-        logger.info("Ollama embedder loaded.")
-
-    return encoder_llm, retriever_llm, embedder
-
-
-def setup_kg_pipeline(llm, embedder) -> SimpleKGPipeline    :
-    # Schema aligned with KBPedia's ontology (top-level reference concept types)
-    # so that extracted entities can naturally interrelate with KBPedia's 58K concept nodes.
-    STATIC_SCHEMA = {
+    STATIC_SCHEMA_DEF = {
         "node_types": [
-            # Core KBPedia-aligned types
-            "KBPediaConcept",       # Primary: anything that maps to a KBPedia reference concept
-            "NaturalProcess",       # Biological/physical processes (e.g., photosynthesis, mitosis)
-            "ScientificTheory",     # Named theories and laws (e.g., Theory of Relativity)
-            "Organism",             # Living things (plants, animals, microorganisms)
-            "Substance",            # Chemical compounds, elements, materials
-            "Person",               # Historical figures, scientists, key individuals
-            "Event",                # Historical events, experiments, discoveries
-            "Location",             # Geographic or anatomical locations
-            "Technology",           # Tools, instruments, engineered systems
-            "MathematicalObject",   # Equations, formulas, mathematical structures
-            "Definition",           # Explicit definitions of terms
+            "KBPediaConcept",
+            "NaturalProcess",
+            "ScientificTheory",
+            "Organism",
+            "Substance",
+            "Person",
+            "Event",
+            "Location",
+            "Technology",
+            "MathematicalObject",
+            "Definition",
         ],
         "relationship_types": [
-            # KBPedia-compatible relationships
-            "SUBCLASS_OF",      # Taxonomy: "Chloroplast SUBCLASS_OF Organelle" (matches KBPedia)
-            "PART_OF",          # Mereology: "Thylakoid PART_OF Chloroplast"
-            "RELATED_TO",       # General association
-            "CAUSES",           # Causation: "Light CAUSES Photosynthesis"
-            "PRODUCES",         # Output: "Photosynthesis PRODUCES Glucose"
-            "REQUIRES",         # Input dependency: "Photosynthesis REQUIRES Carbon Dioxide"
-            "OCCURS_IN",        # Location: "Photosynthesis OCCURS_IN Chloroplast"
-            "DISCOVERED_BY",    # Attribution: "Penicillin DISCOVERED_BY Fleming"
-            "DEFINES",          # Definition link: "Definition DEFINES Concept"
-            "IS_A",             # Instance: "Mitochondria IS_A Organelle"
+            "SUBCLASS_OF",
+            "PART_OF",
+            "RELATED_TO",
+            "CAUSES",
+            "PRODUCES",
+            "REQUIRES",
+            "OCCURS_IN",
+            "DISCOVERED_BY",
+            "DEFINES",
+            "IS_A",
         ]
     }
-    # Llama 3.3 70B Turbo: 128K context. chunk_size=1200 is the sweet spot with the
-    # expanded KBPedia schema (11 node types inflate the extraction prompt).
-    # Higher values (2500+) cause BadRequestError from Together AI.
+
+    # Llama 3.3 70B: 128K context. chunk_size=1200 is the sweet spot with the
+    # expanded schema (11 node types inflate the extraction prompt).
     chunk_splitter = FixedSizeSplitter(chunk_size=1200, chunk_overlap=100)
-    
-    schema = STATIC_SCHEMA if SCHEMA_CONFIG.name == "STATIC" else "EXTRACTED"
+    schema = STATIC_SCHEMA_DEF if SCHEMA_CONFIG.name == "STATIC" else "EXTRACTED"
 
     kg_builder_pdf = SimpleKGPipeline(
         llm=llm,
         driver=neo4j_driver,
         embedder=embedder,
-        entities=schema["node_types"],         
-        relations=schema["relationship_types"],  
+        entities=schema["node_types"],
+        relations=schema["relationship_types"],
         prompt_template=PROMPT_TEMPLATE,
         from_pdf=True,
         text_splitter=chunk_splitter,
         perform_entity_resolution=True,
         on_error="IGNORE",
-        
     )
-    
+
     kg_builder_text = SimpleKGPipeline(
         llm=llm,
         driver=neo4j_driver,
         embedder=embedder,
-        entities=schema["node_types"],         
-        relations=schema["relationship_types"],  
+        entities=schema["node_types"],
+        relations=schema["relationship_types"],
         prompt_template=PROMPT_TEMPLATE,
         from_pdf=False,
         text_splitter=chunk_splitter,
         perform_entity_resolution=True,
         on_error="IGNORE",
-        
     )
-    
+
     return kg_builder_pdf, kg_builder_text
+
+
+# -- Global pipeline state -----------------------------------------------------
 
 encoder_llm = None
 retriever_llm = None
@@ -475,9 +114,12 @@ kg_builder_text = None
 retriever = None
 PROCESS_CONTEXT = False
 
+
 def init_globals():
-    global encoder_llm, retriever_llm, embedder, kg_builder_pdf, kg_builder_text, retriever, neo4j_driver
-    
+    """Initialize or reinitialize all pipeline components if needed."""
+    global encoder_llm, retriever_llm, embedder, kg_builder_pdf, kg_builder_text, retriever
+
+    neo4j_driver = get_driver()
     driver_recreated = ensure_driver_connected()
 
     if encoder_llm is None or driver_recreated:
@@ -485,23 +127,25 @@ def init_globals():
         kg_builder_pdf, kg_builder_text = setup_kg_pipeline(encoder_llm, embedder)
         retriever = create_retriever(neo4j_driver, embedder)
 
+
 def generate_answer(query, retriever, llm, original_query: str = "") -> dict:
     return generate(llm, retriever, query, original_query=original_query)
 
+
+# -- Main pipeline entry point ------------------------------------------------
+
 def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, status_callback=None) -> dict:
+    """Run the full GraphRAG pipeline: extract → ingest → retrieve → answer."""
     init_globals()
-    
-    # 1. Clear stale Neo4j data from previous questions to prevent irrelevant retrieval
+    neo4j_driver = get_driver()
+
     query, text_context = extract_query_and_context(question)
-    
-    # 3. OPT3: Only ingest into the KG if the encoder actually found real context
-    #    (e.g. a passage-based question). For self-contained MCQs, context is empty —
-    #    ingesting the question itself produces barely-useful local chunks (~0.7 score)
-    #    while adding a full LLM call + 2s sleep per question. Skip it.
-    context_was_extracted = bool(text_context)  # True only if encoder found real facts/passages
-    
+
+    # Only ingest into the KG if the encoder found real context (not self-contained MCQs)
+    context_was_extracted = bool(text_context)
+
     if not context_was_extracted:
-        text_context = [question]  # keep for logging/reference, but don't ingest
+        text_context = [question]
     else:
         if PROCESS_CONTEXT:
             if status_callback:
@@ -510,11 +154,15 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
         time.sleep(2)
 
     success = False
-    
+
     if status_callback:
         status_callback({"type": "step", "step": 3})
-        
-    graph_rag = GraphRAG(llm=retriever_llm, retriever=retriever, prompt_template=GRAPHRAG_TEMPLATE if fallback == "prolog-graphrag" else GRAPHRAG_FALLBACK_TEMPLATE)
+
+    graph_rag = GraphRAG(
+        llm=retriever_llm,
+        retriever=retriever,
+        prompt_template=GRAPHRAG_TEMPLATE if fallback == "prolog-graphrag" else GRAPHRAG_FALLBACK_TEMPLATE
+    )
     retriever_result = []
     try:
         graph_rag_results = graph_rag.search(query, retriever_config={'top_k': 5, 'use_global_kg': use_global_kg}, return_context=True)
@@ -525,7 +173,7 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
         success = True
     except Exception as e:
         logger.error("Error during generation: %s", e)
-    
+
     return {
         "query": query,
         "text_context": text_context,
@@ -533,148 +181,18 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
         "logprobs": logprobs if success else [],
         "retriever_results": retriever_result,
     }
-    
 
 
-def ensure_driver_connected():
-    global neo4j_driver
-    MAX_RETRIES = 10
-    RETRY_DELAY = 30  # seconds between retries
-    
-    for attempt in range(MAX_RETRIES):
-        try:
-            if neo4j_driver is not None:
-                neo4j_driver.verify_connectivity()
-                return False
-
-            neo4j_driver = neo4j.GraphDatabase.driver(
-                NEO4J_URI, 
-                auth=(NEO4J_USERNAME, NEO4J_PASSWORD),
-                connection_timeout=10.0, 
-                max_connection_lifetime=200, 
-                encrypted=False
-            )
-            neo4j_driver.verify_connectivity()
-            return True
-        except Exception as e:
-            logger.error("Could not connect to Neo4j (attempt %d/%d): %s", attempt + 1, MAX_RETRIES, e)
-            if neo4j_driver:
-                try:
-                    neo4j_driver.close()
-                except Exception:
-                    pass
-            neo4j_driver = None
-            
-            if attempt < MAX_RETRIES - 1:
-                logger.info("Retrying Neo4j connection in %ds...", RETRY_DELAY)
-                import time
-                time.sleep(RETRY_DELAY)
-            else:
-                raise ConnectionError(f"Failed to connect to Neo4j after {MAX_RETRIES} attempts: {e}") from e
-
-
-def clear_local_data():
-    """
-    Deletes pipeline-generated nodes/relationships from the database,
-    but preserves KBPedia reference concepts which are a static knowledge base.
-    """
-    ensure_driver_connected()
-    logger.warning("Clearing pipeline data (preserving KBPedia)...")
-    try:
-        with neo4j_driver.session(database="neo4j") as session:
-            session.run("MATCH (n) WHERE NOT n:KBPediaConcept DETACH DELETE n")
-    except Exception as e:
-        logger.error("Error clearing local data: %s", e)
-    logger.info("Database cleared successfully (KBPedia preserved).")
-
-
-def remove_document_from_kg(filename: str) -> dict:
-    """Delete a Document and its Chunks from Neo4j by filename.
-    
-    Uses the FROM_DOCUMENT relationship created by SimpleKGPipeline to scope
-    deletion to only the chunks belonging to this specific document.
-    Does NOT affect KBPedia, Wikidata, or other document nodes.
-    
-    Args:
-        filename: The filename (or path substring) to match against Document.path
-        
-    Returns:
-        Dict with deletion results (counts of deleted nodes)
-    """
-    ensure_driver_connected()
-    try:
-        with neo4j_driver.session(database="neo4j") as session:
-            # First, count what we're about to delete for reporting
-            count_result = session.run("""
-                MATCH (d:Document) WHERE d.path CONTAINS $filename
-                OPTIONAL MATCH (c:Chunk)-[:FROM_DOCUMENT]->(d)
-                RETURN count(DISTINCT d) as doc_count, count(DISTINCT c) as chunk_count
-            """, filename=filename)
-            counts = count_result.single()
-            doc_count = counts["doc_count"] if counts else 0
-            chunk_count = counts["chunk_count"] if counts else 0
-            
-            if doc_count == 0:
-                return {"status": "not_found", "message": f"No document matching '{filename}' found in Neo4j."}
-            
-            # Delete chunks first (they reference the document), then the document
-            session.run("""
-                MATCH (d:Document) WHERE d.path CONTAINS $filename
-                OPTIONAL MATCH (c:Chunk)-[:FROM_DOCUMENT]->(d)
-                DETACH DELETE c, d
-            """, filename=filename)
-            
-            logger.info("Removed document '%s': %d Document node(s), %d Chunk node(s) deleted.", filename, doc_count, chunk_count)
-            return {
-                "status": "removed",
-                "filename": filename,
-                "documents_deleted": doc_count,
-                "chunks_deleted": chunk_count
-            }
-    except Exception as e:
-        logger.error("Error removing document '%s': %s", filename, e)
-        return {"status": "error", "message": str(e)}
-
-
-def list_ingested_documents() -> list:
-    """List all Document nodes currently in Neo4j with their chunk counts.
-    
-    Returns:
-        List of dicts with document path and chunk count.
-    """
-    ensure_driver_connected()
-    try:
-        with neo4j_driver.session(database="neo4j") as session:
-            result = session.run("""
-                MATCH (d:Document)
-                OPTIONAL MATCH (c:Chunk)-[:FROM_DOCUMENT]->(d)
-                RETURN d.path as path, count(c) as chunk_count
-                ORDER BY d.path
-            """)
-            return [{"path": record["path"], "chunk_count": record["chunk_count"]} for record in result]
-    except Exception as e:
-        logger.error("Error listing documents: %s", e)
-        return []
-
+# -- PDF ingestion entry point ------------------------------------------------
 
 def ingest_pdf_files(file_paths: list[str]) -> list:
-    """Synchronous wrapper to ingest PDF files into the knowledge graph.
-    
-    Initializes the pipeline if needed, then processes each PDF.
-    
-    Args:
-        file_paths: List of absolute paths to PDF files.
-        
-    Returns:
-        List of result dicts with file, status, duration_s, etc.
-    """
+    """Synchronous wrapper to ingest PDF files into the knowledge graph."""
     init_globals()
-    from .encoder import process_pdf_documents
     return _run_async(process_pdf_documents(kg_builder_pdf, file_paths=file_paths))
-
 
 
 if __name__ == "__main__":
     init_globals()
+    neo4j_driver = get_driver()
     _run_async(process_context(neo4j_driver, kg_builder_pdf=kg_builder_pdf, kg_builder_text=kg_builder_text, texts=[]))
-    print("Initial context processing done. You can now call run_pipeline(question) with your queries.")
+    print("Initial context processing done.")

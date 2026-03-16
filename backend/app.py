@@ -34,7 +34,7 @@ def health():
     """Health check endpoint for Docker and monitoring."""
     health_status = {"api": "ok"}
     try:
-        from prolog_graphrag_pipeline.graphrag.graphrag_driver import ensure_driver_connected
+        from prolog_graphrag_pipeline.graphrag.neo4j_manager import ensure_driver_connected
         ensure_driver_connected()
         health_status["neo4j"] = "ok"
     except Exception as e:
@@ -76,6 +76,7 @@ def ingest():
 
     def _bg_ingest(file_list):
         from prolog_graphrag_pipeline.graphrag import graphrag_driver as gd
+        from prolog_graphrag_pipeline.graphrag import neo4j_manager as nm
         file_paths = [f["filepath"] for f in file_list]
         try:
             results = gd.ingest_pdf_files(file_paths)
@@ -87,7 +88,7 @@ def ingest():
                 if flag and flag.is_set():
                     logger.info(f"Cancellation detected post-ingest for {fname}. Cleaning up...")
                     try:
-                        result = gd.remove_document_from_kg(fname)
+                        result = nm.remove_document_from_kg(fname)
                         logger.info(f"Cancel cleanup result for {fname}: {result}")
                     except Exception as ex:
                         logger.error(f"Cancel cleanup error for {fname}: {ex}")
@@ -143,9 +144,9 @@ def cancel_ingest():
 
 def cancel_and_remove(filename: str):
     """Remove a document from Neo4j and disk, with debug output."""
-    from prolog_graphrag_pipeline.graphrag import graphrag_driver as gd
+    from prolog_graphrag_pipeline.graphrag import neo4j_manager as nm
     logger.info(f"Removing document: {filename}")
-    result = gd.remove_document_from_kg(filename)
+    result = nm.remove_document_from_kg(filename)
     logger.info(f"Removal result: {result}")
 
     upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
@@ -183,7 +184,7 @@ def remove_document():
 @app.route("/api/ingest/documents", methods=["GET"])
 def list_documents():
     """List all documents currently ingested in the Neo4j knowledge graph."""
-    from prolog_graphrag_pipeline.graphrag.graphrag_driver import list_ingested_documents
+    from prolog_graphrag_pipeline.graphrag.neo4j_manager import list_ingested_documents
     docs = list_ingested_documents()
     return jsonify({"documents": docs})
 
