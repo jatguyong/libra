@@ -18,6 +18,11 @@ instance/
 .webassets-cache
 flask_session/
 
+# Debug logs
+backend/debug*.txt
+backend/logs/
+*.log
+
 # OS
 .DS_Store
 Thumbs.db
