@@ -28,6 +28,7 @@ _ingestion_status = {}  # {filename: {status, duration_s, error}}
 _cancellation_flags = {}  # {filename: threading.Event}  — set to cancel mid-ingest
 _ingestion_lock = threading.Lock()
 
+
 @app.route("/api/ingest", methods=["POST"])
 def ingest():
     if "files" not in request.files:
