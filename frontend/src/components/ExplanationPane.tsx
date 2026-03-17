@@ -167,10 +167,10 @@ function GraphRAGSourcesSection({ data }: { data: ExplanationData }) {
 
       {hasContexts && (
         <div>
-          <p className="text-xs text-white/40 mb-1">Retrieved Contexts ({(data.contexts as string[]).length})</p>
-          <div className="space-y-4 max-h-64 overflow-y-auto pr-2 text-sm text-white/80 font-inter leading-relaxed">
+          <p className="text-xs text-white/40 mb-2">Retrieved Contexts ({(data.contexts as string[]).length})</p>
+          <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
             {(data.contexts as string[]).map((ctx, i) => (
-              <PaneMarkdown key={i}>{ctx}</PaneMarkdown>
+              <ContextCard key={i} text={ctx} />
             ))}
           </div>
         </div>
@@ -178,6 +178,47 @@ function GraphRAGSourcesSection({ data }: { data: ExplanationData }) {
     </div>
   );
 }
+
+/**
+ * Renders a single retrieved context string.
+ * Detects KBPedia format ("KBPedia Concept: X\nRelevant Logical Facts:\n- ...") 
+ * and renders it as a styled card with a header + fact list.
+ * Falls back to plain markdown for all other content.
+ */
+function ContextCard({ text }: { text: string }) {
+  // Detect KBPedia format (possibly prefixed with [Chunk Score: ...])
+  const kbMatch = text.match(/^(?:\[Chunk Score:\s*[\d.]+\]\s*)?KBPedia Concept:\s*(.+?)\.\s*\nRelevant Logical Facts:\n([\s\S]+)$/);
+  if (kbMatch) {
+    const conceptName = kbMatch[1].trim();
+    const factsBlock = kbMatch[2].trim();
+    const facts = factsBlock.split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean);
+
+    return (
+      <div className="rounded-lg bg-white/5 border border-white/8 overflow-hidden">
+        <div className="px-3 py-1.5 bg-purple-500/10 border-b border-white/8">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-300/70 mr-1.5">KBPedia</span>
+          <span className="text-xs font-semibold text-white/80">{conceptName}</span>
+        </div>
+        <ul className="px-3 py-2 space-y-1">
+          {facts.map((fact, i) => (
+            <li key={i} className="text-xs text-white/70 font-inter leading-relaxed flex gap-1.5">
+              <span className="text-purple-400/60 shrink-0 mt-0.5">–</span>
+              <span>{fact}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  // Fallback: plain markdown
+  return (
+    <div className="text-sm text-white/80 font-inter leading-relaxed bg-white/5 rounded-lg px-3 py-2">
+      <PaneMarkdown>{text}</PaneMarkdown>
+    </div>
+  );
+}
+
 
 /**
  * Splits the condensed context string by its **SECTION_NAME**: headers and

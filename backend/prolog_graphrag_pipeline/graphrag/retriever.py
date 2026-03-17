@@ -391,7 +391,11 @@ def generate(llm, retriever, query, original_query: str = "", fallback: str = "p
                     if local_ctx and len(local_ctx) > 0:
                          clean_content = local_ctx[0].get('text', clean_content)
                     
-            clean_content = clean_content.replace('\n', ' ').replace('  ', ' ')
+            # Only collapse newlines for raw Neo4j Record strings or plain text chunks.
+            # KBPedia content already has intentional \n-separated fact bullets — preserve them.
+            is_kbpedia_src = metadata.get('source') == 'KBPedia'
+            if not is_kbpedia_src:
+                clean_content = clean_content.replace('\n', ' ').replace('  ', ' ')
             
             # Extract Local/Global Context
             local_ctx = metadata.get('local_context', [])

@@ -367,28 +367,39 @@ If none are relevant, output an empty list [].
             triples_text = "\n".join([f"  - {t}" for t in capped_triples])
             concepts_text += f"Concept: '{c['name']}'\nFacts:\n{triples_text}\n\n"
 
-        prompt = f"""Task: You are a strict logic filter for a Prolog-based reasoning engine.
-Your job is to ruthlessly discard any ontology fact or Wikidata property that does not directly provide the specific knowledge needed to answer the user's question.
+        # First, analyse what the query actually needs — state this explicitly in the prompt
+        prompt = f"""You are a ruthless logical fact filter for a Prolog reasoning engine.
+Your ONLY job: given a user question and raw knowledge-graph triples, keep ONLY the facts that are DIRECTLY REQUIRED to derive an answer.
 
-User Query: "{filter_query}"
+## User Question
+"{filter_query}"
 
+## What does answering this question require?
+Think carefully: what are the EXACT scientific laws, definitions, or relationships needed?
+Any fact that doesn't contribute to deriving that answer is NOISE — discard it.
+
+## Raw Concepts and Facts
 {concepts_text}
 
-STRICT FILTERING RULES:
-1. KEEP a fact ONLY if it directly defines, characterises, or establishes a property/relationship that helps answer the question or distinguish between MCQ choices.
-2. DROP ALL structural metadata and generic taxonomic boilerplate (e.g., "subclass of: abstract object", "instance of: discrete quantity").
-3. DROP ANY Wikidata fact (like "has part", "subclass of", "instance of") if the target object is generic, unrelated to the query, or too broad to be useful.
-4. DROP facts about counts, cardinality, identifiers, data types, or list sizes. These never help answer factual questions.
-5. DROP facts whose concept is clearly coincidental or unrelated to the query topic or any MCQ choice.
-6. Merge similar facts into a single entry where possible to minimize token usage.
-7. If a concept ends up with zero relevant facts after filtering, return an empty list `[]` for it. Do not keep filler facts.
+## RUTHLESS DISCARD RULES (apply all, no exceptions):
+1. DROP any structural/taxonomic fact: "subclass of:", "instance of:", "type of:", "part of a set of:", "collection of all"
+2. DROP any Wikidata property whose value is a generic category (e.g., "subclass of: liquid", "instance of: chemical substance") — unless that specific category is essential to the reasoning chain.
+3. DROP any identifier, external ID, administrative or database reference.
+4. DROP any "different from:", "said to be the same as:", or disambiguation-only facts.
+5. DROP "has use:", "has part(s):" unless the specific part/use is directly relevant to the question.
+6. DROP any fact about a concept that is not mentioned in or directly implied by the question.
+7. KEEP only facts that express a LAW, RULE, or QUANTITATIVE RELATIONSHIP that the Prolog engine can use.
+8. If a concept has NO relevant facts, return an empty list `[]` — do NOT invent fallbacks.
+9. Keep at most 5 facts per concept. If more pass, keep only the top 5 most relevant.
 
-Output format: A JSON dictionary where keys are the Concept names, and values are lists of fact strings.
+Output: a JSON dictionary — keys are concept names, values are lists of kept fact strings.
+Only output JSON. No explanation or commentary.
 Example:
 {{
-  "trench": ["definition: a long narrow excavation in the ground", "subclass of: topographical feature"],
-  "generic entity": [],
-  "temperature": []
+  "ammonia": ["definition: a colorless gas with molecular formula NH3"],
+  "carbon dioxide": ["definition: a gas with molecular formula CO2"],
+  "ideal gas law": ["equal volumes of gas at same T and P contain equal numbers of molecules (Avogadro's Law)"],
+  "water": []
 }}
 """
         # Default fallback
@@ -442,6 +453,158 @@ Example:
         return result_map
 
 
+    def filter_wikidata_triples(self, query: str, concept_name: str, wikidata_facts: list) -> list:
+        """
+        Dedicated, per-concept LLM filter for raw Wikidata triples.
+        Runs immediately after Wikidata augmentation — BEFORE facts are merged with KBPedia triples.
+
+        Applies extremely strict rules:
+        - Must be a direct scientific/definitional property needed to answer the query
+        - Drops ALL taxonomic, disambiguation, use-case, part-of, and identifier facts
+        - Returns at most 3 facts per concept
+        - Returns [] if nothing is truly necessary
+        """
+        if not self.llm or not wikidata_facts:
+            return wikidata_facts
+
+        # Hard-coded regex pre-filter: drop obviously useless property types before LLM sees them
+        ALWAYS_DROP_PATTERNS = [
+            r'^(subclass of|instance of|part of|facet of|said to be the same as|different from):',
+            r'^(has use|use|used by):\s',
+            r'^(Wikimedia|Commons|wikidata|external|identifier|ID|database|catalog):',
+            r'^(described by source|topic.s main template|topic.s main Wikimedia)\b',
+            r'^(OmegaWiki|Freebase|UMLS|CAS|InChI|ChemSpider|PubChem|BabelNet)',
+        ]
+        import re as _re
+        pre_filtered = []
+        for fact in wikidata_facts:
+            lower = fact.lower()
+            if any(_re.search(p, lower) for p in ALWAYS_DROP_PATTERNS):
+                continue
+            pre_filtered.append(fact)
+
+        if not pre_filtered:
+            return []
+
+        facts_text = "\n".join([f"  {i+1}. {f}" for i, f in enumerate(pre_filtered)])
+
+        prompt = f"""You are a precision Wikidata fact filter for a Prolog logic engine.
+Before filtering, you MUST reason about what the question is actually asking and what kind of knowledge is needed to answer it.
+
+## User Question
+"{query}"
+
+## Concept Being Evaluated
+"{concept_name}"
+
+## Step 1 — Pre-Reasoning (REQUIRED before filtering)
+Answer these three questions in 1-2 sentences each:
+A) What is the CORE thing this question is asking? (e.g. "It asks whether two gas samples have the same, more, or fewer particles")
+B) What is the LIKELY ANSWER and what specific knowledge supports it? (e.g. "Avogadro's Law: equal V, T, P → equal particle count → same number")
+C) For the concept "{concept_name}", what EXACT property or fact would contribute to that reasoning chain? If no property of this concept is part of the reasoning chain, state "NONE".
+
+## Step 2 — Filter these Wikidata facts
+{facts_text}
+
+## Filtering Rules (apply AFTER completing Step 1):
+- Keep a fact ONLY if it directly appears in the reasoning chain you described in Step 1C.
+- DROP facts about: use-cases, applications, environmental impact, part-of, made-from, industry classification.
+- DROP facts about: taxonomic hierarchy, disambiguation, historical/cultural context.
+- DROP facts where the VALUE is a generic object, category, or anything not numerically/chemically specific.
+- If Step 1C was "NONE", return [] immediately.
+- Maximum 3 facts to keep. If more pass, choose the 3 most directly useful to the reasoning.
+
+## Output format
+First write your Step 1 reasoning (A, B, C), then on a new line output ONLY a JSON list:
+["fact string verbatim from input", ...]
+or [] if nothing qualifies.
+
+IMPORTANT: The JSON list must be the LAST thing you output. Only include facts copied verbatim from the numbered list above.
+"""
+
+        try:
+            import time as _time
+            start = _time.perf_counter()
+            raw = self.llm.invoke(prompt)
+            duration = _time.perf_counter() - start
+            log_llm_event("WIKIDATA_TRIPLE_FILTER", duration=duration)
+
+            res = (raw.content if hasattr(raw, 'content') else str(raw)).strip()
+            if '```json' in res:
+                res = res.split('```json', 1)[1].split('```', 1)[0].strip()
+            elif '```' in res:
+                res = res.split('```', 1)[1].split('```', 1)[0].strip()
+
+            # The CoT prompt emits reasoning THEN the JSON list last — use rfind to get the last [...] block
+            bracket_end = res.rfind(']')
+            bracket_start = res.rfind('[', 0, bracket_end + 1) if bracket_end != -1 else -1
+            if bracket_start != -1 and bracket_end != -1:
+                res = res[bracket_start:bracket_end + 1]
+                parsed = _safe_parse_json(res, expect=list)
+                if isinstance(parsed, list):
+                    # Validate that returned strings are actual substrings of pre_filtered
+                    valid = [f for f in parsed if isinstance(f, str) and any(f.strip() in pf for pf in pre_filtered)]
+                    print(f"DEBUG PROLOG-GRAPHRAG:[WikidataFilter] '{concept_name}': kept {len(valid)}/{len(wikidata_facts)} wikidata facts.", flush=True)
+                    return valid
+        except Exception as e:
+            print(f"DEBUG PROLOG-GRAPHRAG:[WikidataFilter] Failed for '{concept_name}': {e}. Returning pre-filtered subset.", flush=True)
+
+        # Fallback: return regex-pre-filtered (already dropped worst offenders), capped at 3
+        return pre_filtered[:3]
+
+
+    @staticmethod
+    def _hard_filter_triples(triples: list, concept_name: str) -> list:
+        """
+        Deterministic, LLM-free filter applied to ALL triples (KBPedia + Wikidata).
+        Unconditionally drops patterns that are NEVER useful in a Prolog reasoning engine,
+        regardless of what the LLM decided upstream.
+        """
+        import re as _re
+
+        # Patterns applied to the raw fact string (after stripping '(Wikidata)' prefix)
+        HARD_DROP = [
+            # Taxonomy / ontology structure
+            r'^subclass of:',
+            r'^instance of:',
+            r'^part of a set of:',
+            r'^facet of:',
+            r'^collection of',
+            # Disambiguation
+            r'^different from:',
+            r'^said to be the same as:',
+            r'^possible unification with:',
+            # Use-cases / applications
+            r'^has use:',
+            r'^used by:',
+            r'^has effect:',
+            r'^part of:',          # e.g. "part of: air pollution", "part of: methanogenesis"
+            # External/database references
+            r'^defines:',          # e.g. "(Wikidata) defines: chemical compound" — tautological
+            r'\bwikimedia\b',
+            r'\bwikiproject\b',
+            r'\bfreebase\b',
+            r'\bumls\b',
+            r'\bcas number\b',
+            r'\binchi\b',
+            r'\bpubchem\b',
+            r'\bchemspider\b',
+            # Part-of relationships only drop if value is clearly not a chemical property
+            r'^has part\(s\):\s*(water|hydrogen|carbon|nitrogen|oxygen|iodine)$',  # too generic for gas comparison
+        ]
+        HARD_DROP_COMPILED = [_re.compile(p, _re.IGNORECASE) for p in HARD_DROP]
+
+        # Strip the "(Wikidata)" prefix for matching, then match
+        def _should_drop(triple: str) -> bool:
+            normalised = _re.sub(r'^\(Wikidata\)\s*', '', triple).strip()
+            return any(pat.search(normalised) for pat in HARD_DROP_COMPILED)
+
+        kept = [t for t in triples if not _should_drop(t)]
+        dropped = len(triples) - len(kept)
+        if dropped:
+            print(f"DEBUG PROLOG-GRAPHRAG:[HardFilter] '{concept_name}': dropped {dropped}/{len(triples)} junk triples.", flush=True)
+        return kept
+
 
     def _filter_concepts_once(self, query_text: str, candidates: list, original_query: str = "", status_callback=None) -> list:
         """
@@ -476,29 +639,28 @@ Example:
             summary_lines.append(f"[{idx}] {c['name']}: {defn}")
         summary_text = "\n".join(summary_lines)
 
-        prompt = f"""You are a ruthless knowledge graph filter for a strict Prolog-based QA system. 
-You must filter out irrelevant or generic entities so they do not pollute the logic engine.
+        prompt = f"""You are a strict relevance filter for a logic reasoning engine.
+Only keep concepts whose facts are ESSENTIAL to answer the question.
 
 User question: "{filter_query}"{mcq_hint}
 
 Candidates (index: concept name: short definition):
 {summary_text}
 
-### STRICT DECISION CRITERIA
-You MUST select the absolute MINIMAL set of highly relevant concepts. If a concept does not directly answer the user's question or provide immediate context for the MCQ options, reject it.
+### DECISION RULE — Keep a concept ONLY if ALL of the following are true:
+1. The concept's name or definition refers to EXACTLY ONE of the specific entities, substances, laws, or phenomena explicitly mentioned in the question.
+   - "ammonia solution" does NOT qualify for a question about "ammonia gas" — they are different substances.
+   - "sample (material)" does NOT qualify just because the question uses the word "sample".
+2. Facts about this concept would appear in the LOGICAL PROOF needed to derive the answer.
+3. The concept is NOT a vague superthing (e.g. "chemical entity", "concentration per volume", "simple substance").
 
-CRITICAL DEDUPLICATION AND NOISE REDUCTION:
-1. EXACT MATCH OVERLAP: If multiple candidates represent the same entity, keep ONLY the most comprehensive one. Remove duplicates.
-2. BROAD CATEGORY PRUNING: Reject overly generic concepts (e.g., "object", "system", "process") unless the user explicitly asks about them.
-3. COINCIDENTAL MATCH PRUNING: Reject concepts that merely share a word with the query but mean something completely different in context.
+### Reject if:
+- The concept shares only a keyword with the question but describes a DIFFERENT thing (e.g. ammonia solution ≠ ammonia gas).
+- The concept is entirely generic or taxonomic.
+- The concept is one of {len(candidates)} candidates and clearly less relevant than others covering the same entity.
 
-RELEVANCE RULES (Keep ONLY if true AND not redundant):
-1. Its name or definition strictly and directly relates to the core topic of the question.
-2. Its name or definition directly matches or describes ONE of the MCQ answer choices.
-3. It provides a unique, indispensable fact crucial for the Prolog engine to derive the answer.
-
-Return a JSON list of the RELEVANT indices (integers). Example: [0, 2, 4]
-Output ONLY the JSON list, nothing else. If none are relevant, output [].
+Return a JSON list of the RELEVANT indices (integers). Example: [0, 2]
+Output ONLY the JSON list. If none are sufficiently relevant, output [].
 """
         max_retries = 3
         for attempt in range(max_retries):
@@ -625,7 +787,16 @@ Output ONLY the JSON list, nothing else. If none are relevant, output [].
                             extra = ["P527", "P279", "P31", "P361", "P1889", "P460", "P2579", "P921", "P366", "P1056", "P1542", "P1148", "P186", "P2054", "P2176"]
                             wd_facts = await wd._fetch_structural_facts_async(qid, extra_properties=extra)
                             if wd_facts:
-                                c["triples"].extend([f"(Wikidata) {f}" for f in wd_facts])
+                                # ── Dedicated Wikidata filter (per concept, synchronous) ────
+                                filtered_wd_facts = self.filter_wikidata_triples(
+                                    query=filter_query,
+                                    concept_name=c["name"],
+                                    wikidata_facts=wd_facts,
+                                )
+                                if filtered_wd_facts:
+                                    c["triples"].extend([f"(Wikidata) {f}" for f in filtered_wd_facts])
+                                else:
+                                    print(f"DEBUG PROLOG-GRAPHRAG:[WikidataFilter] '{c['name']}': 0 wikidata facts kept — not merging.", flush=True)
                     except Exception as e:
                         print(f"DEBUG PROLOG-GRAPHRAG:[Wikidata] Augmentation failed for {c['name']}: {e}", flush=True)
 
@@ -675,8 +846,15 @@ Output ONLY the JSON list, nothing else. If none are relevant, output [].
             filtered_concepts_to_use = candidates[:top_k]
 
         for c in filtered_concepts_to_use:
+            # ── Final hard pass: deterministic junk removal on all triples ──
+            c["triples"] = self._hard_filter_triples(c["triples"], c["name"])
+
+        # Drop concepts that have zero triples after hard filtering
+        filtered_concepts_to_use = [c for c in filtered_concepts_to_use if c["triples"]]
+
+        for c in filtered_concepts_to_use:
             selected_triples = c["triples"]
-            triples_text = "\n".join([f"  - {t}" for t in selected_triples])
+            triples_text = "\n".join([f"- {t}" for t in selected_triples])
             content = f"KBPedia Concept: {c['name']}.\nRelevant Logical Facts:\n{triples_text}"
             items.append(RetrieverResultItem(
                 content=content,
