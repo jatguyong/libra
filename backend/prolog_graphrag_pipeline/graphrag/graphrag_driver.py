@@ -168,7 +168,7 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
     )
     retriever_result = []
     try:
-        graph_rag_results = graph_rag.search(query, retriever_config={'top_k': 5, 'use_global_kg': use_global_kg, 'status_callback': status_callback}, return_context=True)
+        graph_rag_results = graph_rag.search(query, retriever_config={'top_k': 8, 'use_global_kg': use_global_kg, 'status_callback': status_callback}, return_context=True)
         retriever_result = graph_rag_results.retriever_result
         answer_dict = graph_rag_results.answer
         answer = answer_dict.get("answer", "") if isinstance(answer_dict, dict) else str(answer_dict)

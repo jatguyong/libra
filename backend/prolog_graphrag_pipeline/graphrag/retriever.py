@@ -317,7 +317,7 @@ def generate(llm, retriever, query, original_query: str = "", fallback: str = "p
     if hasattr(retriever, 'llm'):
         retriever.llm = llm
 
-    retriever_config = {'top_k': 5}
+    retriever_config = {'top_k': 8}
     if original_query:
         retriever_config['original_query'] = original_query
 

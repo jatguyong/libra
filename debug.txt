@@ -1214,3 +1214,199 @@ None
 * The relationship between positrons and magnetic fields is not explicitly stated in the context.
 * The context does not provide information on how magnetic fields affect the motion of charged particles like positrons.
 ===================================
+
+--- [DEBUG] SENT PROMPT ---
+
+### ROLE
+You are a rigorous Logic Extraction Agent. Your purpose is to extract and structure factual and logical building blocks from the Retrieved Context to evaluate the User Query. These blocks will be used by a strict logical reasoning engine, so absolute precision, deduplication, and adherence to format are required.
+
+### EXTRACTION CATEGORIES
+You MUST categorize the extracted knowledge into the following four exact sections. 
+
+**ATOMIC FACTS**: Unconditional, standalone truths extracted directly from the Context for ALL concepts in the query. (e.g., "The cell wall provides mechanical support.")
+**CONDITIONAL RULES**: Causal relationships, laws, or theorems explicitly found in the Context. Format these as IF-THEN statements. (e.g., "IF an object has mass, THEN it exerts gravity.")
+**EXCEPTIONS**: Explicit boundary conditions, caveats, or exceptions to the rules mentioned in the Context. (e.g., "EXCEPT when the system is in a vacuum.")
+**LOGICAL GAPS**: Essential missing premises or bridging facts NOT found in the Context that are strictly necessary to definitively answer the User Query or complete the logical chain.
+
+### STRICT CONSTRAINTS
+1. UNBIASED EXTRACTION: Extract information relevant to ALL options or concepts in the User Query. Do not assume an answer prematurely; let the reasoning engine decide.
+2. NO META-COMMENTARY: Do not write "Option B is incorrect because..." Just state the facts and rules in isolation.
+3. CRITICAL DEDUPLICATION: Merge identical or highly similar statements. Do not repeat the exact same fact in different words.
+4. GROUNDING: The first three categories MUST be strictly grounded in the provided Context. Category 4 is the ONLY place you may state external missing requirements.
+
+### FORMAT
+Output ONLY the ATOMIC FACTS, CONDITIONAL RULES, EXCEPTIONS, and LOGICAL GAPS with a bulleted list under each. If a section has no entries based on the Context, write "None". Do not include introductory filler or a final conclusion. Follow this answer format:
+
+**ATOMIC FACTS**:
+   List of atomic facts
+**CONDITIONAL RULES**:
+   List of conditional rules
+**EXCEPTIONS**:
+   List of exceptions
+**LOGICAL GAPS**:
+   List of logical gaps
+   
+### Question:
+What specific geometric paths are positrons capable of moving in when they enter a magnetic field?
+
+### Context:
+KBPedia Concept: magnetic field. Relevant Logical Facts:  - definition: A MagneticField is a VectorField which assigns a MagneticForceVector to each Point in some SpaceRegion.  - subclass of: physical field
+KBPedia Concept: electric and magnetic fields in matter. Relevant Logical Facts:  - definition: Electric and magnetic fields in matter.  - subclass of: condensed matter
+KBPedia Concept: magnetic monopole. Relevant Logical Facts:  - definition: A magnetic monopole is a hypothetical elementary particle in particle physics that is an isolated magnet with only one magnetic pole (a north pole without a south pole or vice versa). In more technical terms, a magnetic monopole would have a net \  - subclass of: quantum field theory
+KBPedia Concept: magnetic pole. Relevant Logical Facts:  - definition: A specialization of GeographicalThing_Intangible_MovableLocation. Each instance of MagneticPoleOfPlanet is a point on the surface of a Planet where the lines of force of its magnetic field are vertical. Two notable instances of this collection are MagneticNorthPoleOfEarth and MagneticSouthPoleOfEarth.  - subclass of: Earth phenomena
+KBPedia Concept: Magnetotactic bacterium. Relevant Logical Facts:  - definition: Magnetotactic bacteria (or MTB) are a polyphyletic group of bacteria discovered by Richard P. Blakemore in 1975, that orient along the magnetic field lines of Earth's magnetic field. To perform this task, these bacteria have organelles called magnetosomes that contain magnetic crystals. The biological phenomenon of microorganisms tending to move in response to the environment's magnetic characteri  - subclass of: bacterium
+
+### Answer:
+
+----------------------------------
+
+=== [DEBUG] RAW RESPONSE ===
+**ATOMIC FACTS**:
+* A MagneticField is a VectorField which assigns a MagneticForceVector to each Point in some SpaceRegion.
+* A magnetic monopole is a hypothetical elementary particle in particle physics that is an isolated magnet with only one magnetic pole.
+* Magnetotactic bacteria orient along the magnetic field lines of Earth's magnetic field.
+* Magnetic field lines are vertical at the magnetic poles of a planet.
+
+**CONDITIONAL RULES**:
+* IF a particle has a charge, THEN it will experience a force when moving through a magnetic field.
+* IF a magnetotactic bacterium is in a magnetic field, THEN it will orient along the magnetic field lines.
+
+**EXCEPTIONS**:
+None
+
+**LOGICAL GAPS**:
+* The specific geometric paths that positrons are capable of moving in when they enter a magnetic field are not defined in the provided context.
+* The relationship between positrons and magnetic fields is not explicitly stated in the provided context.
+* The motion of charged particles, such as positrons, in a magnetic field is not described in the provided context.
+===================================
+
+--- [DEBUG] SENT PROMPT ---
+
+### ROLE
+You are a rigorous Logic Extraction Agent. Your purpose is to extract and structure factual and logical building blocks from the Retrieved Context to evaluate the User Query. These blocks will be used by a strict logical reasoning engine, so absolute precision, deduplication, and adherence to format are required.
+
+### EXTRACTION CATEGORIES
+You MUST categorize the extracted knowledge into the following four exact sections. 
+
+**ATOMIC FACTS**: Unconditional, standalone truths extracted directly from the Context for ALL concepts in the query. (e.g., "The cell wall provides mechanical support.")
+**CONDITIONAL RULES**: Causal relationships, laws, or theorems explicitly found in the Context. Format these as IF-THEN statements. (e.g., "IF an object has mass, THEN it exerts gravity.")
+**EXCEPTIONS**: Explicit boundary conditions, caveats, or exceptions to the rules mentioned in the Context. (e.g., "EXCEPT when the system is in a vacuum.")
+**LOGICAL GAPS**: Essential missing premises or bridging facts NOT found in the Context that are strictly necessary to definitively answer the User Query or complete the logical chain.
+
+### STRICT CONSTRAINTS
+1. UNBIASED EXTRACTION: Extract information relevant to ALL options or concepts in the User Query. Do not assume an answer prematurely; let the reasoning engine decide.
+2. NO META-COMMENTARY: Do not write "Option B is incorrect because..." Just state the facts and rules in isolation.
+3. CRITICAL DEDUPLICATION: Merge identical or highly similar statements. Do not repeat the exact same fact in different words.
+4. GROUNDING: The first three categories MUST be strictly grounded in the provided Context. Category 4 is the ONLY place you may state external missing requirements.
+
+### FORMAT
+Output ONLY the ATOMIC FACTS, CONDITIONAL RULES, EXCEPTIONS, and LOGICAL GAPS with a bulleted list under each. If a section has no entries based on the Context, write "None". Do not include introductory filler or a final conclusion. Follow this answer format:
+
+**ATOMIC FACTS**:
+   List of atomic facts
+**CONDITIONAL RULES**:
+   List of conditional rules
+**EXCEPTIONS**:
+   List of exceptions
+**LOGICAL GAPS**:
+   List of logical gaps
+   
+### Question:
+What specific geometric paths are positrons capable of moving in when they enter a magnetic field?
+
+### Context:
+KBPedia Concept: magnetic field. Relevant Logical Facts:  - definition: A MagneticField is a VectorField which assigns a MagneticForceVector to each Point in some SpaceRegion.  - subclass of: physical field
+KBPedia Concept: electric and magnetic fields in matter. Relevant Logical Facts:  - definition: Electric and magnetic fields in matter.  - subclass of: condensed matter
+KBPedia Concept: magnetic monopole. Relevant Logical Facts:  - definition: A magnetic monopole is a hypothetical elementary particle in particle physics that is an isolated magnet with only one magnetic pole (a north pole without a south pole or vice versa). In more technical terms, a magnetic monopole would have a net \  - subclass of: quantum field theory
+KBPedia Concept: magnetic pole. Relevant Logical Facts:  - definition: A specialization of GeographicalThing_Intangible_MovableLocation. Each instance of MagneticPoleOfPlanet is a point on the surface of a Planet where the lines of force of its magnetic field are vertical. Two notable instances of this collection are MagneticNorthPoleOfEarth and MagneticSouthPoleOfEarth.  - subclass of: Earth phenomena
+KBPedia Concept: Magnetotactic bacterium. Relevant Logical Facts:  - definition: Magnetotactic bacteria (or MTB) are a polyphyletic group of bacteria discovered by Richard P. Blakemore in 1975, that orient along the magnetic field lines of Earth's magnetic field. To perform this task, these bacteria have organelles called magnetosomes that contain magnetic crystals. The biological phenomenon of microorganisms tending to move in response to the environment's magnetic characteri  - subclass of: bacterium
+
+### Answer:
+
+----------------------------------
+
+=== [DEBUG] RAW RESPONSE ===
+**ATOMIC FACTS**:
+* A MagneticField is a VectorField which assigns a MagneticForceVector to each Point in some SpaceRegion.
+* A magnetic monopole is a hypothetical elementary particle in particle physics that is an isolated magnet with only one magnetic pole.
+* Magnetotactic bacteria orient along the magnetic field lines of Earth's magnetic field.
+* Magnetic fields have lines of force that can be vertical at specific points on a planet's surface.
+
+**CONDITIONAL RULES**:
+* IF a particle is moving in a magnetic field, THEN it experiences a MagneticForceVector.
+* IF a magnetotactic bacterium is in a magnetic field, THEN it orients along the magnetic field lines.
+
+**EXCEPTIONS**:
+None
+
+**LOGICAL GAPS**:
+* The specific geometric paths that positrons are capable of moving in when they enter a magnetic field.
+* How the magnetic field affects the trajectory of positrons.
+* The relationship between positron movement and magnetic field lines.
+===================================
+
+--- [DEBUG] SENT PROMPT ---
+
+### ROLE
+You are a rigorous Logic Extraction Agent. Your purpose is to extract and structure factual and logical building blocks from the Retrieved Context to evaluate the User Query. These blocks will be used by a strict logical reasoning engine, so absolute precision, deduplication, and adherence to format are required.
+
+### EXTRACTION CATEGORIES
+You MUST categorize the extracted knowledge into the following four exact sections. 
+
+**ATOMIC FACTS**: Unconditional, standalone truths extracted directly from the Context for ALL concepts in the query. (e.g., "The cell wall provides mechanical support.")
+**CONDITIONAL RULES**: Causal relationships, laws, or theorems explicitly found in the Context. Format these as IF-THEN statements. (e.g., "IF an object has mass, THEN it exerts gravity.")
+**EXCEPTIONS**: Explicit boundary conditions, caveats, or exceptions to the rules mentioned in the Context. (e.g., "EXCEPT when the system is in a vacuum.")
+**LOGICAL GAPS**: Essential missing premises or bridging facts NOT found in the Context that are strictly necessary to definitively answer the User Query or complete the logical chain.
+
+### STRICT CONSTRAINTS
+1. UNBIASED EXTRACTION: Extract information relevant to ALL options or concepts in the User Query. Do not assume an answer prematurely; let the reasoning engine decide.
+2. NO META-COMMENTARY: Do not write "Option B is incorrect because..." Just state the facts and rules in isolation.
+3. CRITICAL DEDUPLICATION: Merge identical or highly similar statements. Do not repeat the exact same fact in different words.
+4. GROUNDING: The first three categories MUST be strictly grounded in the provided Context. Category 4 is the ONLY place you may state external missing requirements.
+
+### FORMAT
+Output ONLY the ATOMIC FACTS, CONDITIONAL RULES, EXCEPTIONS, and LOGICAL GAPS with a bulleted list under each. If a section has no entries based on the Context, write "None". Do not include introductory filler or a final conclusion. Follow this answer format:
+
+**ATOMIC FACTS**:
+   List of atomic facts
+**CONDITIONAL RULES**:
+   List of conditional rules
+**EXCEPTIONS**:
+   List of exceptions
+**LOGICAL GAPS**:
+   List of logical gaps
+   
+### Question:
+What paths do positrons move in when entering magnetic fields?
+
+### Context:
+KBPedia Concept: electric and magnetic fields in matter. Relevant Logical Facts:  - definition: Electric and magnetic fields in matter.  - subclass of: condensed matter
+KBPedia Concept: magnetic field. Relevant Logical Facts:  - definition: A MagneticField is a VectorField which assigns a MagneticForceVector to each Point in some SpaceRegion.  - subclass of: physical field
+KBPedia Concept: Magnetotactic bacterium. Relevant Logical Facts:  - definition: Magnetotactic bacteria (or MTB) are a polyphyletic group of bacteria discovered by Richard P. Blakemore in 1975, that orient along the magnetic field lines of Earth's magnetic field. To perform this task, these bacteria have organelles called magnetosomes that contain magnetic crystals. The biological phenomenon of microorganisms tending to move in response to the environment's magnetic characteri  - subclass of: bacterium
+KBPedia Concept: movement of chromosomes towards the spindle pole. Relevant Logical Facts:  - definition: Here, the chromosomes are separated and are being pulled to the opposite poles of the cell nucleus by the microtubules.  - subclass of: chromosomes migrating toward opposite poles
+KBPedia Concept: pass. Relevant Logical Facts:  - definition: Opening or path allowing passage through an otherwise difficult to cross barrier.  - subclass of: physical path
+
+### Answer:
+
+----------------------------------
+
+=== [DEBUG] RAW RESPONSE ===
+**ATOMIC FACTS**:
+* A MagneticField is a VectorField which assigns a MagneticForceVector to each Point in some SpaceRegion.
+* Magnetotactic bacteria orient along the magnetic field lines of Earth's magnetic field.
+* Magnetosomes contain magnetic crystals.
+* Magnetic fields are a subclass of physical fields.
+* Magnetotactic bacteria are a subclass of bacteria.
+
+**CONDITIONAL RULES**:
+* IF an object is a Magnetotactic bacterium, THEN it orients along the magnetic field lines.
+* IF a bacterium has magnetosomes, THEN it can contain magnetic crystals.
+
+**EXCEPTIONS**:
+None
+
+**LOGICAL GAPS**:
+* The path that positrons move in when entering magnetic fields is not specified in the provided Context.
+* The behavior of positrons in magnetic fields is not mentioned in the Context.
+* The relationship between positrons and magnetic field lines is not defined in the provided information.
+===================================
