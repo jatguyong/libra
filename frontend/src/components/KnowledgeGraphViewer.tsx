@@ -76,13 +76,17 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-8">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-8 pointer-events-auto">
         <div className="w-full h-full max-w-[1400px] flex bg-[#0E0915] border border-white/10 rounded-2xl shadow-2xl overflow-hidden relative">
             
             {/* Header / Close */}
             <button 
-                onClick={() => { setSelectedNode(null); onClose(); }} 
-                className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center bg-black/50 hover:bg-white/10 text-white rounded-full border border-white/10 transition-colors"
+                onClick={() => { 
+                    console.log('Close button clicked');
+                    setSelectedNode(null); 
+                    onClose(); 
+                }} 
+                className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center bg-black/50 hover:bg-white/10 text-white rounded-full border border-white/10 transition-colors cursor-pointer"
                 title="Close Visualization"
             >
                 <X size={20} />
@@ -147,7 +151,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
             <div className="w-[320px] shrink-0 border-l border-white/10 bg-[#16111f] flex flex-col">
                 <div className="p-5 border-b border-white/5">
                     <h2 className="text-white font-space font-medium tracking-wide flex items-center gap-2">
-                        <Network size={18} className="text-purple-400" />
+                        <Network size={18} className="text-white/50" />
                         Graph Overview
                     </h2>
                     <div className="mt-3 flex gap-4 text-xs font-mono text-white/60 uppercase">

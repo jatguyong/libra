@@ -161,7 +161,7 @@ export default function AiMessage({ message, onRedo, isFinished, onExplanationCl
               <Tooltip label="View Knowledge Graph">
                 <button 
                   onClick={() => onGraphClick(message.explanationData!)} 
-                  className="p-1.5 ml-1 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded-md transition-colors cursor-pointer"
+                  className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors cursor-pointer"
                 >
                   <Network size={18} />
                 </button>
