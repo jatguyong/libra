@@ -212,7 +212,7 @@ def chat():
         def worker():
             try:
                 # Run the Prolog-GraphRAG pipeline with the callback
-                result = run_pipeline(question, flag="x", sample_mode=True, use_global_kg=use_global_kg, status_callback=status_callback)
+                result = run_pipeline(question, flag="x", sample_mode=False, use_global_kg=use_global_kg, status_callback=status_callback)
 
                 # Safely convert contexts to strings if they are objects
                 raw_contexts = result.get("contexts", [])
@@ -268,6 +268,53 @@ def chat():
                 break
 
     return Response(generate_events(), mimetype='text/event-stream')
+
+@app.route("/api/semantic-entropy", methods=["POST"])
+def calculate_semantic_entropy():
+    data = request.json or {}
+    query = data.get("query")
+    condensed_context = data.get("condensed_context")
+    explainer_output = data.get("explainer_output")
+    fallback = data.get("fallback", "prolog-graphrag")
+
+    if not query:
+        return jsonify({"error": "No query provided"}), 400
+
+    if fallback != "prolog-graphrag":
+        return jsonify({"error": "Semantic entropy is only calculated for the prolog-graphrag pipeline"}), 400
+
+    from prolog_graphrag_pipeline.llm import generate
+    from prolog_graphrag_pipeline.semantic_entropy import compute_semantic_entropy
+
+    try:
+        # Sample the LLM 5 times
+        llm_output = generate(
+            question=query, 
+            retrieved_context=condensed_context, 
+            explainer_output=explainer_output,
+            flag="x", 
+            sample_mode=True, 
+            fallback=fallback,
+            status_callback=None
+        )
+
+        if not isinstance(llm_output, list) or len(llm_output) == 0:
+            return jsonify({"error": "Failed to generate samples"}), 500
+
+        answers = [output["text_answer"] for output in llm_output]
+        logprobs = [output.get("logprobs", []) for output in llm_output]
+
+        se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
+
+        return jsonify({
+            "semantic_entropy": se_results["semantic_entropy"],
+            "hallucination_flag": se_results["hallucination_flag"]
+        })
+
+    except Exception as e:
+        traceback.print_exc()
+        logger.error(f"Semantic Entropy Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(

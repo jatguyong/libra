@@ -525,14 +525,10 @@ Output ONLY the JSON list, nothing else.
         matches = []
         try:
             # Prepare the embedder function once
-            embedder_fn = None
-            if self.embedder:
-                embedder_fn = lambda text: self.embedder.embed_query("query: " + text)
-            else:
-                from sentence_transformers import SentenceTransformer
-                print("DEBUG PROLOG-GRAPHRAG:Pipeline embedder missing, falling back to local SentenceTransformer.", flush=True)
-                temp_embedder = SentenceTransformer("all-MiniLM-L6-v2")
-                embedder_fn = lambda text: temp_embedder.encode(text).tolist()
+            from sentence_transformers import SentenceTransformer
+            print("DEBUG PROLOG-GRAPHRAG:[KBPedia] Forcing local SentenceTransformer for 384D KBPedia index.", flush=True)
+            temp_embedder = SentenceTransformer("all-MiniLM-L6-v2")
+            embedder_fn = lambda text: temp_embedder.encode(text).tolist()
 
             # Schedule searches: Main query + individually extracted concepts
             search_strings = [(query_text, top_k * 2)]

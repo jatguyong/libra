@@ -92,13 +92,26 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
     use_global_kg = kwargs.pop("use_global_kg", False)
     all_items = []
     
-    # --- NEW CODE: Inject Prolog logic filter ---
-    # if "filters" not in kwargs:
-    #     kwargs["filters"] = {}
-    # kwargs["filters"]["subgraph"] = "prolog-graphrag"
-    # --------------------------------------------
+    # --- KBPedia Global Knowledge Graph Search ---
+    if use_global_kg:
+        try:
+            if not hasattr(self, '_kbpedia_retriever'):
+                from .kbpedia_retriever import KBPediaRetriever
+                from .neo4j_manager import get_driver
+                # HybridRetriever stores driver as self.driver
+                kb_driver = getattr(self, 'driver', None) or get_driver()
+                # Get the LLM from graphrag_driver globals
+                kb_llm = getattr(self, 'llm', None)
+                self._kbpedia_retriever = KBPediaRetriever(driver=kb_driver, llm=kb_llm, top_k=top_k)
+            
+            kb_result = self._kbpedia_retriever.search(query_text, top_k=top_k, original_query=original_query)
+            if kb_result and kb_result.items:
+                all_items.extend(kb_result.items)
+                print(f"DEBUG PROLOG-GRAPHRAG:[Hybrid] KBPedia returned {len(kb_result.items)} items.", flush=True)
+        except Exception as e:
+            print(f"DEBUG PROLOG-GRAPHRAG:[Hybrid] KBPedia search error: {e}", flush=True)
     
-    # 1. Main query search
+    # 1. Main query search (local documents)
     res_main = self._original_search(query_text=safe_query, top_k=top_k, **kwargs)
     if res_main and res_main.items:
         all_items.extend(res_main.items)

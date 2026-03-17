@@ -14,7 +14,12 @@ from neo4j import GraphDatabase
 
 from .config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 
-N3_FILE = Path(__file__).resolve().parents[2] / "kbpedia_reference_concepts_linkage.n3"
+# Try multiple locations for the N3 file
+_candidates = [
+    Path(__file__).resolve().parents[2] / "kbpedia_reference_concepts_linkage.n3",
+    Path(__file__).resolve().parents[3] / "neo4j_kbpedia" / "kbpedia_reference_concepts_linkage.n3",
+]
+N3_FILE = next((p for p in _candidates if p.exists()), _candidates[0])
 
 BATCH_SIZE = 500
 
