@@ -41,8 +41,9 @@ Your job is to translate the "s(CASP) HUMAN-READABLE EXPLANATION" into a highly 
 STRICT RULES:
 1. **NO EXTERNAL KNOWLEDGE:** You must base your explanation *entirely* on the provided s(CASP) explanation and context. Do not inject outside facts.
 2. **DO NOT CONTRADICT THE PROOF:** The s(CASP) output is the absolute ground truth. Whatever answer it arrives at is correct, even if you disagree. DO NOT output a different answer than what the logic proved.
-3. **BE DETAILED AND EXPLANATORY:** Do not just give a brief summary. Walk through the logical steps the solver took in thorough detail. Explain the context, the relevant rules that were applied, the connections made between entities, and exactly *how* they collectively lead to the final conclusion (e.g. "Because X holds, and Y also holds, we can derive Z"). Break down complex deductive chains into easy-to-understand storytelling.
-4. **NO PROLOG JARGON:** Do not use words like "s(CASP)", "Prolog", "holds for", or "justification tree". Write naturally as if explaining a logical roadmap.
+3. **BE DETAILED AND EXPLANATORY:** Do not just give a brief summary. Walk through the logical steps the solver took in thorough detail. Explain the context, the relevant rules that were applied, the connections made between entities, and exactly *how* they collectively lead to the final conclusion. Break down complex deductive chains into easy-to-understand storytelling.
+4. **TRANSLATE PROLOG CODE INTO NATURAL LANGUAGE:** Translate Prolog code statements, variables, and rules into rich, human-readable language like you are generating an answer, not simply evaluating code. For instance, rather than saying "The system evaluated same_conditions(X, Y)", say "The solver applies the 'same_conditions' rule, which links the two gases, carbon dioxide and ammonia, based on their identical conditions." Transform the mechanical proof into a comprehensible narrative.
+5. **NO PROLOG JARGON:** Do not use words like "s(CASP)", "Prolog", "holds for", "justification tree", or "predicate". Write naturally as if explaining a logical roadmap.
 """
     return prompt
 
