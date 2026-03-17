@@ -73,15 +73,17 @@ class KBPediaRetriever:
         self.embedder = embedder
         
         try:
-            from .config import ENABLE_LLM_FILTERING
+            from .config import ENABLE_LLM_FILTERING, ENABLE_WIKIDATA_FALLBACK
         except (ModuleNotFoundError, ImportError):
             try:
-                from graphrag.config import ENABLE_LLM_FILTERING
+                from graphrag.config import ENABLE_LLM_FILTERING, ENABLE_WIKIDATA_FALLBACK
             except ImportError:
                 ENABLE_LLM_FILTERING = True
+                ENABLE_WIKIDATA_FALLBACK = True
 
         # Nullify LLM if the global config toggle is disabled
         self.llm = llm if ENABLE_LLM_FILTERING else None
+        self.enable_wikidata = ENABLE_WIKIDATA_FALLBACK
         
         self.top_k   = top_k
 
@@ -342,7 +344,7 @@ If none are relevant, output an empty list [].
 
         return triples
 
-    def filter_triples_batch(self, query: str, concepts_data: List[Dict[str, Any]], original_query: str = "") -> Dict[str, List[str]]:
+    def filter_triples_batch(self, query: str, concepts_data: List[Dict[str, Any]], original_query: str = "", status_callback=None) -> Dict[str, List[str]]:
         """
         Use LLM to keep only logically relevant triples for MULTIPLE concepts at once.
         concepts_data is a list of dicts: {"name": str, "triples": List[str]}
@@ -350,6 +352,10 @@ If none are relevant, output an empty list [].
         """
         if not self.llm or not concepts_data:
             return {c["name"]: c["triples"][:15] for c in concepts_data}
+            
+        if status_callback:
+            total_triples = sum(len(c["triples"][:12]) for c in concepts_data)
+            status_callback({"type": "thought", "step": 4, "message": f"Triple Filter: Scanning {total_triples} raw factual triples related to these entities to purge generic taxonomies and noisy metadata..."})
 
         filter_query = original_query if original_query else query
 
@@ -361,24 +367,27 @@ If none are relevant, output an empty list [].
             triples_text = "\n".join([f"  - {t}" for t in capped_triples])
             concepts_text += f"Concept: '{c['name']}'\nFacts:\n{triples_text}\n\n"
 
-        prompt = f"""Task: Select ONLY the ontology facts that are directly useful for answering the user's question.
+        prompt = f"""Task: You are a strict logic filter for a Prolog-based reasoning engine.
+Your job is to ruthlessly discard any ontology fact or Wikidata property that does not directly provide the specific knowledge needed to answer the user's question.
 
 User Query: "{filter_query}"
 
 {concepts_text}
 
-FILTERING RULES:
-1. KEEP a fact if it directly defines, characterises, or establishes a property/relationship that helps answer the question or distinguish between MCQ choices.
-2. KEEP the core definition of a concept if it is relevant to the question's topic.
-3. DROP any fact that is taxonomic boilerplate or structural metadata: counts of elements/properties ("has X elements"), abstract classifications ("subclass of: abstract object"), unrelated superclasses, or ontological hierarchy noise.
-4. DROP facts about number of components, cardinality, or list sizes (e.g. "has 4 subclasses", "number of elements: 3") — these NEVER help answer factual questions.
-5. DROP facts whose concept is clearly unrelated to the query topic or any MCQ choice.
-6. Merge/group similar facts into a single entry where possible (e.g. "no air" and "no atmosphere" → keep just the more informative one).
+STRICT FILTERING RULES:
+1. KEEP a fact ONLY if it directly defines, characterises, or establishes a property/relationship that helps answer the question or distinguish between MCQ choices.
+2. DROP ALL structural metadata and generic taxonomic boilerplate (e.g., "subclass of: abstract object", "instance of: discrete quantity").
+3. DROP ANY Wikidata fact (like "has part", "subclass of", "instance of") if the target object is generic, unrelated to the query, or too broad to be useful.
+4. DROP facts about counts, cardinality, identifiers, data types, or list sizes. These never help answer factual questions.
+5. DROP facts whose concept is clearly coincidental or unrelated to the query topic or any MCQ choice.
+6. Merge similar facts into a single entry where possible to minimize token usage.
+7. If a concept ends up with zero relevant facts after filtering, return an empty list `[]` for it. Do not keep filler facts.
 
 Output format: A JSON dictionary where keys are the Concept names, and values are lists of fact strings.
 Example:
 {{
   "trench": ["definition: a long narrow excavation in the ground", "subclass of: topographical feature"],
+  "generic entity": [],
   "temperature": []
 }}
 """
@@ -418,6 +427,10 @@ Example:
                             # Clean up formatting artifacts (like "- subclass of:" -> "subclass of:")
                             cleaned_triples = [t[2:].strip() if t.startswith("- ") else t.strip() for t in filtered[name]]
                             result_map[name] = cleaned_triples
+                            kept_triples += len(cleaned_triples)
+                            
+                    if status_callback:
+                        status_callback({"type": "thought", "step": 4, "message": f"Discarded {total_triples - kept_triples} noisy properties, finalizing a set of {kept_triples} high-signal logical facts."})
                     return result_map # Return immediately on success
             except Exception as e:
                 print(f"DEBUG PROLOG-GRAPHRAG:Batch triple filtering attempt {attempt + 1}/{max_retries} failed: {e}", flush=True)
@@ -430,7 +443,7 @@ Example:
 
 
 
-    def _filter_concepts_once(self, query_text: str, candidates: list, original_query: str = "") -> list:
+    def _filter_concepts_once(self, query_text: str, candidates: list, original_query: str = "", status_callback=None) -> list:
         """
         Single LLM call to filter all candidates at once.
         `candidates` is a list of dicts: {name, uri, definition, triples}.
@@ -439,6 +452,9 @@ Example:
         """
         if not self.llm or not candidates:
             return candidates
+        if status_callback:
+            status_callback({"type": "step", "step": 4})
+            status_callback({"type": "thought", "step": 4, "message": f"I'm filtering {len(candidates)} raw concept matches to reduce noise..."})
 
         # Use the full original prompt (with MCQ choices) when available for better filtering
         filter_query = original_query if original_query else query_text
@@ -460,28 +476,29 @@ Example:
             summary_lines.append(f"[{idx}] {c['name']}: {defn}")
         summary_text = "\n".join(summary_lines)
 
-        prompt = f"""You are filtering knowledge graph concepts for a Prolog-based QA system.
+        prompt = f"""You are a ruthless knowledge graph filter for a strict Prolog-based QA system. 
+You must filter out irrelevant or generic entities so they do not pollute the logic engine.
 
 User question: "{filter_query}"{mcq_hint}
 
 Candidates (index: concept name: short definition):
 {summary_text}
 
-### Decision Criteria
-You MUST select the minimal set of highly relevant concepts.
+### STRICT DECISION CRITERIA
+You MUST select the absolute MINIMAL set of highly relevant concepts. If a concept does not directly answer the user's question or provide immediate context for the MCQ options, reject it.
 
-CRITICAL DEDUPLICATION RULES:
-1. If multiple candidates represent the EXACT SAME real-world entity or idea (e.g., "cell membrane", "membrane (biological)", "membrane protein complex"), you MUST keep ONLY ONE (the most comprehensive/common). Reject the rest.
-2. Never keep highly redundant concepts that just add noise.
-3. Reject concepts that are clearly off-topic or coincidental word matches.
+CRITICAL DEDUPLICATION AND NOISE REDUCTION:
+1. EXACT MATCH OVERLAP: If multiple candidates represent the same entity, keep ONLY the most comprehensive one. Remove duplicates.
+2. BROAD CATEGORY PRUNING: Reject overly generic concepts (e.g., "object", "system", "process") unless the user explicitly asks about them.
+3. COINCIDENTAL MATCH PRUNING: Reject concepts that merely share a word with the query but mean something completely different in context.
 
-RELEVANCE RULES (Keep if true AND not redundant):
-1. Its name or definition strictly relates to the question topic.
-2. Its name or definition relates to ANY of the MCQ answer choices listed above.
-3. It provides a fact crucial for the Prolog engine to derive an answer.
+RELEVANCE RULES (Keep ONLY if true AND not redundant):
+1. Its name or definition strictly and directly relates to the core topic of the question.
+2. Its name or definition directly matches or describes ONE of the MCQ answer choices.
+3. It provides a unique, indispensable fact crucial for the Prolog engine to derive the answer.
 
-Return a JSON list of the RELEVANT indices (integers). Example: [0, 2, 4, 7]
-Output ONLY the JSON list, nothing else.
+Return a JSON list of the RELEVANT indices (integers). Example: [0, 2, 4]
+Output ONLY the JSON list, nothing else. If none are relevant, output [].
 """
         max_retries = 3
         for attempt in range(max_retries):
@@ -501,8 +518,12 @@ Output ONLY the JSON list, nothing else.
                 indices = _safe_parse_json(res, expect=list)
                 if not isinstance(indices, list):
                     raise ValueError(f"LLM did not return a list: {repr(res[:100])}")
+                
+                kept_candidates = [candidates[i] for i in indices if isinstance(i, int) and 0 <= i < len(candidates)]
                 print(f"DEBUG PROLOG-GRAPHRAG:End-filter LLM kept indices: {indices} from {len(candidates)} candidates.", flush=True)
-                return [candidates[i] for i in indices if isinstance(i, int) and 0 <= i < len(candidates)]
+                if status_callback:
+                    status_callback({"type": "thought", "step": 4, "message": f"Concept Filter: I systematically rejected {len(candidates) - len(kept_candidates)} irrelevant concepts and kept {len(kept_candidates)} highly relevant core entities."})
+                return kept_candidates
             except Exception as e:
                 print(f"DEBUG PROLOG-GRAPHRAG:End-filter LLM attempt {attempt + 1}/{max_retries} failed: {e}.", flush=True)
                 if attempt < max_retries - 1:
@@ -511,7 +532,7 @@ Output ONLY the JSON list, nothing else.
                     print(f"DEBUG PROLOG-GRAPHRAG:All {max_retries} end-filter attempts failed. Returning all candidates.", flush=True)
         return candidates
 
-    def search(self, query_text: str, top_k: int = 5, original_query: str = "", seeded_entities: List[str] = None) -> Any:
+    def search(self, query_text: str, top_k: int = 5, original_query: str = "", seeded_entities: List[str] = None, status_callback=None) -> Any:
         from .retriever import RetrieverResult, RetrieverResultItem
 
         if not self._verify_index():
@@ -587,10 +608,49 @@ Output ONLY the JSON list, nothing else.
                 "triples": raw_triples,
             })
 
+        # ── Augment with Wikidata ─────────────
+        if self.enable_wikidata and candidates:
+            print(f"DEBUG PROLOG-GRAPHRAG:[Wikidata] Concurrently augmenting {len(candidates)} candidates with Wikidata structural facts.", flush=True)
+            try:
+                import asyncio
+                from .wikidata_retriever import WikidataRetriever
+                wd = WikidataRetriever()
+                
+                async def augment_candidate(c):
+                    try:
+                        res = await wd._search_entity_async(c["name"], limit=1)
+                        if res:
+                            qid = res[0]["qid"]
+                            # Include a wider range of chemistry/physics/structural properties
+                            extra = ["P527", "P279", "P31", "P361", "P1889", "P460", "P2579", "P921", "P366", "P1056", "P1542", "P1148", "P186", "P2054", "P2176"]
+                            wd_facts = await wd._fetch_structural_facts_async(qid, extra_properties=extra)
+                            if wd_facts:
+                                c["triples"].extend([f"(Wikidata) {f}" for f in wd_facts])
+                    except Exception as e:
+                        print(f"DEBUG PROLOG-GRAPHRAG:[Wikidata] Augmentation failed for {c['name']}: {e}", flush=True)
+
+                async def run_augmentation():
+                    tasks = [augment_candidate(c) for c in candidates]
+                    await asyncio.gather(*tasks)
+
+                # Execute concurrent fetching inside sync context
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        task = asyncio.ensure_future(run_augmentation())
+                        loop.run_until_complete(task)
+                    else:
+                        loop.run_until_complete(run_augmentation())
+                except RuntimeError:
+                    asyncio.run(run_augmentation())
+                    
+            except Exception as e:
+                print(f"DEBUG PROLOG-GRAPHRAG:[Wikidata] Global fallback pipeline error: {e}", flush=True)
+
         # ── LLM filtering logic ─────────────
         if candidates and self.llm:
             # Enforce coarse filter similar to pure GraphRAG's standard behavior
-            filtered_candidates = self._filter_concepts_once(query_text, candidates, original_query=filter_query)
+            filtered_candidates = self._filter_concepts_once(query_text, candidates, original_query=filter_query, status_callback=status_callback)
             print(f"DEBUG PROLOG-GRAPHRAG:End-filter kept {len(filtered_candidates)}/{len(candidates)} concepts.", flush=True)
             filtered_concepts_to_use = filtered_candidates
             
@@ -600,7 +660,7 @@ Output ONLY the JSON list, nothing else.
                 print(f"DEBUG PROLOG-GRAPHRAG:Batch sending {len(batch_data)} concepts to LLM triple filter...", flush=True)
                 
                 # Use unified batch filter
-                batch_results = self.filter_triples_batch(query_text, batch_data, original_query=filter_query)
+                batch_results = self.filter_triples_batch(query_text, batch_data, original_query=filter_query, status_callback=status_callback)
                 
                 # Reassign filtered triples back to the candidates
                 for c in filtered_concepts_to_use:
