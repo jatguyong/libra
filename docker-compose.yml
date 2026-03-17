@@ -35,6 +35,7 @@ services:
     volumes:
       - uploads:/app/uploads
       - logs:/app/logs
+      - ./neo4j_kbpedia:/neo4j_kbpedia:ro
     depends_on:
       neo4j:
         condition: service_healthy
@@ -49,7 +50,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        VITE_API_URL: ""
+        VITE_API_URL: "http://localhost:5000"
     ports:
       - "80:80"
     depends_on:

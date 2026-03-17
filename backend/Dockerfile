@@ -8,7 +8,11 @@ RUN apt-get update && \
         swi-prolog \
         build-essential \
         curl \
+        git \
     && rm -rf /var/lib/apt/lists/*
+
+# Install scasp package for SWI-Prolog
+RUN swipl -g "pack_install(scasp, [interactive(false)])" -t halt
 
 # Install Python dependencies
 COPY backend/requirements.txt .
@@ -22,4 +26,4 @@ RUN mkdir -p uploads logs
 
 EXPOSE 5000
 
-CMD ["python", "app.py"]
+CMD ["bash", "-c", "python docker_init.py && python app.py"]
