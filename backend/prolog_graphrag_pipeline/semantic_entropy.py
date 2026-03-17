@@ -73,10 +73,28 @@ Response 1: {seq1}
 
 Response 2: {seq2}
     """
-    answer = query_llm(prompt)
-    answer_dict = json.loads(answer)
-    verdict = answer_dict.get("verdict", "").lower()
-    return verdict == "yes"
+    try:
+        answer = query_llm(prompt)
+        if not answer:
+            return False
+            
+        t = answer.strip()
+        if "```json" in t:
+            t = t.split("```json", 1)[1].split("```", 1)[0].strip()
+        elif "```" in t:
+            t = t.split("```", 1)[1].split("```", 1)[0].strip()
+            
+        start = t.find('{')
+        end = t.rfind('}')
+        if start != -1 and end != -1:
+            t = t[start:end+1]
+            
+        answer_dict = json.loads(t)
+        verdict = answer_dict.get("verdict", "").lower()
+        return verdict == "yes"
+    except Exception as e:
+        logger.error(f"Entailment check failed or JSON decode error. Returning False. Error: {e}")
+        return False
 
 
 def cluster_sequences(sequences: list[dict]) -> list[list[dict]]:
