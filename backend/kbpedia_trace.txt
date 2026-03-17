@@ -1,0 +1,61 @@
+
+retriever_debug_utf8.log:323:DEBUG 
+PROLOG-GRAPHRAG:[KBPedia] Computing query 
+embeddings to search KBPedia concepts...
+retriever_debug_utf8.log:454:DEBUG 
+PROLOG-GRAPHRAG:[KBPedia] Extracted 5 concepts 
+for independent vector search: 
+['photosynthesis', 'plant cell', 
+'chloroplast', 'light-dependent reactions', 
+'calvin cycle']
+retriever_debug_utf8.log:4734:DEBUG 
+PROLOG-GRAPHRAG:KBPedia concept vector search 
+error: {code: 
+Neo.ClientError.Statement.TypeError} {message: 
+Vector index 'kbpediaConceptVectorIndex' has a 
+configured dimensionality of 384, but the 
+provided vector has dimension 1024.}
+retriever_debug_utf8.log:4735:DEBUG 
+PROLOG-GRAPHRAG:KBPedia concept vector search 
+error: {code: 
+Neo.ClientError.Statement.TypeError} {message: 
+Vector index 'kbpediaConceptVectorIndex' has a 
+configured dimensionality of 384, but the 
+provided vector has dimension 1024.}
+retriever_debug_utf8.log:4736:DEBUG 
+PROLOG-GRAPHRAG:KBPedia concept vector search 
+error: {code: 
+Neo.ClientError.Statement.TypeError} {message: 
+Vector index 'kbpediaConceptVectorIndex' has a 
+configured dimensionality of 384, but the 
+provided vector has dimension 1024.}
+retriever_debug_utf8.log:4737:DEBUG 
+PROLOG-GRAPHRAG:KBPedia concept vector search 
+error: {code: 
+Neo.ClientError.Statement.TypeError} {message: 
+Vector index 'kbpediaConceptVectorIndex' has a 
+configured dimensionality of 384, but the 
+provided vector has dimension 1024.}
+retriever_debug_utf8.log:4738:DEBUG 
+PROLOG-GRAPHRAG:KBPedia concept vector search 
+error: {code: 
+Neo.ClientError.Statement.TypeError} {message: 
+Vector index 'kbpediaConceptVectorIndex' has a 
+configured dimensionality of 384, but the 
+provided vector has dimension 1024.}
+retriever_debug_utf8.log:4739:DEBUG 
+PROLOG-GRAPHRAG:KBPedia concept vector search 
+error: {code: 
+Neo.ClientError.Statement.TypeError} {message: 
+Vector index 'kbpediaConceptVectorIndex' has a 
+configured dimensionality of 384, but the 
+provided vector has dimension 1024.}
+retriever_debug_utf8.log:4740:DEBUG 
+PROLOG-GRAPHRAG:KBPedia has no vector matches 
+for 'What are the exact steps or concepts 
+related to photosynthesis?'.
+retriever_debug_utf8.log:4741:DEBUG 
+PROLOG-GRAPHRAG:KBPedia found 0 grounded 
+concept contexts.
+
+
