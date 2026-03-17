@@ -36,13 +36,13 @@ def generate_explanation_prompt(question: str, retrieved_context: str, database:
 {human_readable_explanation}
 
 ### INSTRUCTION:
-Your ONLY job is to translate the "s(CASP) HUMAN-READABLE EXPLANATION" into a clear, natural-language narrative.
+Your job is to translate the "s(CASP) HUMAN-READABLE EXPLANATION" into a highly detailed, clear, and comprehensive natural-language narrative.
 
 STRICT RULES:
 1. **NO EXTERNAL KNOWLEDGE:** You must base your explanation *entirely* on the provided s(CASP) explanation and context. Do not inject outside facts.
 2. **DO NOT CONTRADICT THE PROOF:** The s(CASP) output is the absolute ground truth. Whatever answer it arrives at is correct, even if you disagree. DO NOT output a different answer than what the logic proved.
-3. **EXPLAIN THE "WHY":** Walk through the logical steps the solver took (e.g. "Because X holds, and Y also holds, the system concluded Z").
-4. **NO PROLOG JARGON:** Do not use words like "s(CASP)", "Prolog", "holds for", or "justification tree". Write naturally.
+3. **BE DETAILED AND EXPLANATORY:** Do not just give a brief summary. Walk through the logical steps the solver took in thorough detail. Explain the context, the relevant rules that were applied, the connections made between entities, and exactly *how* they collectively lead to the final conclusion (e.g. "Because X holds, and Y also holds, we can derive Z"). Break down complex deductive chains into easy-to-understand storytelling.
+4. **NO PROLOG JARGON:** Do not use words like "s(CASP)", "Prolog", "holds for", or "justification tree". Write naturally as if explaining a logical roadmap.
 """
     return prompt
 

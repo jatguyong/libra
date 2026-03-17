@@ -5,9 +5,8 @@
  * GraphRAG sources (condensed context), explainability, Prolog details, Prolog error.
  */
 
-import React from 'react';
 import { motion } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Info } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { PaneMarkdown, PaneCompactMarkdown } from './chat/MarkdownRenderer';
 import type { ExplanationData, LogprobEntry } from '../lib/types';
@@ -16,10 +15,9 @@ interface ExplanationPaneProps {
   isOpen: boolean;
   onClose: () => void;
   data: ExplanationData | null;
-  onCalculate?: () => void;
 }
 
-export default function ExplanationPane({ isOpen, onClose, data, onCalculate }: ExplanationPaneProps) {
+export default function ExplanationPane({ isOpen, onClose, data }: ExplanationPaneProps) {
   return (
     <motion.div
       initial={false}
@@ -42,7 +40,7 @@ export default function ExplanationPane({ isOpen, onClose, data, onCalculate }: 
           {data ? (
             <>
               <PipelineBadge fallback={data.fallback} />
-              <SemanticEntropySection data={data} onCalculate={() => onCalculate?.()} />
+              <SemanticEntropySection data={data} />
               <LogprobsSection logprobs={data.logprobs} />
               <QuerySection query={data.query} />
               <GraphRAGSourcesSection data={data} />
@@ -80,20 +78,19 @@ function PipelineBadge({ fallback }: { fallback: string }) {
   );
 }
 
-function SemanticEntropySection({ data, onCalculate }: { data: ExplanationData, onCalculate: () => void }) {
-  const [isCalculating, setIsCalculating] = React.useState(false);
-
-  // If we already have semantic entropy calculated
+function SemanticEntropySection({ data }: { data: ExplanationData }) {
+  // If we have semantic entropy calculated
   if (data.semantic_entropy != null) {
     return (
       <div className="mb-4 bg-white/5 rounded-lg p-3 flex flex-col gap-2">
-        <div className="flex justify-between items-center group/tooltip relative">
+        <div className="flex justify-between items-center relative group/tooltip">
           <div className="flex items-center gap-1.5 cursor-help">
-            <span className="text-xs uppercase tracking-wider font-semibold text-white/50 border-b border-dashed border-white/20 pb-0.5">Semantic Entropy</span>
+            <span className="text-xs uppercase tracking-wider font-semibold text-white/50 pb-0.5">Semantic Entropy</span>
+            <Info size={14} className="text-white/40 hover:text-white/60 transition-colors" />
           </div>
-          <div className="font-inter absolute bottom-full left-0 mb-2 w-64 p-2.5 bg-[#2a2435] border border-white/10 rounded-lg shadow-xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 text-xs text-white/80 leading-relaxed pointer-events-none">
-             A measure of uncertainty. The pipeline samples the LLM 5 times. High entropy (approaching positive numbers) means the model gave diverse answers (likely hallucinating). Low entropy (approaching 0, but is negative here) means the model consistently gave the same answer.
-             <div className="absolute top-full left-6 border-4 border-transparent border-t-[#2a2435]" />
+          <div className="font-inter absolute top-full left-0 mt-2 w-64 p-2.5 bg-[#2a2435] border border-white/10 rounded-lg shadow-xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 text-xs text-white/80 leading-relaxed pointer-events-none">
+            A measure of uncertainty. The pipeline samples the LLM 5 times. High entropy means the model gave diverse answers (likely hallucinating). Low entropy means the model consistently gave the same answer.
+            <div className="absolute bottom-full left-6 border-4 border-transparent border-b-[#2a2435]" />
           </div>
           <span className="text-sm font-mono text-white/90 bg-black/30 px-2 py-0.5 rounded">
             {data.semantic_entropy!.toFixed(4)}
@@ -102,11 +99,10 @@ function SemanticEntropySection({ data, onCalculate }: { data: ExplanationData, 
         {data.hallucination_flag && (
           <div className="flex justify-between items-center">
             <span className="text-xs uppercase tracking-wider font-semibold text-white/50">Confidence</span>
-            <span className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-              data.hallucination_flag === 'likely_hallucination'
-                ? 'bg-amber-500/20 text-amber-300'
-                : 'bg-green-500/20 text-emerald-300'
-            }`}>
+            <span className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${data.hallucination_flag === 'likely_hallucination'
+              ? 'bg-amber-500/20 text-amber-300'
+              : 'bg-green-500/20 text-emerald-300'
+              }`}>
               {data.hallucination_flag.replace('_', ' ')}
             </span>
           </div>
@@ -115,30 +111,7 @@ function SemanticEntropySection({ data, onCalculate }: { data: ExplanationData, 
     );
   }
 
-  // If this is a prolog-graphrag response but SE hasn't been calculated yet
-  if (data.fallback === 'prolog-graphrag') {
-    return (
-      <div className="mb-4">
-        <button 
-          onClick={async () => {
-            setIsCalculating(true);
-            await onCalculate();
-            setIsCalculating(false);
-          }}
-          disabled={isCalculating}
-          className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isCalculating ? (
-             <span className="inline-block w-3 h-3 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
-          ) : (
-             <span className="text-xs font-semibold text-white/60 group-hover:text-white uppercase tracking-wider">Calculate Semantic Entropy</span>
-          )}
-        </button>
-      </div>
-    );
-  }
-
-  // Fallback (Not Prolog-GraphRAG) -> no SE applies
+  // Not calculated yet or inapplicable
   return null;
 }
 
@@ -238,11 +211,12 @@ function CondensedContextBlock({ text }: { text: string }) {
     <div className="space-y-2 mb-3">
       {SECTION_KEYS.map(key => {
         const content = sections[key];
-        if (!content || content.toLowerCase() === 'none') return null;
+        if (!content) return null;
+
         return (
           <div key={key} className="rounded-lg bg-white/5 px-3 py-2">
             <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-1">{key}</p>
-            <div className="text-sm text-white/80 font-inter leading-relaxed">
+            <div className={`text-sm font-inter leading-relaxed ${content.toLowerCase() === 'none' ? 'text-white/30 italic' : 'text-white/80'}`}>
               <PaneCompactMarkdown>{content}</PaneCompactMarkdown>
             </div>
           </div>
