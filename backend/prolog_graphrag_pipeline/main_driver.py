@@ -114,6 +114,70 @@ def run_pipeline(
             raw_context_strings.append(content)
 
     retrieved_context_str = condensed_context if graphrag_output else ""
+    
+    # Extract Nodes and Edges for Visual Graph
+    graph_nodes = {}
+    graph_edges = []
+    
+    if flag != "q" and graphrag_output and fallback != "tuned":
+        for item in graphrag_retriever_results:
+            metadata = {}
+            if hasattr(item, "metadata"):
+                metadata = item.metadata or {}
+            elif isinstance(item, dict):
+                metadata = item.get("metadata", {})
+                
+            # Process local_context
+            local_ctx = metadata.get("local_context", [])
+            for lc in local_ctx:
+                if isinstance(lc, dict):
+                    source = lc.get("entity")
+                    target = lc.get("target")
+                    rel = lc.get("relationship")
+                    if source and target and rel:
+                        graph_nodes[str(source)] = {"id": str(source), "label": "Entity"}
+                        graph_nodes[str(target)] = {"id": str(target), "label": "Entity"}
+                        graph_edges.append({"source": str(source), "target": str(target), "label": str(rel)})
+                        
+            # Process KBPedia / Knowledge Graph Triples
+            kg_triples = metadata.get("triples", [])
+            for t in kg_triples:
+                if isinstance(t, str):
+                    # Handle (Wikidata) prefix or other sources
+                    clean_t = t
+                    if t.startswith("("):
+                        match = re.search(r'\)\s*(.*)', t)
+                        if match:
+                            clean_t = match.group(1).strip()
+                    
+                    # Split on ' IS_A ', ' PART_OF ', etc. or simple space
+                    # Looking for: Source Relationship Target
+                    parts = []
+                    # Try to find a known relationship keyword first
+                    for rel_key in [" SUBCLASS_OF ", " PART_OF ", " RELATED_TO ", " CAUSES ", " PRODUCES ", " REQUIRES ", " OCCURS_IN ", " DISCOVERED_BY ", " DEFINES ", " IS_A "]:
+                        if rel_key in clean_t:
+                            s, tgt = clean_t.split(rel_key, 1)
+                            parts = [s.strip(), rel_key.strip(), tgt.strip()]
+                            break
+                    
+                    if not parts:
+                        # Fallback: simple split
+                        temp_parts = clean_t.split(" ", 2)
+                        if len(temp_parts) >= 3:
+                            parts = [temp_parts[0], temp_parts[1], temp_parts[2]]
+                    
+                    if len(parts) >= 3:
+                        source, rel, target = parts[0], parts[1], parts[2]
+                        graph_nodes[str(source)] = {"id": str(source), "label": "Concept"}
+                        graph_nodes[str(target)] = {"id": str(target), "label": "Concept"}
+                        graph_edges.append({"source": str(source), "target": str(target), "label": str(rel)})
+                        
+    graph_data = {
+        "nodes": list(graph_nodes.values()),
+        "edges": graph_edges
+    }
+    
+    logger.info(f"Extracted graph_data: {len(graph_data['nodes'])} nodes, {len(graph_data['edges'])} edges")
 
     # Prolog-GraphRAG path
     pgr_results = {}
@@ -186,6 +250,7 @@ def run_pipeline(
             "explainer_output": _pgr("explainer_output", "No explainer output generated."),
             "prolog_error": _pgr("prolog_error") or None,
             "fallback": fallback,
+            "graph_data": graph_data,
         }
 
     # sample_mode: run semantic entropy if we have multiple LLM samples
@@ -202,6 +267,7 @@ def run_pipeline(
             "explainer_output": _pgr("explainer_output", "No explainer output generated."),
             "prolog_error": _pgr("prolog_error") or prolog_error,
             "fallback": fallback,
+            "graph_data": graph_data,
         }
 
     answers = [output["text_answer"] for output in llm_output]
@@ -223,6 +289,7 @@ def run_pipeline(
         "explainer_output": _pgr("explainer_output", "No explainer output generated."),
         "prolog_error": _pgr("prolog_error") or None,
         "fallback": fallback,
+        "graph_data": graph_data,
     }
 
 

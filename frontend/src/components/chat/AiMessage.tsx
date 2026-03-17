@@ -4,7 +4,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { Copy, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Copy, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Network } from 'lucide-react';
 import ThinkingProcess from '../ThinkingProcess';
 import { ChatMarkdown } from './MarkdownRenderer';
 import type { Message, ExplanationData } from '../../lib/types';
@@ -14,10 +14,20 @@ interface AiMessageProps {
   onRedo: (id: string) => void;
   isFinished: boolean;
   onExplanationClick: (data: ExplanationData) => void;
+  onGraphClick: (data: ExplanationData) => void;
 }
 
-export default function AiMessage({ message, onRedo, isFinished, onExplanationClick }: AiMessageProps) {
+export default function AiMessage({ message, onRedo, isFinished, onExplanationClick, onGraphClick }: AiMessageProps) {
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (isFinished) {
+      console.log(`[AiMessage ${message.id}] Finished. Fallback: ${message.explanationData?.fallback}, Has GraphData: ${!!message.explanationData?.graph_data}`);
+      if (message.explanationData?.graph_data) {
+        console.log(`[AiMessage ${message.id}] Graph nodes count: ${message.explanationData.graph_data.nodes.length}`);
+      }
+    }
+  }, [isFinished, message.id, message.explanationData?.fallback, message.explanationData?.graph_data]);
 
   // ── Variant navigation ──────────────────────────────────────────
   const variants = message.alternativeContents
@@ -143,6 +153,18 @@ export default function AiMessage({ message, onRedo, isFinished, onExplanationCl
                 <div className="p-1.5 text-amber-500/80 hover:text-amber-400 rounded-md transition-colors cursor-help ml-1">
                   <AlertTriangle size={18} />
                 </div>
+              </Tooltip>
+            )}
+
+            {/* Graph Visualization button */}
+            {message.explanationData?.fallback === 'prolog-graphrag' && (
+              <Tooltip label="View Knowledge Graph">
+                <button 
+                  onClick={() => onGraphClick(message.explanationData!)} 
+                  className="p-1.5 ml-1 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10 rounded-md transition-colors cursor-pointer"
+                >
+                  <Network size={18} />
+                </button>
               </Tooltip>
             )}
 

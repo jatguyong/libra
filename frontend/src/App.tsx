@@ -20,6 +20,7 @@ import ThinkingProcess from './components/ThinkingProcess';
 import AiMessage from './components/chat/AiMessage';
 import UserMessage from './components/chat/UserMessage';
 import ExplanationPane from './components/ExplanationPane';
+import KnowledgeGraphViewer from './components/KnowledgeGraphViewer';
 
 import { streamChat } from './lib/api';
 import { useIngestion } from './hooks/useIngestion';
@@ -66,6 +67,14 @@ function App() {
   const openExplanation = (data: ExplanationData) => {
     setSelectedExplanation(data);
     setIsExplanationOpen(true);
+  };
+
+  const [isGraphOpen, setIsGraphOpen] = useState(false);
+  const [selectedGraphData, setSelectedGraphData] = useState<ExplanationData | null>(null);
+
+  const openGraph = (data: ExplanationData) => {
+    setSelectedGraphData(data);
+    setIsGraphOpen(true);
   };
 
   const handleNewConversation = () => {
@@ -296,6 +305,7 @@ function App() {
                       onRedo={handleRedo}
                       isFinished={!isGenerating || msg.id !== messages[messages.length - 1].id}
                       onExplanationClick={openExplanation}
+                      onGraphClick={openGraph}
                     />
                 ))}
 
@@ -327,6 +337,13 @@ function App() {
           isOpen={isExplanationOpen}
           onClose={() => setIsExplanationOpen(false)}
           data={selectedExplanation}
+        />
+
+        {/* Knowledge Graph Viewer overlay */}
+        <KnowledgeGraphViewer
+          isOpen={isGraphOpen}
+          onClose={() => setIsGraphOpen(false)}
+          graphData={selectedGraphData?.graph_data || null}
         />
       </div>
     </div>

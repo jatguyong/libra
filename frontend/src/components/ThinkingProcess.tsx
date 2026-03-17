@@ -74,7 +74,7 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback,
   const activeSteps = fallback === 'tuned' ? TUNED_LLM_STEPS : PROLOG_STEPS;
 
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   const internalStep = isFinished ? activeSteps.length - 1 : Math.min(Math.max(0, currentStep - 1), activeSteps.length - 1);
 
   useEffect(() => {
@@ -91,7 +91,7 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback,
           className={`flex items-center gap-2 mb-2 group transition-colors w-auto cursor-pointer ${isFinished ? 'text-white/50 hover:text-white/80' : 'text-white/70 hover:text-white/90 animate-pulse'}`}
         >
           <img src="/libra_logo.png" alt="Libra Logo" className={`w-5 h-5 object-contain ${isFinished ? 'opacity-70 group-hover:opacity-100' : 'opacity-100'}`} />
-          <span className="text-sm font-medium">{!isFinished ? "Libra is thinking" : "Libra's Thought Process"}</span>
+          <span className="text-sm font-medium">{!isFinished ? "Libra is thinking" : "Show Thinking"}</span>
           <ChevronDown
             size={14}
             className={`transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
@@ -125,18 +125,18 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback,
                       <h4 className="font-bold mb-2 text-white/90 italic">
                         {step.title}
                       </h4>
-                      
+
                       <p className={`text-[14px] leading-relaxed text-white/60 italic ${isCurrentlyThinking && stepThoughts.length === 0 ? 'animate-pulse' : ''}`}>
                         {step.description}
                       </p>
-                      
+
                       {stepThoughts.length > 0 && (
                         <div className="mt-2 space-y-2">
                           {stepThoughts.map((thought, tIdx) => {
                             const isLastThought = tIdx === stepThoughts.length - 1;
                             const applyPulse = isCurrentlyThinking && isLastThought;
                             return (
-                              <motion.div 
+                              <motion.div
                                 key={tIdx}
                                 initial={{ opacity: 0, y: 5 }}
                                 animate={{ opacity: 1, y: 0 }}

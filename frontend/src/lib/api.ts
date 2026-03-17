@@ -26,6 +26,7 @@ export function parseExplanationData(data: Record<string, unknown>): Explanation
     logprobs: (data.logprobs as ExplanationData['logprobs']) || [],
     semantic_entropy: data.semantic_entropy as number | undefined,
     hallucination_flag: data.hallucination_flag as string | undefined,
+    graph_data: (data.graph_data as ExplanationData['graph_data']) || undefined,
   };
 }
 

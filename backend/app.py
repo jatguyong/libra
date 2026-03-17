@@ -254,7 +254,8 @@ def chat():
                         "contexts": contexts,
                         "condensed_context": result.get("condensed_context", ""),
                         "fallback": result.get("fallback", "unknown"),
-                        "prolog_error": result.get("prolog_error", None)
+                        "prolog_error": result.get("prolog_error", None),
+                        "graph_data": result.get("graph_data")
                     }
                 })
                 

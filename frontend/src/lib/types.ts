@@ -22,6 +22,23 @@ export interface ExplanationData {
   logprobs: LogprobEntry[];
   semantic_entropy?: number;
   hallucination_flag?: string;
+  graph_data?: GraphData;
+}
+
+export interface GraphNode {
+  id: string;
+  label?: string;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  label?: string;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }
 
 /** A single chat message (user or LLM). */
