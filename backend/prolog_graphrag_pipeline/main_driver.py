@@ -64,7 +64,12 @@ def run_pipeline(
     )
     graphrag_answer = graphrag_output.get("answer", "") if graphrag_output else ""
     graphrag_logprobs = graphrag_output.get("logprobs", []) if graphrag_output else []
-    graphrag_retriever_results = graphrag_output.get("retriever_results", []) if graphrag_output else []
+    graphrag_retriever_result = graphrag_output.get("retriever_results", []) if graphrag_output else []
+    # RetrieverResult is a Pydantic model with .items; unwrap to the actual list
+    if hasattr(graphrag_retriever_result, 'items'):
+        graphrag_retriever_results = graphrag_retriever_result.items
+    else:
+        graphrag_retriever_results = graphrag_retriever_result if isinstance(graphrag_retriever_result, list) else []
     query = graphrag_output.get("query", question) if graphrag_output else question
 
     # Build context strings from retriever results
@@ -82,7 +87,15 @@ def run_pipeline(
                 src = (item.metadata or {}).get("source", "")
             elif isinstance(item, dict):
                 src = item.get("metadata", {}).get("source", "")
-            raw_context_strings.append(str(item))
+            
+            # Use item.content heavily like retriever.generate() does
+            content = ""
+            if hasattr(item, "content"):
+                content = item.content
+            elif isinstance(item, dict):
+                content = item.get("content", "")
+            
+            raw_context_strings.append(content)
 
     retrieved_context_str = condensed_context if graphrag_output else ""
 
@@ -152,7 +165,7 @@ def run_pipeline(
             "prolog_query": _pgr("query", "No prolog query generated."),
             "query": query,
             "condensed_context": condensed_context,
-            "contexts": retrieved_context_str,
+            "contexts": raw_context_strings if raw_context_strings else retrieved_context_str,
             "prolog_explanation": _pgr("prolog_explanation"),
             "explainer_output": _pgr("explainer_output", "No explainer output generated."),
             "prolog_error": _pgr("prolog_error") or None,
@@ -168,7 +181,7 @@ def run_pipeline(
             "prolog_query": _pgr("query", "No prolog query generated."),
             "query": query,
             "condensed_context": condensed_context,
-            "contexts": retrieved_context_str,
+            "contexts": raw_context_strings if raw_context_strings else retrieved_context_str,
             "prolog_explanation": _pgr("prolog_explanation"),
             "explainer_output": _pgr("explainer_output", "No explainer output generated."),
             "prolog_error": _pgr("prolog_error") or prolog_error,
@@ -189,7 +202,7 @@ def run_pipeline(
         "prolog_query": _pgr("query", "No prolog query generated."),
         "query": query,
         "condensed_context": condensed_context,
-        "contexts": retrieved_context_str,
+        "contexts": raw_context_strings if raw_context_strings else retrieved_context_str,
         "prolog_explanation": _pgr("prolog_explanation"),
         "explainer_output": _pgr("explainer_output", "No explainer output generated."),
         "prolog_error": _pgr("prolog_error") or None,

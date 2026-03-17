@@ -1,5 +1,5 @@
 import React, { useState, type KeyboardEvent, useRef } from 'react';
-import { Plus, Send, FileText, X, Info } from 'lucide-react';
+import { Plus, Send, FileText, X, Info, Settings2, Check } from 'lucide-react';
 import { API_BASE } from '../lib/api';
 
 interface ChatBoxProps {
@@ -16,6 +16,7 @@ interface ChatBoxProps {
 const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, uploadedFiles = [], setUploadedFiles, onFilesUploaded, useGlobalKG = false, setUseGlobalKG }: ChatBoxProps) => {
     const [inputText, setInputText] = useState('');
     const [showBadge, setShowBadge] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -166,11 +167,10 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
 
                     <div className="flex items-center gap-3">
                         <button
-                            className={`flex items-center justify-center w-8 h-8 rounded-full border transition cursor-pointer ${
-                                isIngesting
-                                    ? 'border-white/10 text-white/30 cursor-not-allowed'
-                                    : 'border-white/20 text-white/70 hover:text-white hover:bg-white/10'
-                            }`}
+                            className={`flex items-center justify-center w-8 h-8 rounded-full border transition cursor-pointer ${isIngesting
+                                ? 'border-white/10 text-white/30 cursor-not-allowed'
+                                : 'border-white/20 text-white/70 hover:text-white hover:bg-white/10'
+                                }`}
                             onClick={() => !isIngesting && fileInputRef.current?.click()}
                             disabled={isIngesting}
                             title={isIngesting ? 'Wait for ingestion to finish' : 'Upload PDF'}
@@ -178,28 +178,63 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                             <Plus size={16} />
                         </button>
 
-                        <div className="flex items-center gap-2 pl-2">
+                        <div className="relative">
                             <button
-                                onClick={() => setUseGlobalKG && setUseGlobalKG(!useGlobalKG)}
-                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-300 ease-in-out focus:outline-none ${useGlobalKG ? 'bg-[#A278AE]' : 'bg-white/20'}`}
-                                role="switch"
-                                aria-checked={useGlobalKG}
+                                onClick={() => setShowSettings(!showSettings)}
+                                className={`flex items-center justify-center w-8 h-8 rounded-full border transition cursor-pointer ${showSettings
+                                    ? 'bg-white/20 border-white/30 text-white'
+                                    : 'border-white/20 text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                                title="Settings"
                             >
-                                <span
-                                    aria-hidden="true"
-                                    className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow ring-0 transition duration-300 ease-in-out ${useGlobalKG ? 'translate-x-[19px]' : 'translate-x-[3px]'}`}
-                                />
+                                <Settings2 size={16} />
                             </button>
 
-                            <span className="text-white/70 text-sm font-space select-none tracking-wide">Use Global KG</span>
+                            {/* Settings Dropdown */}
+                            {showSettings && (
+                                <>
+                                    <div
+                                        className="fixed inset-0 z-40"
+                                        onClick={() => setShowSettings(false)}
+                                    />
+                                    <div className="absolute bottom-full left-0 mb-3 w-72 p-1.5 bg-[#1a1523] border border-white/10 rounded-xl shadow-2xl z-50 origin-bottom-left animate-in fade-in zoom-in-95 duration-200">
+                                        <div className="px-3 py-2 border-b border-white/5 mb-1">
+                                            <span className="text-xs uppercase tracking-wider font-semibold text-white/50">GraphRAG Context</span>
+                                        </div>
 
-                            <div className="relative group/tooltip flex items-center">
-                                <Info size={17} className="text-white/50 cursor-help hover:text-white/80 transition-colors" />
-                                <div className="font-inter absolute bottom-full left-0 mb-3 w-64 p-3 bg-[#1a1523] border border-white/10 rounded-xl shadow-2xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-300 origin-bottom-left scale-95 group-hover/tooltip:scale-100 text-xs text-white/80 leading-relaxed pointer-events-none">
-                                    Searches the Global Knowledge Graph (including KBPedia and Wikidata) to provide highly accurate, fact-based answers.
-                                    <div className="absolute top-full left-1.5 border-4 border-transparent border-t-[#1a1523]" />
-                                </div>
-                            </div>
+                                        <button
+                                            onClick={() => {
+                                                if (setUseGlobalKG) setUseGlobalKG(false);
+                                                setShowSettings(false);
+                                            }}
+                                            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left group"
+                                        >
+                                            <span className="text-sm font-inter text-white/90">Local Documents Only</span>
+                                            {!useGlobalKG && <Check size={16} className="text-[#A278AE]" />}
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                if (setUseGlobalKG) setUseGlobalKG(true);
+                                                setShowSettings(false);
+                                            }}
+                                            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left group gap-2"
+                                        >
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-sm font-inter text-white/90">Local Documents + Global KG</span>
+                                                <div className="relative group/tooltip flex items-center">
+                                                    <Info size={15} className="text-white/40 group-hover/text-white/60 transition-colors" />
+                                                    <div className="font-inter absolute bottom-full right-[-5px] mb-2 w-56 p-2.5 bg-[#2a2435] border border-white/10 rounded-lg shadow-xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 text-xs text-white/80 leading-relaxed pointer-events-none">
+                                                        Searches the Global Knowledge Graph (including KBPedia and Wikidata) to provide highly accurate, fact-based answers.
+                                                        <div className="absolute top-full right-2 border-4 border-transparent border-t-[#2a2435]" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {useGlobalKG && <Check size={16} className="text-[#A278AE]" />}
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </div>
 
@@ -213,11 +248,10 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                         <button
                             onClick={handleSend}
                             disabled={!inputText.trim() || isLoading || isIngesting}
-                            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${
-                                (!inputText.trim() || isLoading || isIngesting)
-                                    ? 'bg-white/5 text-white/30 cursor-not-allowed'
-                                    : 'bg-white/20 text-white hover:bg-white/30 hover:scale-105'
-                            }`}
+                            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${(!inputText.trim() || isLoading || isIngesting)
+                                ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                                : 'bg-white/20 text-white hover:bg-white/30 hover:scale-105 cursor-pointer'
+                                }`}
                             title={isIngesting ? 'Waiting for PDF ingestion to complete…' : 'Send'}
                         >
                             <Send size={14} className="ml-[-2px]" />

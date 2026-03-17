@@ -21,7 +21,7 @@ import AiMessage from './components/chat/AiMessage';
 import UserMessage from './components/chat/UserMessage';
 import ExplanationPane from './components/ExplanationPane';
 
-import { streamChat } from './lib/api';
+import { streamChat, API_BASE } from './lib/api';
 import { useIngestion } from './hooks/useIngestion';
 import type { Message, ExplanationData } from './lib/types';
 
@@ -253,12 +253,12 @@ function App() {
                   msg.role === 'user'
                     ? <UserMessage key={msg.id} message={msg} />
                     : <AiMessage
-                        key={msg.id}
-                        message={msg}
-                        onRedo={handleRedo}
-                        isFinished={!isGenerating || msg.id !== messages[messages.length - 1].id}
-                        onExplanationClick={openExplanation}
-                      />
+                      key={msg.id}
+                      message={msg}
+                      onRedo={handleRedo}
+                      isFinished={!isGenerating || msg.id !== messages[messages.length - 1].id}
+                      onExplanationClick={openExplanation}
+                    />
                 ))}
 
                 {isLoading && (
@@ -289,6 +289,37 @@ function App() {
           isOpen={isExplanationOpen}
           onClose={() => setIsExplanationOpen(false)}
           data={selectedExplanation}
+          onCalculate={async () => {
+            if (!selectedExplanation) return;
+            try {
+              const res = await fetch(`${API_BASE}/api/semantic-entropy`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  query: selectedExplanation.query,
+                  condensed_context: selectedExplanation.condensed_context,
+                  explainer_output: selectedExplanation.explainer_output,
+                  fallback: selectedExplanation.fallback
+                })
+              });
+              if (!res.ok) throw new Error('Failed to calculate semantic entropy');
+              const data = await res.json();
+              setSelectedExplanation({
+                ...selectedExplanation,
+                semantic_entropy: data.semantic_entropy,
+                hallucination_flag: data.hallucination_flag
+              });
+              // Also update the message in the chat history so it persists
+              setMessages(prev => prev.map(msg =>
+                msg.explanationData?.query === selectedExplanation.query
+                  ? { ...msg, explanationData: { ...msg.explanationData, semantic_entropy: data.semantic_entropy, hallucination_flag: data.hallucination_flag } }
+                  : msg
+              ));
+            } catch (err) {
+              console.error(err);
+              alert('Failed to calculate semantic entropy. Check console for details.');
+            }
+          }}
         />
       </div>
     </div>
