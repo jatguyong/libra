@@ -185,19 +185,35 @@ def _inject_inline_errors(code: str, last_error: str) -> str:
     return "\n".join(new_lines)
 
 
-def generate_prolog_generation_prompt(question: str, retrieved_context: str, error_history: list, previous_code: str = None) -> str:
+def generate_prolog_generation_prompt(question: str, retrieved_context: str, error_history: list, previous_code: str = None, question_type: str = "freeform") -> str:
     prompt = f"""Now, process the following:
 User Question:
 {question}
 
 Context:
 {retrieved_context}
+"""
 
+    if question_type == "mcq":
+        prompt += """
 CRITICAL REMINDER — LETTER ASSIGNMENT:
 Re-read the User Question above carefully. The choices are labeled exactly as they appear (A, B, C, D).
 Your `choice/2` facts MUST encode each letter to EXACTLY the choice text it corresponds to in the question.
 Your `answer(OptionLetter)` rule MUST unify with the letter whose choice text satisfies the criteria — NOT any other letter.
 Before writing <database>, double-check: does `answer(X)` fire for the correct letter?
+"""
+    elif question_type == "binary":
+        prompt += """
+CRITICAL REMINDER — QUESTION TYPE: BINARY
+This is a yes/no question. You MUST NOT use `choice/2` facts or `answer(OptionLetter)` queries.
+Define grounded instances from the question, write rules for the condition, then query the fully grounded relationship directly.
+"""
+    else:  # freeform
+        prompt += """
+CRITICAL REMINDER — QUESTION TYPE: FREEFORM/EXPLANATORY
+This is an explanatory or conceptual question. There are NO multiple-choice options.
+You MUST NOT use `choice/2` facts or `answer(OptionLetter)` queries.
+Define facts and rules from the context, then query the primary target entity state — use a Prolog variable to capture the answer if needed (e.g., `particle_comparison(co2, nh3, Relationship).`).
 """
 
     if error_history:
@@ -292,12 +308,12 @@ Answer with ONLY one word: YES or NO.
         return False
 
 
-def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: str, error_history: list, previous_code: str = None, last_attempt_tracker: list = None):
+def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: str, error_history: list, previous_code: str = None, last_attempt_tracker: list = None, question_type: str = "freeform"):
     """Single attempt of Prolog code generation + validation."""
-    prompt = generate_prolog_generation_prompt(question, retrieved_context, error_history, previous_code)
+    prompt = generate_prolog_generation_prompt(question, retrieved_context, error_history, previous_code, question_type)
 
     try:
-        answer = generate_fn(prompt=prompt, flag="prolog")
+        answer = generate_fn(prompt=prompt, flag="prolog", question_type=question_type)
     except TypeError as e:
         print(f"CRITICAL ERROR calling generate: {e}")
         raise e
@@ -368,6 +384,15 @@ def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: s
     unquoted_code = re.sub(r"'[^']*'", "''", combined_code)
     unquoted_code = re.sub(r"%.*$", "", unquoted_code, flags=re.MULTILINE)
 
+    # VALIDATION: Hard reject choice/2 in non-MCQ mode
+    if question_type != "mcq" and "choice(" in unquoted_code:
+        raise ValueError(
+            f"QUESTION TYPE VIOLATION: This is a '{question_type}' question, NOT multiple-choice. "
+            "You MUST NOT use `choice/2` facts or `answer(OptionLetter)` queries. "
+            "Remove ALL `choice(...)` facts. Instead, encode domain facts directly and "
+            "write a query that tests the target relationship or captures the answer via a Prolog variable."
+        )
+
     # VALIDATION: MCQ Enforce answer/1
     # If the database contains 'choice(', it is a Multiple-Choice Question.
     # Therefore, the query MUST be 'answer(OptionLetter).' to unify against the choices.
@@ -388,12 +413,15 @@ def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: s
     forbidden_patterns = [
         (r';', "Disjunction ';' is forbidden in s(CASP). Use multiple separate rules with the same head instead of ';'."),
         (r'=:=', "Arithmetic equality '=:=' is forbidden in s(CASP). Use '#=' for constraint arithmetic or '=' for unification."),
-        (r'=\\=', "Arithmetic inequality '=\\=' is forbidden in s(CASP). Use '#=\\=' for constraint arithmetic."),
+        (r'=\\=', "Arithmetic inequality '=\\=' is forbidden in s(CASP). Use '#\\=' for constraint arithmetic."),
         (r'\bis\b', "Evaluation 'is' is forbidden in s(CASP). Use '#=' for constraint arithmetic assignment."),
-        (r'(?<!#)<', "Standard arithmetic less-than '<' is forbidden. Use '#<' instead."),
-        (r'(?<!#)>', "Standard arithmetic greater-than '>' is forbidden. Use '#>' instead."),
-        (r'<=', "Standard arithmetic '<=' is forbidden. Use '#=<' instead."),
-        (r'>=', "Standard arithmetic '>=' is forbidden. Use '#>=' instead."),
+        # Only match bare < and > that are NOT preceded by # (i.e., not part of #< or #>)
+        # Also must not be inside \= or =< (handled separately)
+        (r'(?<!#)(?<!=)(?<![<>])(?<![\\])<(?![=<])', "Standard arithmetic less-than '<' is forbidden. Use '#<' instead."),
+        (r'(?<!#)(?<!=)(?<![<>])>(?![=])', "Standard arithmetic greater-than '>' is forbidden. Use '#>' instead."),
+        # Bare <= and >= (not preceded by # which would make them valid CLP operators)
+        (r'(?<!#)<=', "Standard arithmetic '<=' is forbidden. Use '#=<' instead."),
+        (r'(?<!#)>=', "Standard arithmetic '>=' is forbidden. Use '#>=' instead."),
         (r'->', "If-then '->' is forbidden in s(CASP). Use separate rules instead."),
         (r'[~⊃∨∧]', "Unquoted logic symbol found. Wrap logical formulas in single quotes or use 'not'/'-' for negation."),
         (r'\\\\\\+', "Negation '\\+' is forbidden in s(CASP). Use 'not' for negation as failure."),
@@ -422,9 +450,13 @@ def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: s
 def generate_prolog_code(question: str, retrieved_context: str, most_recent_error: Optional[str]) -> tuple:
     # ── Resolve the generate function once ───────────────────────────────────
     try:
-        from .prolog_llms import generate as generate_fn
+        from .prolog_llms import generate as generate_fn, classify_question_type
     except ImportError:
-        from prolog.prolog_llms import generate as generate_fn
+        from prolog.prolog_llms import generate as generate_fn, classify_question_type
+
+    # ── Classify question type once (before any generation attempt) ──────────
+    question_type = classify_question_type(question)
+    print(f"[Prolog] Detected question type: {question_type!r} for: {question[:80]!r}")
 
     # ── Phase 1: Normal attempts (5 tries) ───────────────────────────────────
     NORMAL_ATTEMPTS = 5
@@ -438,7 +470,7 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
 
     for i in range(NORMAL_ATTEMPTS):
         try:
-            return _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker)
+            return _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker, question_type)
         except ValueError as e:
             err_str = str(e)
             print(f"Iteration {i} | Validation Error: {err_str}")
@@ -494,7 +526,7 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
         print(f"[Prolog retry] LLM says YES — granting {EXTENSION_ATTEMPTS} extension attempts.")
         for i in range(NORMAL_ATTEMPTS, NORMAL_ATTEMPTS + EXTENSION_ATTEMPTS):
             try:
-                return _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker)
+                return _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker, question_type)
             except ValueError as e:
                 err_str = str(e)
                 print(f"Extension {i} | Validation Error: {err_str}")

@@ -18,22 +18,69 @@ LLM_TIMEOUT = 120  # seconds per LLM call (2 minutes)
 client = get_openai_client()
 
 
-def generate(prompt: str, flag: str) -> dict:
+CLASSIFIER_SYSTEM_PROMPT = """You are a question type classifier. Given a user question, classify it into exactly one of three types:
+
+- MCQ: The question explicitly lists multiple-choice options labelled A, B, C, D (or A., B., C., D. or A) B) C) D)).
+- Binary: The question asks whether a specific condition is true or false, can be answered with yes/no.
+- Freeform: Any other question — explanatory, conceptual, comparative, "what is", "how does", "why", etc.
+
+Respond with ONLY one word: MCQ, Binary, or Freeform.
+Do not explain. Do not add punctuation. Output exactly one word."""
+
+
+def classify_question_type(question: str) -> str:
+    """
+    Fast LLM classifier: returns 'mcq', 'binary', or 'freeform'.
+    Falls back to regex detection if the LLM call fails or returns unexpected output.
+    """
+    import re as _re
+
+    # Fast regex shortcut: if the question has A. / B. / A) / B) options it's MCQ
+    if _re.search(r'\b[A-D][.)]\s', question):
+        logger.info("[QuestionClassifier] Regex detected: MCQ")
+        return "mcq"
+
+    try:
+        invoke_func = retry_with_exponential_backoff(client.chat.completions.create)
+        response = invoke_func(
+            model=NL_MODEL,
+            messages=[
+                {"role": "user", "content": CLASSIFIER_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Question: {question}"},
+            ],
+            temperature=0,
+            max_tokens=5,
+            timeout=30,
+        )
+        raw = response.choices[0].message.content.strip().lower()
+        logger.info(f"[QuestionClassifier] LLM response: {repr(raw)}")
+        if "mcq" in raw or "multiple" in raw or "choice" in raw:
+            return "mcq"
+        if "binary" in raw or "true" in raw or "false" in raw or "yes" in raw or "no" in raw:
+            return "binary"
+        return "freeform"
+    except Exception as e:
+        logger.warning(f"[QuestionClassifier] LLM call failed ({e}), defaulting to 'freeform'")
+        return "freeform"
+
+
+def generate(prompt: str, flag: str, question_type: str = "freeform") -> dict:
     if flag not in ["prolog", "explanation", "q"]:
         raise ValueError(f"Flag {flag} is invalid. Only 'prolog', 'explanation', and 'q' are accepted.")
     
-    return generate_response(prompt=prompt, flag=flag)
+    return generate_response(prompt=prompt, flag=flag, question_type=question_type)
 
     
-def generate_response(prompt: str, flag: str) -> dict:
-    from .prolog_config import GENERATOR_LLM_MESSAGES, EXPLAINER_LLM_MESSAGES
+def generate_response(prompt: str, flag: str, question_type: str = "freeform") -> dict:
+    from .prolog_config import build_generator_messages, EXPLAINER_LLM_MESSAGES
     
     answer = dict()
     
     # Select model based on flag: code-tuned for Prolog, NL model for everything else
     if flag == "prolog":
         model = PROLOG_MODEL
-        base_messages = GENERATOR_LLM_MESSAGES
+        # Dynamically build messages with only the matching few-shot examples
+        base_messages = build_generator_messages(question_type)
         temperature = 0
     elif flag == "explanation":
         model = NL_MODEL

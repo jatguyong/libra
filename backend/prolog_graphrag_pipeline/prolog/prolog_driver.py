@@ -116,8 +116,7 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
 
         if status_callback and database:
             db_lines = len(database.strip().split("\n"))
-            status_callback({"type": "thought", "step": 5, "message": f"I translated the context into {db_lines} lines of formal executable Prolog logic."})
-            status_callback({"type": "thought", "step": 5, "message": f"I formulated the target logical query as: '{query}'."})
+            status_callback({"type": "thought", "step": 5, "message": f"I translated the context into {db_lines} lines of formal executable Prolog logic and formulated the target logical query as: '{query}'."})
 
         if not SCASP_AVAILABLE:
             raise RuntimeError("s(CASP) library is specifically required for this pipeline. Execution aborted.")

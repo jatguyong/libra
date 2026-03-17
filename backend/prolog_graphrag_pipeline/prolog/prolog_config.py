@@ -130,9 +130,15 @@ If any rule fails, correct the program before producing the final output.
 #    - Example DB Rule: `answer(OptionLetter) :- choice(OptionLetter, Target), matches_criteria(Target).`
 #    - IF the question is an MCQ, the <query> MUST strictly be: answer(OptionLetter). Do NOT use this format for Binary or Freeform questions.
 
-GENERATOR_FEW_SHOT_EXAMPLES = [
+
+# ─────────────────────────────────────────────────────────────────
+#  Typed few-shot example banks  (keyed by question_type)
+# ─────────────────────────────────────────────────────────────────
+
+BINARY_FEW_SHOT_EXAMPLES = [
+    # Example B-1: Binary — Food web contamination
     {"role": "user", "content": """
-Now, process the following: 
+Now, process the following:
 
 User Question: If the grass is contaminated, are the snakes affected?
 
@@ -154,11 +160,9 @@ Context:
 """},
     {"role": "assistant", "content": r"""
 <planning>
-1. Target Query: The user wants to know if the snake is affected by the contamination, so the query will be `affected(snake).`.
-2. Grounded Facts: I need to extract the food chain relationships (`eats(grasshopper, grass)`, `eats(frog, grasshopper)`, `eats(snake, frog)`) and the initial state (`is_contaminated(grass)`).
-3. IF-THEN Rules: I must define a recursive rule for `affected/1` to model the propagation through the food web. 
-   - Base case: IF a species is directly contaminated, THEN it is affected.
-   - Recursive case: IF a predator eats a prey AND the prey is affected, THEN the predator is affected.
+1. Question Type: Binary — the user asks whether a condition (snakes being affected) holds. Query: `affected(snake).`
+2. Architecture: Test the fully grounded entity state.
+3. Grounded Facts: food chain eats/2 relationships + is_contaminated(grass).
 </planning>
 
 <reasoning_step>
@@ -170,7 +174,7 @@ is_contaminated(grass).
 </reasoning_step>
 
 <reasoning_step>
-Contamination logic.
+Contamination logic — recursive propagation.
 affected(Species) :- is_contaminated(Species).
 affected(Predator) :- eats(Predator, Prey), affected(Prey).
 </reasoning_step>
@@ -191,15 +195,15 @@ affected(snake).
 ---
 """},
 
-    # Example 2: Binary (True/False) Question Logic
+    # Example B-2: Binary — Magnetic force
     {
-        "role": "user", 
+        "role": "user",
         "content": """
-Now, process the following: 
-User Question: 
-If two rocks are lacking magnetic properties and far apart, can a magnetic effect pull them together? 
+Now, process the following:
+User Question:
+If two rocks are lacking magnetic properties and far apart, can a magnetic effect pull them together?
 
-Context: 
+Context:
 **ATOMIC FACTS**:
     - A magnetic effect can pull two objects together.
 
@@ -214,20 +218,18 @@ Context:
 **LOGICAL GAPS**:
     - None
         """
-        },
+    },
     {
-        "role": "assistant", 
+        "role": "assistant",
         "content": r"""
 <planning>
-1. Target Query: This is a binary True/False question. I need to test the relationship between two specific instances. The query will be `pulled_together(rock_one, rock_two).`.
-2. Grounded Facts: I must instantiate the objects and their states exactly as described in the question: `lacks_magnetic_properties(rock_one)`, `lacks_magnetic_properties(rock_two)`, and `far_apart(rock_one, rock_two)`.
-3. IF-THEN Rules: I need to map the retrieved context to logical conditions.
-   - Negative constraint (classical negation): IF a rock lacks magnetic properties, THEN it cannot be pulled by magnetism. I will use the anonymous variable `_` for the other object to strictly prevent singleton variable warnings.
-   - Positive condition: IF object A and object B both have magnetic properties, THEN they can be pulled together.
+1. Question Type: Binary — tests whether the grounded relationship pulled_together(rock_one, rock_two) holds.
+2. Architecture: Query the fully grounded relationship directly.
+3. Logic: Both rocks lack magnetic properties, so the classical negation rule fires; the positive rule cannot fire.
 </planning>
 
 <reasoning_step>
-Encode specific instances for this binary question.
+Encode specific instances.
 lacks_magnetic_properties(rock_one).
 lacks_magnetic_properties(rock_two).
 far_apart(rock_one, rock_two).
@@ -266,343 +268,7 @@ pulled_together(rock_one, rock_two).
 """
     },
 
-    # Example 3: Multiple-Choice Logic
-#     {
-#         "role": "user", 
-#         "content": """
-# Now, process the following: 
-
-# User Question:
-# Which feature does not form as a result of tectonic plates diverging?
-# A. trench
-# B. rift valley
-# C. ocean basin
-# D. mid-ocean ridge
-
-# Context: 
-# **ATOMIC FACTS**:
-#     - Mid-ocean ridges are areas where tectonic plates diverge.
-#     - Diverging tectonic plates create new crust.
-
-# **CONDITIONAL RULES**:
-#     - A trench forms when one plate moves under another at a subduction zone (plate convergence).
-#     - A rift valley forms when tectonic plates diverge.
-#     - An ocean basin forms when tectonic plates diverge.
-
-# **EXCEPTIONS**:
-#     - None
-
-# **LOGICAL GAPS**:
-#     - None        
-#     """},
-#     {
-#         "role": "assistant", 
-#         "content": r"""
-# <planning>
-# 1. Target Query: This is a Multiple-Choice Question. The query MUST strictly be `answer(OptionLetter).`.
-# 2. Grounded Facts: I need to encode exactly four options as `choice/2` facts using lowercase snake_case (e.g., `choice(a, trench)`). I also need to extract the geologic formation processes from the context into relational facts like `forms_from(Feature, Process)`.
-# 3. IF-THEN Rules: I must define an `answer/1` rule that links the correct `OptionLetter` to the right feature. Because the question asks for the feature that does NOT form from diverging plates, the rule must unify the choice and use negation (`not forms_from(Feature, plate_divergence)`).
-# </planning>
-
-# <reasoning_step>
-# Encode options.
-# choice(a, trench).
-# choice(b, rift_valley).
-# choice(c, ocean_basin).
-# choice(d, mid_ocean_ridge).
-# </reasoning_step>
-
-# <reasoning_step>
-# Encode formation logic explicitly from context.
-# forms_from(trench, subduction_zone).
-# forms_from(trench, plate_convergence).
-# forms_from(rift_valley, plate_divergence).
-# forms_from(ocean_basin, plate_divergence).
-# forms_from(mid_ocean_ridge, plate_divergence).
-# </reasoning_step>
-
-# <reasoning_step>
-# Define an `answer/1` rule that unifies with the correct option for the choice NOT associated with plate_divergence.
-# answer(OptionLetter) :- choice(OptionLetter, GeologicFeature), not forms_from(GeologicFeature, plate_divergence).
-# </reasoning_step>
-
-# <database>
-# choice(a, trench).
-# choice(b, rift_valley).
-# choice(c, ocean_basin).
-# choice(d, mid_ocean_ridge).
-
-# forms_from(trench, subduction_zone).
-# forms_from(trench, plate_convergence).
-# forms_from(rift_valley, plate_divergence).
-# forms_from(ocean_basin, plate_divergence).
-# forms_from(mid_ocean_ridge, plate_divergence).
-
-# answer(OptionLetter) :- choice(OptionLetter, GeologicFeature), not forms_from(GeologicFeature, plate_divergence).
-# </database>
-
-# <query>
-# answer(OptionLetter).
-# </query>
-# ---
-# """
-#     },
-
-    # Example 4: Multiple-Choice Logic (Different Domain)
-#     {
-#         "role": "user", 
-#         "content": """
-# Now, process the following:
-
-# User Question: 
-# Which of the following animals is NOT a mammal?
-# A. dog
-# B. cat
-# C. human
-# D. frog
-
-# Context: 
-# **ATOMIC FACTS**:
-#     - Dogs are mammals.
-#     - Cats are mammals.
-#     - Humans are mammals.
-#     - Frogs are amphibians.
-
-# **CONDITIONAL RULES**:
-#     - Mammals are warm-blooded vertebrates that have hair.
-#     - Amphibians are cold-blooded.
-
-# **EXCEPTIONS**:
-#     - None
-
-# **LOGICAL GAPS**:
-#     - None        
-# """},
-#     {"role": "assistant", "content": r"""
-# <reasoning_step>
-# Encode options.
-# choice(a, dog).
-# choice(b, cat).
-# choice(c, human).
-# choice(d, frog).
-# </reasoning_step>
-
-# <reasoning_step>
-# Encode biological classifications explicitly from context.
-# is_mammal(dog).
-# is_mammal(cat).
-# is_mammal(human).
-# is_amphibian(frog).
-# </reasoning_step>
-
-# <reasoning_step>
-# Define an `answer/1` rule that unifies with the correct option for the choice NOT associated with being a mammal.
-# answer(OptionLetter) :- choice(OptionLetter, Animal), not is_mammal(Animal).
-# </reasoning_step>
-
-# <database>
-# choice(a, dog).
-# choice(b, cat).
-# choice(c, human).
-# choice(d, frog).
-
-# is_mammal(dog).
-# is_mammal(cat).
-# is_mammal(human).
-# is_amphibian(frog).
-
-# answer(OptionLetter) :- choice(OptionLetter, Animal), not is_mammal(Animal).
-# </database>
-
-# <query>
-# answer(OptionLetter).
-# </query>
-# ---
-# """},
-
-    # MCQ
-    {
-        "role": "user",
-        "content": """
-Now, process the following:
-
-User Question: A chef needs to pick a material for a pot handle that stays cool while cooking. Which material would be the best choice?
-A. copper
-B. aluminum
-C. wood
-D. steel
-
-Context:
-**ATOMIC FACTS**:
-    - Metals are good conductors of heat.
-    - Metals contain free-moving electrons.
-    - Wood is a poor conductor of heat.
-    - Wood's molecules are tightly bound.
-    - Rubber is an insulator.
-    - Glass conducts heat poorly.
-
-**CONDITIONAL RULES**:
-    - Free-moving electrons transfer kinetic energy quickly.
-    - Molecules that are tightly bound do not transfer energy efficiently.
-
-**EXCEPTIONS**:
-    - None
-
-**LOGICAL GAPS**:
-    - None     
-"""},
-    {
-        "role": "assistant", 
-        "content": r"""
-<planning>
-1. Target Query: This is a Multiple-Choice Question. The query MUST strictly be `answer(OptionLetter).`.
-2. Grounded Facts: I need to encode the exactly four choices (`copper`, `aluminum`, `wood`, `steel`) as `choice/2` facts. The context states wood is a poor conductor (insulator) and metals are good conductors. There is a Logical Gap: the context does not explicitly classify the options. Following my fallback instructions, I will rely on my internal knowledge to classify copper, aluminum, and steel as metals (conductors), and wood as an insulator.
-3. IF-THEN Rules: I need to define a rule for the goal. IF a material is an insulator (poor conductor), THEN it stays cool. The final bridging rule: IF a material stays cool and matches an option, THEN it is the correct answer.
-</planning>
-
-<reasoning_step>
-Encode the four choices.
-choice(a, copper).
-choice(b, aluminum).
-choice(c, wood).
-choice(d, steel).
-</reasoning_step>
-
-<reasoning_step>
-Encode conductivity from context and internal knowledge.
-is_conductor(copper).
-is_conductor(aluminum).
-is_conductor(steel).
-is_insulator(wood).
-</reasoning_step>
-
-<reasoning_step>
-The chef needs a handle that stays cool, meaning it should NOT conduct heat well.
-A poor conductor (insulator) stays cool. From context, wood is a poor conductor.
-stays_cool(Material) :- is_insulator(Material).
-answer(OptionLetter) :- choice(OptionLetter, Material), stays_cool(Material).
-</reasoning_step>
-
-<database>
-choice(a, copper).
-choice(b, aluminum).
-choice(c, wood).
-choice(d, steel).
-
-is_conductor(copper).
-is_conductor(aluminum).
-is_conductor(steel).
-is_insulator(wood).
-
-stays_cool(Material) :- is_insulator(Material).
-
-answer(OptionLetter) :- choice(OptionLetter, Material), stays_cool(Material).
-</database>
-
-<query>
-answer(OptionLetter).
-</query>
----
-"""
-    },
-    
-    # Example 6: Atomic Facts Only (Grade 12 Chemistry)
-    {
-        "role": "user",
-        "content": """
-Now, process the following:
-
-User Question: Based on the dominant intermolecular forces present, which of the following substances will require the greatest amount of thermal energy to undergo a phase transition from liquid to gas at standard pressure?
-A. methane
-B. hydrogen sulfide
-C. water
-D. neon
-
-Context:
-**ATOMIC FACTS**:
-   - Water molecules exhibit hydrogen bonding.
-   - Methane molecules exhibit only London dispersion forces.
-   - Hydrogen sulfide molecules exhibit dipole-dipole interactions.
-   - Neon atoms exhibit only London dispersion forces.
-   - Hydrogen bonding is a stronger intermolecular force than both dipole-dipole interactions and London dispersion forces.
-   - A stronger intermolecular force requires a greater amount of thermal energy to overcome.
-   - The boiling point of a liquid is directly proportional to the amount of thermal energy required to overcome its intermolecular forces.
-
-**CONDITIONAL RULES**:
-   - None
-
-**EXCEPTIONS**:
-   - None
-
-**LOGICAL GAPS**:
-   - None
-        """
-    },
-    {
-        "role": "assistant",
-        "content": r"""
-<planning>
-1. Target Query: This is an MCQ. The query MUST be `answer(OptionLetter).`.
-2. Grounded Facts: I need to encode the four choices (`methane`, `hydrogen_sulfide`, `water`, `neon`). I will encode the atomic facts mapping substances to their intermolecular forces (e.g., `has_imf(water, hydrogen_bond)`), and the relative strength of those forces (`stronger_than(hydrogen_bond, dipole_dipole)`).
-3. IF-THEN Rules: The Conditional Rules field is empty, but the Atomic Facts implicitly outline a chain of logic. I must formulate the rules: IF a substance has the strongest IMF, THEN it requires the greatest thermal energy to overcome. IF it requires the greatest energy, THEN it is the correct answer.
-</planning>
-
-<reasoning_step>
-Encode the four choices.
-choice(a, methane).
-choice(b, hydrogen_sulfide).
-choice(c, water).
-choice(d, neon).
-</reasoning_step>
-
-<reasoning_step>
-Encode the atomic facts about intermolecular forces (IMFs) and their relative strengths.
-has_imf(hydrogen_sulfide, dipole_dipole).
-has_imf(methane, london_dispersion).
-has_imf(neon, london_dispersion).
-has_imf(water, hydrogen_bond).
-
-stronger_than(hydrogen_bond, dipole_dipole).
-stronger_than(hydrogen_bond, london_dispersion).
-</reasoning_step>
-
-<reasoning_step>
-Formulate rules to determine the highest boiling point based on the strongest IMF.
-requires_greatest_energy(Substance) :- 
-    has_imf(Substance, hydrogen_bond).
-
-answer(OptionLetter) :- 
-    choice(OptionLetter, Substance), 
-    requires_greatest_energy(Substance).
-</reasoning_step>
-
-<database>
-choice(a, methane).
-choice(b, hydrogen_sulfide).
-choice(c, water).
-choice(d, neon).
-
-has_imf(hydrogen_sulfide, dipole_dipole).
-has_imf(methane, london_dispersion).
-has_imf(neon, london_dispersion).
-has_imf(water, hydrogen_bond).
-
-stronger_than(hydrogen_bond, dipole_dipole).
-stronger_than(hydrogen_bond, london_dispersion).
-
-requires_greatest_energy(Substance) :- has_imf(Substance, hydrogen_bond).
-
-answer(OptionLetter) :- choice(OptionLetter, Substance), requires_greatest_energy(Substance).
-</database>
-
-<query>
-answer(OptionLetter).
-</query>
----
-"""
-    },
-
-# Example 7: Atomic Facts & Logical Gaps Only (Grade 12 Physics)
+    # Example B-3: Binary — Proton magnetic force direction
     {
         "role": "user",
         "content": """
@@ -631,21 +297,21 @@ Context:
         "role": "assistant",
         "content": r"""
 <planning>
-1. Target Query: This is a binary (True/False) question testing a specific spatial relationship. The query will be `experiences_force_direction(proton, up).`.
-2. Grounded Facts: I will encode the proton's properties and the environmental vectors provided in the Atomic Facts: `charge(proton, positive)`, `velocity_direction(proton, right)`, and `magnetic_field_direction(into_page)`.
-3. IF-THEN Rules: The Conditional Rules are empty, but the Logical Gaps explicitly call out the missing Right-Hand Rule. I will use my internal knowledge of physics to supply this rule: IF the charge is positive, velocity is right, and the B-field is into the page, THEN the resulting cross-product force vector points up.
+1. Question Type: Binary — tests a specific spatial relationship. Query: `experiences_force_direction(proton, up).`
+2. Architecture: Grounded test of whether the force direction holds.
+3. Logic: Use internal knowledge of the Right-Hand Rule to supply the missing conditional.
 </planning>
 
 <reasoning_step>
-Encode the atomic facts about the particle and the vectors.
+Encode atomic facts.
 charge(proton, positive).
 magnetic_field_direction(into_page).
 velocity_direction(proton, right).
 </reasoning_step>
 
 <reasoning_step>
-Bridge the logical gap by applying the Right-Hand Rule for a positive charge moving perpendicular to a magnetic field.
-experiences_force_direction(Particle, up) :- 
+Bridge logical gap with Right-Hand Rule.
+experiences_force_direction(Particle, up) :-
     charge(Particle, positive),
     velocity_direction(Particle, right),
     magnetic_field_direction(into_page).
@@ -656,7 +322,7 @@ charge(proton, positive).
 magnetic_field_direction(into_page).
 velocity_direction(proton, right).
 
-experiences_force_direction(Particle, up) :- 
+experiences_force_direction(Particle, up) :-
     charge(Particle, positive),
     velocity_direction(Particle, right),
     magnetic_field_direction(into_page).
@@ -668,14 +334,193 @@ experiences_force_direction(proton, up).
 ---
 """
     },
-    
-    # Example 8: Zero Context (Internal Knowledge Fallback - Grade 12 Biology)
+]
+
+
+MCQ_FEW_SHOT_EXAMPLES = [
+    # Example M-1: MCQ — Pot handle material
     {
         "role": "user",
         "content": """
 Now, process the following:
 
-User Question: 
+User Question: A chef needs to pick a material for a pot handle that stays cool while cooking. Which material would be the best choice?
+A. copper
+B. aluminum
+C. wood
+D. steel
+
+Context:
+**ATOMIC FACTS**:
+    - Metals are good conductors of heat.
+    - Metals contain free-moving electrons.
+    - Wood is a poor conductor of heat.
+    - Wood's molecules are tightly bound.
+    - Rubber is an insulator.
+    - Glass conducts heat poorly.
+
+**CONDITIONAL RULES**:
+    - Free-moving electrons transfer kinetic energy quickly.
+    - Molecules that are tightly bound do not transfer energy efficiently.
+
+**EXCEPTIONS**:
+    - None
+
+**LOGICAL GAPS**:
+    - None
+"""},
+    {
+        "role": "assistant",
+        "content": r"""
+<planning>
+1. Question Type: MCQ — the question lists exactly four lettered options. Query MUST be `answer(OptionLetter).`
+2. Architecture: Encode choice/2 facts + domain rules; define answer/1 rule.
+3. Logic: wood is the only insulator among the options, so it stays cool.
+</planning>
+
+<reasoning_step>
+Encode the four choices.
+choice(a, copper).
+choice(b, aluminum).
+choice(c, wood).
+choice(d, steel).
+</reasoning_step>
+
+<reasoning_step>
+Encode conductivity from context and internal knowledge.
+is_conductor(copper).
+is_conductor(aluminum).
+is_conductor(steel).
+is_insulator(wood).
+</reasoning_step>
+
+<reasoning_step>
+Bridging rule: insulator stays cool.
+stays_cool(Material) :- is_insulator(Material).
+answer(OptionLetter) :- choice(OptionLetter, Material), stays_cool(Material).
+</reasoning_step>
+
+<database>
+choice(a, copper).
+choice(b, aluminum).
+choice(c, wood).
+choice(d, steel).
+
+is_conductor(copper).
+is_conductor(aluminum).
+is_conductor(steel).
+is_insulator(wood).
+
+stays_cool(Material) :- is_insulator(Material).
+
+answer(OptionLetter) :- choice(OptionLetter, Material), stays_cool(Material).
+</database>
+
+<query>
+answer(OptionLetter).
+</query>
+---
+"""
+    },
+
+    # Example M-2: MCQ — Intermolecular forces
+    {
+        "role": "user",
+        "content": """
+Now, process the following:
+
+User Question: Based on the dominant intermolecular forces present, which of the following substances will require the greatest amount of thermal energy to undergo a phase transition from liquid to gas at standard pressure?
+A. methane
+B. hydrogen sulfide
+C. water
+D. neon
+
+Context:
+**ATOMIC FACTS**:
+   - Water molecules exhibit hydrogen bonding.
+   - Methane molecules exhibit only London dispersion forces.
+   - Hydrogen sulfide molecules exhibit dipole-dipole interactions.
+   - Neon atoms exhibit only London dispersion forces.
+   - Hydrogen bonding is a stronger intermolecular force than both dipole-dipole interactions and London dispersion forces.
+   - A stronger intermolecular force requires a greater amount of thermal energy to overcome.
+
+**CONDITIONAL RULES**:
+   - None
+
+**EXCEPTIONS**:
+   - None
+
+**LOGICAL GAPS**:
+   - None
+        """
+    },
+    {
+        "role": "assistant",
+        "content": r"""
+<planning>
+1. Question Type: MCQ — four lettered options present. Query: `answer(OptionLetter).`
+2. Architecture: choice/2 facts + IMF strength facts + bridging rule.
+3. Logic: hydrogen bonding > dipole-dipole > LDF; water has hydrogen bonding → requires greatest energy.
+</planning>
+
+<reasoning_step>
+Encode the four choices.
+choice(a, methane).
+choice(b, hydrogen_sulfide).
+choice(c, water).
+choice(d, neon).
+</reasoning_step>
+
+<reasoning_step>
+Encode IMF facts.
+has_imf(hydrogen_sulfide, dipole_dipole).
+has_imf(methane, london_dispersion).
+has_imf(neon, london_dispersion).
+has_imf(water, hydrogen_bond).
+
+stronger_than(hydrogen_bond, dipole_dipole).
+stronger_than(hydrogen_bond, london_dispersion).
+</reasoning_step>
+
+<reasoning_step>
+Bridging rule.
+requires_greatest_energy(Substance) :- has_imf(Substance, hydrogen_bond).
+answer(OptionLetter) :- choice(OptionLetter, Substance), requires_greatest_energy(Substance).
+</reasoning_step>
+
+<database>
+choice(a, methane).
+choice(b, hydrogen_sulfide).
+choice(c, water).
+choice(d, neon).
+
+has_imf(hydrogen_sulfide, dipole_dipole).
+has_imf(methane, london_dispersion).
+has_imf(neon, london_dispersion).
+has_imf(water, hydrogen_bond).
+
+stronger_than(hydrogen_bond, dipole_dipole).
+stronger_than(hydrogen_bond, london_dispersion).
+
+requires_greatest_energy(Substance) :- has_imf(Substance, hydrogen_bond).
+
+answer(OptionLetter) :- choice(OptionLetter, Substance), requires_greatest_energy(Substance).
+</database>
+
+<query>
+answer(OptionLetter).
+</query>
+---
+"""
+    },
+
+    # Example M-3: MCQ — Zero context fallback (Cellular respiration)
+    {
+        "role": "user",
+        "content": """
+Now, process the following:
+
+User Question:
 During aerobic cellular respiration, which of the following pathways directly acts as the final electron acceptor and consumes oxygen?
 A. glycolysis
 B. krebs cycle
@@ -700,9 +545,9 @@ Context:
         "role": "assistant",
         "content": r"""
 <planning>
-1. Target Query: This is an MCQ. The query MUST strictly be `answer(OptionLetter).`.
-2. Grounded Facts: I need to encode the exactly four choices (`glycolysis`, `krebs_cycle`, `electron_transport_chain`, `lactic_acid_fermentation`) as `choice/2` facts. All four context fields are explicitly "None". Following my critical fallback instructions, I MUST rely entirely on my internal expert knowledge of cellular respiration to evaluate these options.
-3. IF-THEN Rules: I will formulate the biological fact from my internal knowledge: The electron transport chain is the specific stage that directly consumes oxygen as the final electron acceptor. The bridging rule will be: IF a biological process directly consumes oxygen, THEN it is the correct answer.
+1. Question Type: MCQ — four lettered options. Query: `answer(OptionLetter).`
+2. Architecture: choice/2 facts + internal knowledge fact + bridging rule.
+3. Logic: All context is None; use internal knowledge. The electron transport chain directly consumes oxygen as final electron acceptor.
 </planning>
 
 <reasoning_step>
@@ -714,15 +559,13 @@ choice(d, lactic_acid_fermentation).
 </reasoning_step>
 
 <reasoning_step>
-Relying on internal expert knowledge, I know that the electron transport chain consumes oxygen directly. I can now state which process consumes oxygen.
+Internal knowledge fact.
 consumes_oxygen_directly(electron_transport_chain).
 </reasoning_step>
 
 <reasoning_step>
-Formulate the final bridging rule to unify the correct choice.
-answer(OptionLetter) :- 
-    choice(OptionLetter, Process), 
-    consumes_oxygen_directly(Process).
+Bridging rule.
+answer(OptionLetter) :- choice(OptionLetter, Process), consumes_oxygen_directly(Process).
 </reasoning_step>
 
 <database>
@@ -742,14 +585,17 @@ answer(OptionLetter).
 ---
 """
     },
-    
-    # Example 9: Free-Form/Explanatory Question (Physics for Dummies)
+]
+
+
+FREEFORM_FEW_SHOT_EXAMPLES = [
+    # Example F-1: Freeform — Period T absolute value?
     {
         "role": "user",
         "content": """
 Now, process the following:
 
-User Question: 
+User Question:
 According to the provided texts, is the measured duration of an object's 'period' ($T$) considered to be an absolute value based on a fixed universal standard?
 
 Context:
@@ -772,9 +618,9 @@ Context:
         "role": "assistant",
         "content": r"""
 <planning>
-1. Target Query: This is a boolean verification question. The query MUST strictly be `is_absolute_value(period_t).`.
-2. Grounded Facts: I need to encode the explicitly extracted facts that `period_t` is a physical measure, and that true physical absolute measures and fixed frames of reference do not exist (`false`).
-3. IF-THEN Rules: I will formulate the bridging rule based on the logical gaps: IF a measure is to be considered an absolute value based on a fixed universal standard, THEN true physical absolute measures and a fixed frame of reference must exist.
+1. Question Type: Freeform/Explanatory — asks about the nature of a concept (absolute value). Query: `is_absolute_value(period_t).`
+2. Architecture: Grounded entity state query — the query resolves because the conditions for absolute value are not met.
+3. Logic: absolute measures and fixed frames don't exist → the bridging rule for is_absolute_value fires only when they do → result is false.
 </planning>
 
 <reasoning_step>
@@ -785,7 +631,7 @@ fixed_frame_of_reference_exists(false).
 </reasoning_step>
 
 <reasoning_step>
-Formulate the final conditional rule. A measure is an absolute value if absolute measures and fixed frames of reference exist.
+Bridging rule — absolute value requires both conditions to be true.
 is_absolute_value(M) :-
 measure(M),
 absolute_measures_exist(true),
@@ -808,8 +654,8 @@ is_absolute_value(period_t).
 </query>
 """
     },
-    
-    # Example 10: Free-Form/Explanatory Question (Biology for Dummies)
+
+    # Example F-2: Freeform — Keratin chemical mechanism
     {
         "role": "user",
         "content": """
@@ -829,34 +675,30 @@ Context:
    * None
 **LOGICAL GAPS**:
    * The specific chemical mechanism used to link the foundational units of the material that reinforces skin cells is not mentioned in the provided context.
-   * The relationship between keratin and the toughness of skin cells is mentioned, but the exact chemical mechanism of how keratin provides this toughness is not specified.
         """
     },
     {
         "role": "assistant",
         "content": r"""
 <planning>
-
-Target Query: The user is asking for a specific entity (a chemical mechanism). The query MUST strictly be chemical_mechanism(keratin, Mechanism)..
-
-Grounded Facts: I need to encode the extracted text showing that keratin is the protein that provides toughness to skin_cells. The exact chemical mechanism is identified as a logical gap.
-
-IF-THEN Rules: Following critical fallback instructions, I will formulate the biological fact from my internal knowledge: Keratin is a protein, and the foundational units of all proteins (amino acids) are linked together by peptide bonds. The bridging rule will be: IF a material is a protein, THEN its foundational units are linked by peptide bonds.
+1. Question Type: Freeform/Explanatory — asks for a specific mechanism. Query: `chemical_mechanism(keratin, Mechanism).`
+2. Architecture: Query unifies the variable Mechanism to capture the answer.
+3. Logic: Rely on internal knowledge — keratin is a protein; proteins are built from amino acids linked by peptide bonds.
 </planning>
 
 <reasoning_step>
-Encode the explicitly extracted facts defining the material and its biological category.
+Encode extracted facts.
 reinforces(keratin, skin_cells).
 is_type(keratin, protein).
 </reasoning_step>
 
 <reasoning_step>
-Rely on internal expert knowledge to fill the logical gap regarding how the foundational units of this category are linked.
+Internal knowledge fills the logical gap.
 links_foundational_units(protein, peptide_bond).
 </reasoning_step>
 
 <reasoning_step>
-Formulate the minimalist bridging rule to unify the specific material with the underlying chemical mechanism, avoiding unnecessary recursive logic.
+Bridging rule.
 chemical_mechanism(Material, Mechanism) :-
 is_type(Material, Category),
 links_foundational_units(Category, Mechanism).
@@ -877,8 +719,164 @@ links_foundational_units(Category, Mechanism).
 chemical_mechanism(keratin, Mechanism).
 </query>
 """
-    }
+    },
+
+    # Example F-3: Freeform — Avogadro's Law (gas particle comparison)
+    {
+        "role": "user",
+        "content": """
+Now, process the following:
+
+User Question: What is true about the quantity of particles in a sample of carbon dioxide gas compared to a sample of ammonia gas if both samples occupy the same volume at identical temperature and pressure conditions?
+
+Context:
+**ATOMIC FACTS**:
+   - Equal volumes of gases at the same temperature and pressure contain the same number of particles.
+
+**CONDITIONAL RULES**:
+   - IF two gas samples have the same volume, temperature, and pressure, THEN they contain the same number of particles (Avogadro's Law).
+
+**EXCEPTIONS**:
+   - None
+
+**LOGICAL GAPS**:
+   - None
+        """
+    },
+    {
+        "role": "assistant",
+        "content": r"""
+<planning>
+1. Question Type: Freeform/Explanatory — asks what is true about a quantity comparison. This is NOT an MCQ; there are no lettered choices. Query: `particle_quantity_comparison(carbon_dioxide, ammonia, Relationship).`
+2. Architecture: Query uses a variable to capture the relationship (same_number).
+3. Logic: Avogadro's Law directly states that equal V, T, P → equal particle count.
+</planning>
+
+<reasoning_step>
+Encode the gas samples and their conditions.
+gas_sample(carbon_dioxide).
+gas_sample(ammonia).
+same_volume(carbon_dioxide, ammonia).
+same_temperature(carbon_dioxide, ammonia).
+same_pressure(carbon_dioxide, ammonia).
+</reasoning_step>
+
+<reasoning_step>
+Encode Avogadro's Law as a conditional rule.
+same_particle_count(GasA, GasB) :-
+    gas_sample(GasA),
+    gas_sample(GasB),
+    same_volume(GasA, GasB),
+    same_temperature(GasA, GasB),
+    same_pressure(GasA, GasB).
+</reasoning_step>
+
+<reasoning_step>
+Bridging rule to capture the relationship as a named atom.
+particle_quantity_comparison(GasA, GasB, same_number) :-
+    same_particle_count(GasA, GasB).
+</reasoning_step>
+
+<database>
+gas_sample(ammonia).
+gas_sample(carbon_dioxide).
+
+same_pressure(carbon_dioxide, ammonia).
+same_temperature(carbon_dioxide, ammonia).
+same_volume(carbon_dioxide, ammonia).
+
+same_particle_count(GasA, GasB) :-
+    gas_sample(GasA),
+    gas_sample(GasB),
+    same_volume(GasA, GasB),
+    same_temperature(GasA, GasB),
+    same_pressure(GasA, GasB).
+
+particle_quantity_comparison(GasA, GasB, same_number) :-
+    same_particle_count(GasA, GasB).
+</database>
+
+<query>
+particle_quantity_comparison(carbon_dioxide, ammonia, Relationship).
+</query>
+---
+"""
+    },
 ]
+
+
+# ─────────────────────────────────────────────────────────────────
+#  Dynamic message builder — called at generation time
+# ─────────────────────────────────────────────────────────────────
+
+def build_generator_messages(question_type: str) -> list:
+    """
+    Assemble the LLM message list for the Prolog generator, using ONLY
+    the few-shot examples that match the detected question type AND
+    a system prompt with irrelevant question-type sections removed.
+
+    question_type: "mcq" | "binary" | "freeform"
+    """
+    if question_type == "mcq":
+        few_shots = MCQ_FEW_SHOT_EXAMPLES
+    elif question_type == "binary":
+        few_shots = BINARY_FEW_SHOT_EXAMPLES
+    else:
+        few_shots = FREEFORM_FEW_SHOT_EXAMPLES
+
+    # ── Build a type-specific system prompt ──────────────────────────
+    system_prompt = GENERATOR_SYSTEM_PROMPT
+
+    if question_type != "mcq":
+        # Strip the entire MCQ section from "### Query Formatting by Question Type"
+        import re as _re
+        # Remove the MCQ block (section 1) — from "1. **Multiple-Choice" to just before "2. **Binary"
+        system_prompt = _re.sub(
+            r'1\.\s*\*\*Multiple-Choice Questions \(MCQ\)\:\*\*.*?(?=2\.\s*\*\*Binary)',
+            '',
+            system_prompt,
+            flags=_re.DOTALL
+        )
+        # Remove the MCQ mention in Banned Predicates line
+        system_prompt = system_prompt.replace(
+            "- Banned Predicates: NEVER use `option`. It conflicts with the SWI-Prolog standard library. If writing an MCQ, use `choice` instead.",
+            "- Banned Predicates: NEVER use `option`. It conflicts with the SWI-Prolog standard library."
+        )
+        # Remove the MCQ checklist item
+        system_prompt = system_prompt.replace(
+            "✓ Exactly four `choice/2` facts for MCQ\n",
+            ""
+        )
+        # Add explicit anti-MCQ instruction at the end
+        system_prompt += """
+### QUESTION TYPE OVERRIDE
+The current question is NOT a multiple-choice question. DO NOT generate `choice/2` facts or `answer(OptionLetter)` queries under any circumstances.
+"""
+
+    return (
+        [{"role": "user", "content": system_prompt}]
+        + few_shots
+        + [
+            {
+                "role": "user",
+                "content": (
+                    "Acknowledge these strict Prolog generation instructions. "
+                    "You must extract a formal Prolog <database> and <query> strictly "
+                    "adhering to the s(CASP) syntactical constraints, with no standard "
+                    "arithmetic, no singletons, and contiguous clauses."
+                ),
+            },
+            {
+                "role": "assistant",
+                "content": (
+                    "I understand and will follow all instructions strictly. I will generate "
+                    "a syntactically valid s(CASP) Prolog program with a <reasoning_step>, "
+                    "<database>, and <query>. I will strictly avoid forbidden operators like "
+                    "`is`, `=\\=`, or `;`, and I will never use uppercase names for facts."
+                ),
+            },
+        ]
+    )
 
 
 EXPLAINER_SYSTEM_PROMPT = rf"""
@@ -990,23 +988,17 @@ Generate a coherent narrative of the proof above. Start with the conclusion, the
     {"role": "assistant", "content": """
 **Conclusion:** Yes, the logic confirms that Maria is the grandmother of Dan.
 
-**Logical Path:** The solver reached this conclusion by identifying a direct multi-generational connection between the individuals involved:
+**Logical Path:** The solver reached this conclusion by identifying a direct connection between the individuals involved:
 
-1. **Primary Rule:** The system defines a "grandmother" as someone who is the parent of a person who is, in turn, the parent of the grandchild. This creates a logical chain requiring an "intermediate parent."
+1. **Primary Rule:** The system defines a "grandmother" as someone who is the parent of a parent—an individual who is, in turn, the parent of the grandchild. This creates a logical chain requiring an "intermediate parent."
 2. **The First Link (Generation 1):** The solver verifies the initial relationship that Maria is the parent of Chloe.
-3. **The Second Link (Generation 2):** The solver then verifies the connecting relationship that Chloe is the parent of Dan.
-4. **Verification of the Chain:** By identifying Chloe as the necessary intermediate link (the person who connects Maria to Dan), the solver satisfies the requirement for the grandmother relationship.
+3. **The Second Link (Generation 2):** The solver then verifies the connecting relationship: Chloe is the parent of Dan.
+4. **Verification of the Chain:** By identifying Chloe as the necessary intermediate link (the parent of Dan who connects Maria to Dan), the solver satisfies the requirement for the grandmother relationship.
      """
      },
 ]
 
-GENERATOR_LLM_MESSAGES = [
-            {'role': 'user', 'content': GENERATOR_SYSTEM_PROMPT},
-        ] + GENERATOR_FEW_SHOT_EXAMPLES + [
-            {'role': 'user', 'content': 'Acknowledge these strict Prolog generation instructions. You must extract a formal Prolog <database> and <query> strictly adhering to the s(CASP) syntactical constraints, with no standard arithmetic, no singletons, and contiguous clauses.'},
-            {'role': 'assistant', 'content': 'I understand and will follow all instructions strictly. I will generate a syntactically valid s(CASP) Prolog program with a <reasoning_step>, <database>, and <query>. I will strictly avoid forbidden operators like `is`, `=\\=`, or `;`, and I will never use uppercase names for facts.'}
-        ]
-
 EXPLAINER_LLM_MESSAGES = [
-            {'role': 'user', 'content': EXPLAINER_SYSTEM_PROMPT},
-        ] + EXPLAINER_FEW_SHOT_EXAMPLES
+    {"role": "system", "content": EXPLAINER_SYSTEM_PROMPT}
+] + EXPLAINER_FEW_SHOT_EXAMPLES
+
