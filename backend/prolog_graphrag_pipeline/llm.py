@@ -89,9 +89,9 @@ def generate(
             status_callback({"type": "thought", "step": 8, "message": "I mapped your question, the context, and the logical proof into a strict prompt template."})
             status_callback({"type": "step", "step": 9})
             if sample_mode:
-                status_callback({"type": "thought", "step": 9, "message": f"I'm synthesizing 5 output sequences to calculate semantic entropy based on {len(final_prompt)} chars of processed context and proof..."})
+                status_callback({"type": "thought", "step": 9, "message": f"I'm generating 5 LLM output sequences to calculate semantic entropy based on {len(final_prompt)} characters of processed context and proof..."})
             else:
-                status_callback({"type": "thought", "step": 9, "message": f"I'm synthesizing the final response by merging {len(final_prompt)} chars of processed evidence and logic proof..."})
+                status_callback({"type": "thought", "step": 9, "message": f"I'm synthesizing the final response by merging {len(final_prompt)} characters of processed evidence and logic proof..."})
         elif fallback == "tuned":
             status_callback({"type": "thought", "step": 2, "message": "I'm formulating my final conversational response..."})
 
