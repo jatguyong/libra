@@ -88,7 +88,7 @@ export default function AiMessage({ message, onRedo, isFinished, onExplanationCl
 
         {/* Thinking-process header */}
         <div className="mb-6 -ml-5">
-          <ThinkingProcess isFinished={true} fallback={message.explanationData?.fallback} />
+          <ThinkingProcess isFinished={true} fallback={message.explanationData?.fallback} thoughts={message.thoughts} />
         </div>
 
         {/* Message body */}

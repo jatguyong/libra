@@ -20,26 +20,31 @@ const PROLOG_STEPS = [
   },
   {
     id: 4,
+    title: "Entity Filter",
+    description: "I'm passing the localized and global concepts through a strict LLM filter to discard generic or coincidental noise before assembling the final logical ground."
+  },
+  {
+    id: 5,
     title: "Prolog Code Generator",
     description: "I'm translating the categorized context into executable Prolog clauses, rules, and constructing the specific logic queries required."
   },
   {
-    id: 5,
+    id: 6,
     title: "Inference Engine",
     description: "I'm executing the generated Prolog query to derive the direct answer and trace the step-by-step logical reasoning that led to it."
   },
   {
-    id: 6,
+    id: 7,
     title: "Explainer",
     description: "I'm acting as a translator, converting the highly technical Prolog output and logical trace into a plain, easy-to-understand natural language explanation."
   },
   {
-    id: 7,
+    id: 8,
     title: "Prompt Reconstructor",
     description: "I'm organizing your original question, the formulated answer, and the natural language trace into a clean, predefined prompt template."
   },
   {
-    id: 8,
+    id: 9,
     title: "Final LLM",
     description: "I'm synthesizing all the reconstructed components into a natural-sounding, digestible final response tailored to your requested format."
   }
@@ -62,9 +67,10 @@ interface ThinkingProcessProps {
   isFinished: boolean;
   fallback?: string;
   currentStep?: number;
+  thoughts?: Record<number, string[]>;
 }
 
-const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback, currentStep = 1 }) => {
+const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback, currentStep = 1, thoughts = {} }) => {
   const activeSteps = fallback === 'tuned' ? TUNED_LLM_STEPS : PROLOG_STEPS;
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -106,6 +112,7 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback,
                   if (!isVisible) return null;
 
                   const isCurrentlyThinking = !isFinished && index === internalStep;
+                  const stepThoughts = thoughts[step.id] || [];
 
                   return (
                     <motion.div
@@ -118,9 +125,29 @@ const ThinkingProcess: React.FC<ThinkingProcessProps> = ({ isFinished, fallback,
                       <h4 className="font-bold mb-2 text-white/90 italic">
                         {step.title}
                       </h4>
-                      <p className={`text-[14px] leading-relaxed text-white/60 italic ${isCurrentlyThinking ? 'animate-pulse' : ''}`}>
+                      
+                      <p className={`text-[14px] leading-relaxed text-white/60 italic ${isCurrentlyThinking && stepThoughts.length === 0 ? 'animate-pulse' : ''}`}>
                         {step.description}
                       </p>
+                      
+                      {stepThoughts.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          {stepThoughts.map((thought, tIdx) => {
+                            const isLastThought = tIdx === stepThoughts.length - 1;
+                            const applyPulse = isCurrentlyThinking && isLastThought;
+                            return (
+                              <motion.div 
+                                key={tIdx}
+                                initial={{ opacity: 0, y: 5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className={`text-[14px] leading-relaxed text-white/60 italic ${applyPulse ? 'animate-pulse' : ''}`}
+                              >
+                                {thought}
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </motion.div>
                   );
                 })}

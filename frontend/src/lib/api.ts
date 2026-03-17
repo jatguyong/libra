@@ -34,6 +34,8 @@ export function parseExplanationData(data: Record<string, unknown>): Explanation
 export interface StreamChatCallbacks {
   /** Called when the backend reports a pipeline step update. */
   onStep: (step: number, fallback?: string) => void;
+  /** Called when the backend emits a dynamic thought log to attach to a step. */
+  onThought?: (step: number, message: string) => void;
   /** Called when the final result arrives. */
   onResult: (data: Record<string, unknown>, explanation: ExplanationData) => void;
 }
@@ -45,7 +47,7 @@ export interface StreamChatCallbacks {
  */
 export async function streamChat(
   payload: object,
-  { onStep, onResult }: StreamChatCallbacks,
+  { onStep, onThought, onResult }: StreamChatCallbacks,
 ): Promise<void> {
   const response = await fetch(`${API_BASE}/api/chat`, {
     method: 'POST',
@@ -74,6 +76,8 @@ export async function streamChat(
 
       if (eventData.type === 'step') {
         onStep(eventData.step, eventData.fallback);
+      } else if (eventData.type === 'thought') {
+        if (onThought) onThought(eventData.step, eventData.message);
       } else if (eventData.type === 'result') {
         const data = eventData.data;
         if (data.error) throw new Error(data.details || data.error);

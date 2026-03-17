@@ -31,4 +31,5 @@ export interface Message {
   content: string;
   alternativeContents?: string[];
   explanationData?: ExplanationData;
+  thoughts?: Record<number, string[]>;
 }

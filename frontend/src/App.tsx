@@ -21,7 +21,7 @@ import AiMessage from './components/chat/AiMessage';
 import UserMessage from './components/chat/UserMessage';
 import ExplanationPane from './components/ExplanationPane';
 
-import { streamChat, API_BASE } from './lib/api';
+import { streamChat } from './lib/api';
 import { useIngestion } from './hooks/useIngestion';
 import type { Message, ExplanationData } from './lib/types';
 
@@ -33,11 +33,18 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [currentFallback, setCurrentFallback] = useState<string | undefined>(undefined);
+  const [thoughts, setThoughts] = useState<Record<number, string[]>>({});
 
   // ── Layout state ────────────────────────────────────────────────
   const [hasStartedChat, setHasStartedChat] = useState(false);
   const [isChatLayoutSettled, setIsChatLayoutSettled] = useState(false);
-  const [useGlobalKG, setUseGlobalKG] = useState(false);
+  const [useGlobalKG, setUseGlobalKG] = useState(true);
+  const [forceProlog, setForceProlog] = useState(false);
+
+  const settingsRef = useRef({ useGlobalKG, forceProlog });
+  useEffect(() => {
+    settingsRef.current = { useGlobalKG, forceProlog };
+  }, [useGlobalKG, forceProlog]);
 
   useEffect(() => {
     if (hasStartedChat) {
@@ -72,11 +79,11 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, thoughts]);
 
   // ── Chat handlers ───────────────────────────────────────────────
 
-  const handleSendMessage = async (text: string, globalKG: boolean = false) => {
+  const handleSendMessage = async (text: string) => {
     if (!hasStartedChat) setHasStartedChat(true);
 
     const newUserMsg: Message = { id: Date.now().toString(), role: 'user', content: text };
@@ -86,14 +93,28 @@ function App() {
     setIsGenerating(true);
     setCurrentStep(1);
     setCurrentFallback(undefined);
+    setThoughts({});
+
+    let localThoughts: Record<number, string[]> = {};
 
     try {
       await streamChat(
-        { messages: updatedMessages, useGlobalKG: globalKG },
+        { 
+          messages: updatedMessages, 
+          useGlobalKG: settingsRef.current.useGlobalKG, 
+          forceProlog: settingsRef.current.forceProlog 
+        },
         {
           onStep: (step, fallback) => {
             setCurrentStep(step);
             if (fallback) setCurrentFallback(fallback);
+          },
+          onThought: (step, message) => {
+            localThoughts = {
+              ...localThoughts,
+              [step]: [...(localThoughts[step] || []), message]
+            };
+            setThoughts(localThoughts);
           },
           onResult: (data, explanationData) => {
             const llmMsg: Message = {
@@ -101,6 +122,7 @@ function App() {
               role: 'llm',
               content: (data.answer as string) || 'No answer generated.',
               explanationData,
+              thoughts: { ...localThoughts }
             };
             setMessages(prev => [...prev, llmMsg]);
           },
@@ -141,20 +163,34 @@ function App() {
     setIsGenerating(true);
     setCurrentStep(1);
     setCurrentFallback(undefined);
+    setThoughts({});
+
+    let localThoughts: Record<number, string[]> = {};
 
     try {
       await streamChat(
-        { messages: contextMessages },
+        { 
+          messages: contextMessages,
+          useGlobalKG: settingsRef.current.useGlobalKG, 
+          forceProlog: settingsRef.current.forceProlog 
+        },
         {
           onStep: (step, fallback) => {
             setCurrentStep(step);
             if (fallback) setCurrentFallback(fallback);
           },
+          onThought: (step, message) => {
+            localThoughts = {
+              ...localThoughts,
+              [step]: [...(localThoughts[step] || []), message]
+            };
+            setThoughts(localThoughts);
+          },
           onResult: (data, explanationData) => {
             setMessages(prev =>
               prev.map(msg =>
                 msg.id === llmMsgId
-                  ? { ...msg, content: (data.answer as string) || 'No answer generated.', explanationData }
+                  ? { ...msg, content: (data.answer as string) || 'No answer generated.', explanationData, thoughts: { ...localThoughts } }
                   : msg,
               ),
             );
@@ -187,6 +223,8 @@ function App() {
     onFilesUploaded: ingestion.handleFilesUploaded,
     useGlobalKG,
     setUseGlobalKG,
+    forceProlog,
+    setForceProlog,
   };
 
   return (
@@ -262,7 +300,7 @@ function App() {
                 ))}
 
                 {isLoading && (
-                  <ThinkingProcess isFinished={false} currentStep={currentStep} fallback={currentFallback} />
+                  <ThinkingProcess isFinished={false} currentStep={currentStep} fallback={currentFallback} thoughts={thoughts} />
                 )}
 
                 {isLoading && <div className="h-[42vh] shrink-0" />}
@@ -289,37 +327,6 @@ function App() {
           isOpen={isExplanationOpen}
           onClose={() => setIsExplanationOpen(false)}
           data={selectedExplanation}
-          onCalculate={async () => {
-            if (!selectedExplanation) return;
-            try {
-              const res = await fetch(`${API_BASE}/api/semantic-entropy`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  query: selectedExplanation.query,
-                  condensed_context: selectedExplanation.condensed_context,
-                  explainer_output: selectedExplanation.explainer_output,
-                  fallback: selectedExplanation.fallback
-                })
-              });
-              if (!res.ok) throw new Error('Failed to calculate semantic entropy');
-              const data = await res.json();
-              setSelectedExplanation({
-                ...selectedExplanation,
-                semantic_entropy: data.semantic_entropy,
-                hallucination_flag: data.hallucination_flag
-              });
-              // Also update the message in the chat history so it persists
-              setMessages(prev => prev.map(msg =>
-                msg.explanationData?.query === selectedExplanation.query
-                  ? { ...msg, explanationData: { ...msg.explanationData, semantic_entropy: data.semantic_entropy, hallucination_flag: data.hallucination_flag } }
-                  : msg
-              ));
-            } catch (err) {
-              console.error(err);
-              alert('Failed to calculate semantic entropy. Check console for details.');
-            }
-          }}
         />
       </div>
     </div>

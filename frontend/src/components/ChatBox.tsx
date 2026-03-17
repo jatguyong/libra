@@ -3,7 +3,7 @@ import { Plus, Send, FileText, X, Info, Settings2, Check } from 'lucide-react';
 import { API_BASE } from '../lib/api';
 
 interface ChatBoxProps {
-    onSendMessage: (message: string, useGlobalKG: boolean) => void;
+    onSendMessage: (message: string) => void;
     isLoading?: boolean;
     isIngesting?: boolean;
     uploadedFiles?: File[];
@@ -11,9 +11,11 @@ interface ChatBoxProps {
     onFilesUploaded?: (files: File[]) => void;
     useGlobalKG?: boolean;
     setUseGlobalKG?: (value: boolean) => void;
+    forceProlog?: boolean;
+    setForceProlog?: (value: boolean) => void;
 }
 
-const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, uploadedFiles = [], setUploadedFiles, onFilesUploaded, useGlobalKG = false, setUseGlobalKG }: ChatBoxProps) => {
+const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, uploadedFiles = [], setUploadedFiles, onFilesUploaded, useGlobalKG = false, setUseGlobalKG, forceProlog = false, setForceProlog }: ChatBoxProps) => {
     const [inputText, setInputText] = useState('');
     const [showBadge, setShowBadge] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
@@ -76,7 +78,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
 
     const handleSend = () => {
         if (inputText.trim() && !isLoading && !isIngesting) {
-            onSendMessage(inputText, useGlobalKG);
+            onSendMessage(inputText);
             setInputText(''); // clears the box after sending
             setShowBadge(false); // hides badge but keeps uploadedFiles in sidebar
         }
@@ -205,7 +207,6 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                                         <button
                                             onClick={() => {
                                                 if (setUseGlobalKG) setUseGlobalKG(false);
-                                                setShowSettings(false);
                                             }}
                                             className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left group"
                                         >
@@ -216,7 +217,6 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                                         <button
                                             onClick={() => {
                                                 if (setUseGlobalKG) setUseGlobalKG(true);
-                                                setShowSettings(false);
                                             }}
                                             className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left group gap-2"
                                         >
@@ -231,6 +231,21 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                                                 </div>
                                             </div>
                                             {useGlobalKG && <Check size={16} className="text-[#A278AE]" />}
+                                        </button>
+                                        <div className="my-1 border-t border-white/10" />
+
+                                        <button
+                                            onClick={() => {
+                                                if (setForceProlog) setForceProlog(!forceProlog);
+                                            }}
+                                            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left group"
+                                        >
+                                            <span className="text-sm font-inter text-white/90 pr-3">Route to Prolog-GraphRAG</span>
+                                            <div className="relative inline-flex items-center cursor-pointer shrink-0">
+                                                <div className={`w-8 h-4.5 rounded-full transition-colors duration-200 ease-in-out ${forceProlog ? 'bg-[#A278AE]' : 'bg-white/20'}`}>
+                                                    <div className={`absolute top-[2px] left-[2px] bg-white w-3.5 h-3.5 rounded-full transition-transform duration-200 ease-in-out shadow-sm ${forceProlog ? 'translate-x-[14px]' : 'translate-x-0'}`} />
+                                                </div>
+                                            </div>
                                         </button>
                                     </div>
                                 </>
