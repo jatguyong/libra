@@ -110,7 +110,7 @@ const Sidebar = ({ isOpen, toggleSidebar, uploadedFiles, fileStatuses, onNewConv
                             <ExternalLink size={14} className="shrink-0" />
                         </a>
                         <span className="text-xs font-sans text-white/30 whitespace-nowrap">
-                            In Partial Fulfillment of the Requirements <br /> for the Course CCS10: Thesis Writing 2
+                            Prototype for CCS10: Thesis Writing 2
                         </span>
                     </motion.div>
                 </div>

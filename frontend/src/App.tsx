@@ -108,10 +108,10 @@ function App() {
 
     try {
       await streamChat(
-        { 
-          messages: updatedMessages, 
-          useGlobalKG: settingsRef.current.useGlobalKG, 
-          forceProlog: settingsRef.current.forceProlog 
+        {
+          messages: updatedMessages,
+          useGlobalKG: settingsRef.current.useGlobalKG,
+          forceProlog: settingsRef.current.forceProlog
         },
         {
           onStep: (step, fallback) => {
@@ -126,6 +126,8 @@ function App() {
             setThoughts(localThoughts);
           },
           onResult: (data, explanationData) => {
+            console.log('[App] SSE result received. graph_data:', JSON.stringify(explanationData.graph_data));
+            console.log('[App] graph_data nodes:', explanationData.graph_data?.nodes?.length, 'edges:', explanationData.graph_data?.edges?.length);
             const llmMsg: Message = {
               id: (Date.now() + 1).toString(),
               role: 'llm',
@@ -178,10 +180,10 @@ function App() {
 
     try {
       await streamChat(
-        { 
+        {
           messages: contextMessages,
-          useGlobalKG: settingsRef.current.useGlobalKG, 
-          forceProlog: settingsRef.current.forceProlog 
+          useGlobalKG: settingsRef.current.useGlobalKG,
+          forceProlog: settingsRef.current.forceProlog
         },
         {
           onStep: (step, fallback) => {
@@ -245,14 +247,14 @@ function App() {
           mouseRepulsion={false}
           mouseInteraction={false}
           density={1.3}
-          glowIntensity={!hasStartedChat ? 0.4 : isGenerating ? 0.2 : 0.2}
+          glowIntensity={!hasStartedChat ? 0.4 : isGenerating ? 0.2 : 0.1}
           saturation={0}
           hueShift={140}
           twinkleIntensity={!hasStartedChat ? 0.3 : isGenerating ? 0.5 : 0.1}
           rotationSpeed={0}
           repulsionStrength={0}
           autoCenterRepulsion={0}
-          starSpeed={!hasStartedChat ? 0.3 : isGenerating ? 10 : 0}
+          starSpeed={!hasStartedChat ? 0.3 : isGenerating ? 5 : 0}
           speed={!hasStartedChat ? 0.5 : isGenerating ? 0.4 : 0.1}
         />
       </div>

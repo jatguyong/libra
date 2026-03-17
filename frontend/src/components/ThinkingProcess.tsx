@@ -36,7 +36,7 @@ const PROLOG_STEPS = [
   {
     id: 7,
     title: "Explainer",
-    description: "I'm acting as a translator, converting the highly technical Prolog output and logical trace into a plain, easy-to-understand natural language explanation."
+    description: "I'm translating the highly technical Prolog output and logical trace into a plain, easy-to-understand natural language explanation."
   },
   {
     id: 8,

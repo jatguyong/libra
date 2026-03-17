@@ -240,7 +240,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                                             }}
                                             className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left group"
                                         >
-                                            <span className="text-sm font-inter text-white/90 pr-3">Route to Prolog-GraphRAG</span>
+                                            <span className="text-sm font-inter text-white/90 pr-3">Force to Prolog-GraphRAG</span>
                                             <div className="relative inline-flex items-center cursor-pointer shrink-0">
                                                 <div className={`w-8 h-4.5 rounded-full transition-colors duration-200 ease-in-out ${forceProlog ? 'bg-[#A278AE]' : 'bg-white/20'}`}>
                                                     <div className={`absolute top-[2px] left-[2px] bg-white w-3.5 h-3.5 rounded-full transition-transform duration-200 ease-in-out shadow-sm ${forceProlog ? 'translate-x-[14px]' : 'translate-x-0'}`} />
