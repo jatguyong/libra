@@ -7,6 +7,7 @@ from .prolog import prolog_driver
 from .llm import generate, decide_fallback
 from .prompt_reconstructor import reconstruct_prompt
 from .semantic_entropy import compute_semantic_entropy
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -120,14 +121,23 @@ def run_pipeline(
     graph_edges = []
     
     if flag != "q" and graphrag_output and fallback != "tuned":
-        for item in graphrag_retriever_results:
+        # --- Source 1: KBPedia / retriever metadata triples ---
+        for idx, item in enumerate(graphrag_retriever_results):
             metadata = {}
             if hasattr(item, "metadata"):
                 metadata = item.metadata or {}
             elif isinstance(item, dict):
                 metadata = item.get("metadata", {})
+            
+            source_label = metadata.get("source", "unknown")
+            source_entity = metadata.get("entity", "")
+            
+            logger.debug(f"[GraphData] Item {idx}: source={source_label}, entity={source_entity}, "
+                         f"has_triples={bool(metadata.get('triples'))}, "
+                         f"has_local_context={bool(metadata.get('local_context'))}, "
+                         f"metadata_keys={list(metadata.keys())}")
                 
-            # Process local_context
+            # Process local_context (from VectorCypher retriever)
             local_ctx = metadata.get("local_context", [])
             for lc in local_ctx:
                 if isinstance(lc, dict):
@@ -143,35 +153,106 @@ def run_pipeline(
             kg_triples = metadata.get("triples", [])
             for t in kg_triples:
                 if isinstance(t, str):
-                    # Handle (Wikidata) prefix or other sources
+                    # Handle (Wikidata) prefix
                     clean_t = t
+                    triple_source = "KG"
                     if t.startswith("("):
-                        match = re.search(r'\)\s*(.*)', t)
-                        if match:
-                            clean_t = match.group(1).strip()
+                        paren_match = re.match(r'\(([^)]*)\)\s*(.*)', t)
+                        if paren_match:
+                            triple_source = paren_match.group(1)
+                            clean_t = paren_match.group(2).strip()
                     
-                    # Split on ' IS_A ', ' PART_OF ', etc. or simple space
-                    # Looking for: Source Relationship Target
-                    parts = []
-                    # Try to find a known relationship keyword first
-                    for rel_key in [" SUBCLASS_OF ", " PART_OF ", " RELATED_TO ", " CAUSES ", " PRODUCES ", " REQUIRES ", " OCCURS_IN ", " DISCOVERED_BY ", " DEFINES ", " IS_A "]:
-                        if rel_key in clean_t:
-                            s, tgt = clean_t.split(rel_key, 1)
-                            parts = [s.strip(), rel_key.strip(), tgt.strip()]
-                            break
-                    
-                    if not parts:
-                        # Fallback: simple split
-                        temp_parts = clean_t.split(" ", 2)
-                        if len(temp_parts) >= 3:
-                            parts = [temp_parts[0], temp_parts[1], temp_parts[2]]
-                    
-                    if len(parts) >= 3:
-                        source, rel, target = parts[0], parts[1], parts[2]
-                        graph_nodes[str(source)] = {"id": str(source), "label": "Concept"}
-                        graph_nodes[str(target)] = {"id": str(target), "label": "Concept"}
-                        graph_edges.append({"source": str(source), "target": str(target), "label": str(rel)})
+                    # Format: "relationship: target" e.g. "definition: ...", "subclass of: ..."
+                    if ":" in clean_t and source_entity:
+                        rel, target = clean_t.split(":", 1)
+                        rel, target = rel.strip(), target.strip()
+                        if target and len(target) < 200:  # Skip very long definition text
+                            graph_nodes[str(source_entity)] = {"id": str(source_entity), "label": "Concept"}
+                            graph_nodes[str(target)] = {"id": str(target), "label": "Concept"}
+                            graph_edges.append({"source": str(source_entity), "target": str(target), "label": rel})
+                    else:
+                        # Try known relationship keywords: "Source RELATIONSHIP Target"
+                        parts = []
+                        for rel_key in [" SUBCLASS_OF ", " PART_OF ", " RELATED_TO ", " CAUSES ", " PRODUCES ", " REQUIRES ", " OCCURS_IN ", " DISCOVERED_BY ", " DEFINES ", " IS_A "]:
+                            if rel_key in clean_t:
+                                s, tgt = clean_t.split(rel_key, 1)
+                                parts = [s.strip(), rel_key.strip(), tgt.strip()]
+                                break
                         
+                        if not parts:
+                            temp_parts = clean_t.split(" ", 2)
+                            if len(temp_parts) >= 3:
+                                parts = [temp_parts[0], temp_parts[1], temp_parts[2]]
+                        
+                        if len(parts) >= 3:
+                            source, rel, target = parts[0], parts[1], parts[2]
+                            graph_nodes[str(source)] = {"id": str(source), "label": "Concept"}
+                            graph_nodes[str(target)] = {"id": str(target), "label": "Concept"}
+                            graph_edges.append({"source": str(source), "target": str(target), "label": str(rel)})
+
+        # --- Source 2: Fetch local document graph relationships directly from Neo4j ---
+        try:
+            from .graphrag.neo4j_manager import get_driver
+            neo4j_driver = get_driver()
+            
+            # Query 1: Entity-to-Entity relationships (created by SimpleKGPipeline)
+            records, _, _ = neo4j_driver.execute_query(
+                """
+                MATCH (a)-[r]->(b)
+                WHERE NOT a:Chunk AND NOT b:Chunk
+                  AND NOT a:Document AND NOT b:Document
+                  AND NOT a:KBPediaConcept AND NOT b:KBPediaConcept
+                  AND NOT type(r) IN ['EMBEDDING', 'FROM_DOCUMENT', 'NEXT_CHUNK', 'HAS_DOCUMENT']
+                RETURN DISTINCT
+                    coalesce(a.name, a.id, toString(id(a))) AS source_name,
+                    labels(a)[0] AS source_label,
+                    type(r) AS relationship,
+                    coalesce(b.name, b.id, toString(id(b))) AS target_name,
+                    labels(b)[0] AS target_label
+                LIMIT 150
+                """,
+                database_="neo4j"
+            )
+            for rec in records:
+                src = str(rec["source_name"])
+                tgt = str(rec["target_name"])
+                rel = str(rec["relationship"])
+                s_label = rec.get("source_label", "Entity")
+                t_label = rec.get("target_label", "Entity")
+                if src and tgt and rel:
+                    graph_nodes[src] = {"id": src, "label": s_label or "Entity"}
+                    graph_nodes[tgt] = {"id": tgt, "label": t_label or "Entity"}
+                    graph_edges.append({"source": src, "target": tgt, "label": rel})
+            logger.info(f"[GraphData] Neo4j entity graph query returned {len(records)} relationships.")
+            
+            # Query 2: Chunk-to-Entity relationships (knowledge extraction links)
+            records2, _, _ = neo4j_driver.execute_query(
+                """
+                MATCH (c:Chunk)-[r]->(e)
+                WHERE NOT type(r) IN ['EMBEDDING', 'FROM_DOCUMENT', 'NEXT_CHUNK', 'PART_OF_CHUNK']
+                  AND NOT e:Chunk AND NOT e:Document
+                RETURN DISTINCT
+                    coalesce(c.text, c.id, toString(id(c))) AS source_name,
+                    type(r) AS relationship,
+                    coalesce(e.name, e.id, e.text, toString(id(e))) AS target_name,
+                    labels(e)[0] AS target_label
+                LIMIT 100
+                """,
+                database_="neo4j"
+            )
+            for rec in records2:
+                src = str(rec["source_name"])[:80]   # Truncate long chunk text
+                tgt = str(rec["target_name"])
+                rel = str(rec["relationship"])
+                t_label = rec.get("target_label", "Entity")
+                if src and tgt and rel:
+                    graph_nodes[src] = {"id": src, "label": "Chunk"}
+                    graph_nodes[tgt] = {"id": tgt, "label": t_label or "Entity"}
+                    graph_edges.append({"source": src, "target": tgt, "label": rel})
+            logger.info(f"[GraphData] Neo4j chunk-entity query returned {len(records2)} relationships.")
+        except Exception as e:
+            logger.warning(f"[GraphData] Failed to fetch local graph from Neo4j: {e}")
+
     graph_data = {
         "nodes": list(graph_nodes.values()),
         "edges": graph_edges

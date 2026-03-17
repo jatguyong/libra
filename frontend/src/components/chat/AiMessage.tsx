@@ -156,11 +156,11 @@ export default function AiMessage({ message, onRedo, isFinished, onExplanationCl
               </Tooltip>
             )}
 
-            {/* Graph Visualization button */}
-            {message.explanationData?.fallback === 'prolog-graphrag' && (
+            {/* Graph Visualization button — show whenever graph data has nodes */}
+            {message.explanationData?.graph_data && message.explanationData.graph_data.nodes.length > 0 && (
               <Tooltip label="View Knowledge Graph">
-                <button 
-                  onClick={() => onGraphClick(message.explanationData!)} 
+                <button
+                  onClick={() => onGraphClick(message.explanationData!)}
                   className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors cursor-pointer"
                 >
                   <Network size={18} />
