@@ -83,9 +83,19 @@ def generate(
 
     logger.debug("Final prompt:\n%s", final_prompt)
 
-    def _do_call_llm():
-        if status_callback and fallback == "prolog-graphrag":
+    if status_callback:
+        if fallback == "prolog-graphrag":
             status_callback({"type": "step", "step": 8})
+            status_callback({"type": "thought", "step": 8, "message": "I mapped your question, the context, and the logical proof into a strict prompt template."})
+            status_callback({"type": "step", "step": 9})
+            if sample_mode:
+                status_callback({"type": "thought", "step": 9, "message": f"I'm synthesizing 5 output sequences to calculate semantic entropy based on {len(final_prompt)} chars of processed context and proof..."})
+            else:
+                status_callback({"type": "thought", "step": 9, "message": f"I'm synthesizing the final response by merging {len(final_prompt)} chars of processed evidence and logic proof..."})
+        elif fallback == "tuned":
+            status_callback({"type": "thought", "step": 2, "message": "I'm formulating my final conversational response..."})
+
+    def _do_call_llm():
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=messages,

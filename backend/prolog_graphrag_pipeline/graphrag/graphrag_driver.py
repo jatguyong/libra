@@ -150,13 +150,16 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
         if PROCESS_CONTEXT:
             if status_callback:
                 status_callback({"type": "step", "step": 2})
+                status_callback({"type": "thought", "step": 2, "message": f"I'm processing {len(text_context)} text chunk(s) for extraction."})
             _run_async(process_context(neo4j_driver, kg_builder_pdf=kg_builder_pdf, kg_builder_text=kg_builder_text, texts=text_context))
+            if status_callback:
+                status_callback({"type": "thought", "step": 2, "message": "I'm populating the Local Knowledge Graph with the entities and relationships I extracted."})
         time.sleep(2)
 
     success = False
 
     if status_callback:
-        status_callback({"type": "step", "step": 3})
+        status_callback({"type": "step", "step": 2})
 
     graph_rag = GraphRAG(
         llm=retriever_llm,
@@ -165,7 +168,7 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
     )
     retriever_result = []
     try:
-        graph_rag_results = graph_rag.search(query, retriever_config={'top_k': 5, 'use_global_kg': use_global_kg}, return_context=True)
+        graph_rag_results = graph_rag.search(query, retriever_config={'top_k': 5, 'use_global_kg': use_global_kg, 'status_callback': status_callback}, return_context=True)
         retriever_result = graph_rag_results.retriever_result
         answer_dict = graph_rag_results.answer
         answer = answer_dict.get("answer", "") if isinstance(answer_dict, dict) else str(answer_dict)

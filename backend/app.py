@@ -201,6 +201,7 @@ def chat():
     latest_msg = react_messages[-1]
     question = latest_msg.get("content", "")
     use_global_kg = data.get("useGlobalKG", False)
+    force_prolog = data.get("forceProlog", False)
 
 
     def generate_events():
@@ -212,7 +213,11 @@ def chat():
         def worker():
             try:
                 # Run the Prolog-GraphRAG pipeline with the callback
-                result = run_pipeline(question, flag="x", sample_mode=False, use_global_kg=use_global_kg, status_callback=status_callback)
+                result = run_pipeline(
+                    question, flag="x", sample_mode=True,
+                    use_global_kg=use_global_kg, force_prolog=force_prolog,
+                    status_callback=status_callback
+                )
 
                 # Safely convert contexts to strings if they are objects
                 raw_contexts = result.get("contexts", [])

@@ -106,13 +106,18 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
     # ── Attempt Prolog-verified path ───────────────────────────────────
     try:
         if status_callback:
-            status_callback({"type": "step", "step": 4})
+            status_callback({"type": "step", "step": 5})
             
         database, query = generate_prolog_code(
             question=question,
             retrieved_context=final_context,
             most_recent_error=None,
         )
+
+        if status_callback and database:
+            db_lines = len(database.strip().split("\n"))
+            status_callback({"type": "thought", "step": 5, "message": f"I translated the context into {db_lines} lines of formal executable Prolog logic."})
+            status_callback({"type": "thought", "step": 5, "message": f"I formulated the target logical query as: '{query}'."})
 
         if not SCASP_AVAILABLE:
             raise RuntimeError("s(CASP) library is specifically required for this pipeline. Execution aborted.")
@@ -123,7 +128,8 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
         final_query = f"explain(Explanation)."
         
         if status_callback:
-            status_callback({"type": "step", "step": 5})
+            status_callback({"type": "step", "step": 6})
+            status_callback({"type": "thought", "step": 6, "message": "I forwarded the formal query and knowledge base to the SWI-Prolog s(CASP) engine for rigorous verification."})
             
         logger.debug("Consulting database...")
         janus.consult("user", database + "\n" + wrapper)
@@ -139,16 +145,26 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
                         retrieved_values += f"{arg}: {val} "
                         # Capture specifically which multiple-choice letter was proven
                 
+                if status_callback:
+                    if retrieved_values.strip():
+                        status_callback({"type": "thought", "step": 6, "message": f"Engine execution completed. I derived a mathematical proof for: {retrieved_values.strip()}."})
+                    else:
+                        status_callback({"type": "thought", "step": 6, "message": "Engine execution completed. I successfully derived a mathematical proof."})
+
                 if SCASP_AVAILABLE and 'Explanation' in result:
                     human_readable_explanation = result['Explanation']
                     logger.debug("Human-Readable Explanation: %s", human_readable_explanation)
             else:
                 logger.warning("Prolog query returned no solution.")
+                if status_callback:
+                    status_callback({"type": "thought", "step": 6, "message": "Engine execution completed, but I couldn't derive a mathematically verifiable proof from the given context."})
         except Exception as e:
             logger.error("Prolog query error: %s", e)
+            if status_callback:
+                status_callback({"type": "thought", "step": 6, "message": f"The s(CASP) engine encountered an error during proof derivation: {e}"})
             
         if status_callback:
-            status_callback({"type": "step", "step": 6})
+            status_callback({"type": "step", "step": 7})
             
         explainer_output = generate_explanation(
             question=question,
@@ -158,6 +174,8 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
             retrieved_values=retrieved_values,
             human_readable_explanation=human_readable_explanation,
         )
+        if status_callback:
+            status_callback({"type": "thought", "step": 7, "message": "I decoded the highly technical Prolog proof tree into a format ready for natural language interpretation."})
         if not explainer_output:
             logger.error("Explainer failed to generate output.")
     except Exception as gen_err:

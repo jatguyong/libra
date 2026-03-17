@@ -90,6 +90,7 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
     safe_query = _sanitize_lucene_query(query_text)
     original_query = kwargs.pop("original_query", "")
     use_global_kg = kwargs.pop("use_global_kg", False)
+    status_callback = kwargs.pop("status_callback", None)
     all_items = []
     
     # --- KBPedia Global Knowledge Graph Search ---
@@ -104,29 +105,47 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
                 kb_llm = getattr(self, 'llm', None)
                 self._kbpedia_retriever = KBPediaRetriever(driver=kb_driver, llm=kb_llm, top_k=top_k)
             
-            kb_result = self._kbpedia_retriever.search(query_text, top_k=top_k, original_query=original_query)
+            kb_result = self._kbpedia_retriever.search(
+                query_text, 
+                top_k=top_k, 
+                original_query=original_query, 
+                status_callback=status_callback
+            )
             if kb_result and kb_result.items:
                 all_items.extend(kb_result.items)
                 print(f"DEBUG PROLOG-GRAPHRAG:[Hybrid] KBPedia returned {len(kb_result.items)} items.", flush=True)
+                if status_callback:
+                    status_callback({"type": "step", "step": 3})
+                    status_callback({"type": "thought", "step": 3, "message": f"I checked the Global Knowledge Graph (KBPedia) and found {len(kb_result.items)} relevant definition/fact nodes."})
         except Exception as e:
             print(f"DEBUG PROLOG-GRAPHRAG:[Hybrid] KBPedia search error: {e}", flush=True)
     
     # 1. Main query search (local documents)
     res_main = self._original_search(query_text=safe_query, top_k=top_k, **kwargs)
+    raw_local_count = 0
     if res_main and res_main.items:
         all_items.extend(res_main.items)
+        raw_local_count += len(res_main.items)
         
     # 2. MCQ choices search
     mcq_choices = re.findall(r'\b[A-D][.)]\s*(.+)', original_query)
     if mcq_choices:
         print(f"DEBUG PROLOG-GRAPHRAG:[LocalDocs Hybrid] Extracted {len(mcq_choices)} MCQ choices for independent search.", flush=True)
+        if status_callback:
+            status_callback({"type": "step", "step": 3})
+            status_callback({"type": "thought", "step": 3, "message": f"I extracted {len(mcq_choices)} multiple-choice options to formulate independent vector searches for each."})
         choice_k = max(2, top_k // 2)
         for choice in mcq_choices:
             safe_choice = _sanitize_lucene_query(choice.strip())
             res_choice = self._original_search(query_text=safe_choice, top_k=choice_k, **kwargs)
             if res_choice and res_choice.items:
                 all_items.extend(res_choice.items)
+                raw_local_count += len(res_choice.items)
                 
+    if status_callback:
+        status_callback({"type": "step", "step": 3})
+        status_callback({"type": "thought", "step": 3, "message": f"My local vector search identified {raw_local_count} raw document chunks matching the query."})
+
     # 3. Deduplicate and clean
     seen_content = set()
     unique_items = []
@@ -140,6 +159,10 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
             
     unique_items.sort(key=lambda x: x.metadata.get('score', 0.0) if x.metadata else 0.0, reverse=True)
     
+    if status_callback:
+        status_callback({"type": "step", "step": 3})
+        status_callback({"type": "thought", "step": 3, "message": f"I optimized and deduplicated the results down to {len(unique_items)} unique highest-value entity chunks."})
+
     from neo4j_graphrag.retrievers.base import RetrieverResult
     return RetrieverResult(items=unique_items[:top_k * 2], metadata={})
 
@@ -152,17 +175,10 @@ def expand_query(self, query):
 
 def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
     from neo4j_graphrag.retrievers.base import RetrieverResult
-    # `original_query` carries the full user prompt (with MCQ choices) for LLM filtering.
-    # `query_text` is the extracted question stem (used for embedding/entity extraction).
     original_query = kwargs.pop("original_query", query_text)
     use_global_kg = kwargs.pop("use_global_kg", False)
+    status_callback = kwargs.pop("status_callback", None)
     
-    # --- NEW CODE: Inject Baseline filter ---
-    # if "filters" not in kwargs:
-    #     kwargs["filters"] = {}
-    # kwargs["filters"]["subgraph"] in ["prolog-graphrag", "kbpedia"]
-    # ----------------------------------------
-
     # 1. KBPedia Search (via Neo4j)
     kb_items = []
     if use_global_kg and hasattr(self, 'llm') and self.llm:
@@ -170,9 +186,12 @@ def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
              from .kbpedia_retriever import KBPediaRetriever
              self.kbpedia_retriever = KBPediaRetriever(driver=self._driver, llm=self.llm, top_k=top_k)
         
-        kb_result = self.kbpedia_retriever.search(query_text, top_k=top_k, original_query=original_query)
+        kb_result = self.kbpedia_retriever.search(query_text, top_k=top_k, original_query=original_query, status_callback=status_callback)
         if kb_result and kb_result.items:
             kb_items = kb_result.items
+            if status_callback:
+                status_callback({"type": "step", "step": 3})
+                status_callback({"type": "thought", "step": 3, "message": f"I searched the Global Knowledge Graph (KBPedia) and found {len(kb_items)} foundational facts."})
 
     # 2. Local Vector Search
     local_items = []
@@ -190,6 +209,9 @@ def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
         mcq_choices = re.findall(r'\b[A-D][.)]\s*(.+)', original_query)
         if mcq_choices:
             print(f"DEBUG PROLOG-GRAPHRAG:[LocalDocs CypherVector] Extracted {len(mcq_choices)} MCQ choices for independent search.", flush=True)
+            if status_callback:
+                status_callback({"type": "step", "step": 3})
+                status_callback({"type": "thought", "step": 3, "message": f"I extracted {len(mcq_choices)} multiple-choice options to run individual localized searches."})
             choice_k = max(2, top_k // 2)
             for choice in mcq_choices:
                 res_choice = self._original_search(query_text=choice.strip(), top_k=choice_k, **kwargs)
@@ -216,6 +238,9 @@ def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
             if score >= MIN_SCORE and len(content) >= MIN_CONTENT_LENGTH:
                 filtered_items.append(item)
         local_items = filtered_items
+        if status_callback:
+            status_callback({"type": "step", "step": 3})
+            status_callback({"type": "thought", "step": 3, "message": f"My local Cypher vector search identified {len(raw_local_items)} raw chunks; I filtered this down to {len(local_items)} highly relevant nodes."})
     except Exception as e:
         print(f"DEBUG PROLOG-GRAPHRAG:Main retriever failed: {e}")
         
@@ -235,6 +260,10 @@ def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
         if sig not in seen_content:
             seen_content.add(sig)
             unique_items.append(item)
+            
+    if status_callback:
+        status_callback({"type": "step", "step": 3})
+        status_callback({"type": "thought", "step": 3, "message": f"I deduplicated and ranked the results down to {len(unique_items)} highest-signal semantic chunks."})
     
     final_top_k = top_k * 2 if (kb_items and local_items) else top_k
     return RetrieverResult(items=unique_items[:final_top_k], metadata={})

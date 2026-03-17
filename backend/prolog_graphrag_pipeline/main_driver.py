@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 def run_pipeline(
     question: str,
     flag: Literal['q', r"x\c", "x"],
-    sample_mode: bool = False,
+    sample_mode: bool = True,
     use_global_kg: bool = False,
+    force_prolog: bool = False,
     status_callback=None,
 ) -> dict:
     start_time = time.perf_counter()
@@ -24,12 +25,27 @@ def run_pipeline(
         status_callback({"type": "step", "step": 1})
 
     # Router decides which pipeline path to take
-    fallback = decide_fallback(question)
+    if force_prolog:
+        fallback = "prolog-graphrag"
+        if status_callback:
+            status_callback({"type": "thought", "step": 1, "message": "The user explicitly enabled the Prolog-GraphRAG path, so I'll route this question directly there without evaluating its complexity."})
+    else:
+        fallback = decide_fallback(question)
+        if status_callback:
+            if fallback == "prolog-graphrag":
+                msg = "This question requires deep logical reasoning or external knowledge, so it's best suited for the full Prolog-GraphRAG pipeline."
+            elif fallback == "graphrag":
+                msg = "This question involves extracting factual context, so I'll route it through the standard GraphRAG retriever."
+            else:
+                msg = "This question is straightforward enough for me to answer directly from my own memory."
+            status_callback({"type": "thought", "step": 1, "message": msg})
+            
     logger.info(f"Question: {question}")
 
     if fallback == "tuned":
         if status_callback:
             status_callback({"type": "step", "step": 2, "fallback": fallback})
+            status_callback({"type": "thought", "step": 2, "message": "I bypassed the knowledge graph and routed your question directly to my internal parametric memory for a quick conversational response."})
         # Tuned LLM never uses sample_mode — no semantic entropy for simple responses
         llm_output = generate(
             question, retrieved_context=None, explainer_output=None,
@@ -118,7 +134,7 @@ def run_pipeline(
         else:
             explainer_output = pgr_results.get("explainer_output", "") if pgr_results else ""
             if status_callback:
-                status_callback({"type": "step", "step": 7})
+                status_callback({"type": "step", "step": 9})
             llm_output = (
                 generate(
                     question, retrieved_context_str, explainer_output,
