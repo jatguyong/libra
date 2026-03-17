@@ -33,7 +33,7 @@ def run_pipeline(
         fallback = decide_fallback(question)
         if status_callback:
             if fallback == "prolog-graphrag":
-                msg = "This question requires deep logical reasoning or external knowledge, so it's best suited for the full Prolog-GraphRAG pipeline."
+                msg = "This question requires deep logical reasoning and external knowledge, so it's best suited for the full Prolog-GraphRAG pipeline."
             elif fallback == "graphrag":
                 msg = "This question involves extracting factual context, so I'll route it through the standard GraphRAG retriever."
             else:
