@@ -46,37 +46,48 @@ STATIC_SCHEMA = { # NOTE: Due to how 'EXTRACTED' works, the prompt used by Simpl
     }
 
 PROMPT_TEMPLATE = '''
-You are a Knowledge Engineer. Extract entities and relationships from the text to build a Prolog-compatible Knowledge Graph.
+### ROLE: Knowledge Extraction Expert
+You are a highly skilled Knowledge Engineer specializing in extracting high-fidelity, logical knowledge graphs from complex text. Your goal is to identify ALL significant entities, their types, and the dense network of relationships between them.
 
-For each relationship include: logic_intent (FACT | RULE | EXCEPTION) and a natural_statement preserving the original phrasing.
+### INSTRUCTIONS:
+1. **Aggressive Extraction**: Extract as many relevant entities and relationships as possible without hallucinating. Focus on capturing the core logical flow (IF-THEN, CAUSE-EFFECT, PART-OF).
+2. **Schema Adherence**: Use the provided Node Labels and Relationship Types strictly.
+3. **Prolog Compatibility**: Ensure all IDs and types are in `lowercase_with_underscores`.
+4. **Rich Metadata**: For every relationship, provide a `natural_statement` (full sentence preservation), a `logic_intent` (FACT, RULE, or EXCEPTION), and a `logical_form_hint`.
 
-### JSON FORMAT:
+### JSON OUTPUT FORMAT:
 {{
-  "nodes": [{{"id": "atom_id", "label": "PrologLabel", "properties": {{"name": "Name"}}}}],
-  "relationships": [{{
-    "type": "PREDICATE_TYPE",
-    "start_node_id": "id1",
-    "end_node_id": "id2",
-    "properties": {{
-      "natural_statement": "full extracted fact or rule",
-      "logic_intent": "FACT | RULE | EXCEPTION",
-      "logical_form_hint": "e.g., mortal(X) :- man(X)"
+  "nodes": [
+    {{
+      "id": "entity_id",
+      "label": "NodeLabel",
+      "properties": {{"name": "Display Name"}}
     }}
-  }}]
+  ],
+  "relationships": [
+    {{
+      "type": "REL_TYPE",
+      "start_node_id": "id1",
+      "end_node_id": "id2",
+      "properties": {{
+        "natural_statement": "The full sentence explaining this link",
+        "logic_intent": "FACT | RULE | EXCEPTION",
+        "logical_form_hint": "e.g., occurs_in(X, Y)"
+      }}
+    }}
+  ]
 }}
 
-### Constraints
-- IDs and types: lowercase_with_underscores (Prolog atom style).
-- Do not hallucinate. Return empty arrays if no clear logic exists.
-- {schema}
+### CONTEXTUAL SCHEMA:
+{schema}
 
-### Examples
+### EXTRACTION EXAMPLES:
 {examples}
 
-### Input Text
+### INPUT TEXT:
 {text}
 
-Output JSON ONLY. No markdown, no preamble.
+Output ONLY the JSON object. No markdown, no filler.
 '''
 
 RETRIEVAL_QUERY = '''
