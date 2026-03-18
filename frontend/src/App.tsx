@@ -269,6 +269,7 @@ function App() {
           fileStatuses={ingestion.fileStatuses}
           onNewConversation={handleNewConversation}
           onRemoveFile={ingestion.handleRemoveFile}
+          onClearAllFiles={ingestion.handleClearAll}
         />
 
         {/* Central column */}

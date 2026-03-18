@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Edit, FileText, ExternalLink, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Edit, FileText, ExternalLink, X, Loader2, CheckCircle2, AlertCircle, Trash2 } from 'lucide-react';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -8,6 +8,7 @@ interface SidebarProps {
     fileStatuses: Record<string, { status: string; duration_s?: number; error?: string }>;
     onNewConversation: () => void;
     onRemoveFile: (filename: string) => void;
+    onClearAllFiles: () => void;
 }
 
 const FileStatusIcon = ({ status }: { status: string }) => {
@@ -23,7 +24,7 @@ const FileStatusIcon = ({ status }: { status: string }) => {
     }
 };
 
-const Sidebar = ({ isOpen, toggleSidebar, uploadedFiles, fileStatuses, onNewConversation, onRemoveFile }: SidebarProps) => {
+const Sidebar = ({ isOpen, toggleSidebar, uploadedFiles, fileStatuses, onNewConversation, onRemoveFile, onClearAllFiles }: SidebarProps) => {
     return (
         <motion.div
             initial={false}
@@ -63,7 +64,16 @@ const Sidebar = ({ isOpen, toggleSidebar, uploadedFiles, fileStatuses, onNewConv
                         >
                             {uploadedFiles.length > 0 && (
                                 <div className="flex flex-col gap-3 mt-2">
-                                    <span className="text-xs font-sans text-white/40 px-2 tracking-wider uppercase font-medium whitespace-nowrap">Uploaded PDFs</span>
+                                    <div className="flex items-center justify-between px-2">
+                                        <span className="text-xs font-sans text-white/40 tracking-wider uppercase font-medium whitespace-nowrap">Uploaded PDFs</span>
+                                        <button 
+                                            onClick={onClearAllFiles}
+                                            className="text-white/30 hover:text-red-400 transition-colors p-1 rounded-md hover:bg-white/5"
+                                            title="Clear all documents from knowledge graph"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
                                     <div className="flex flex-col gap-2">
                                         {uploadedFiles.map((file, index) => {
                                             const fileStatus = fileStatuses[file.name];
