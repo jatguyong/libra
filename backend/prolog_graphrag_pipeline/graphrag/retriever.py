@@ -152,7 +152,7 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
     for item in all_items:
         if item.content:
             item.content = item.content.replace('\n', ' ').replace('  ', ' ')
-        sig = item.content[:100] if item.content else ""
+        sig = item.content.strip() if item.content else ""
         if sig and sig not in seen_content:
             seen_content.add(sig)
             unique_items.append(item)
@@ -256,7 +256,7 @@ def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
     for item in all_items:
         if item.content:
             item.content = item.content.replace('\n', ' ').replace('  ', ' ')
-        sig = item.content[:50] if item.content else ""
+        sig = item.content.strip() if item.content else ""
         if sig not in seen_content:
             seen_content.add(sig)
             unique_items.append(item)
@@ -298,7 +298,6 @@ def create_retriever(driver, embedder):
             vector_index_name="documentsVectorIndex",
             fulltext_index_name="documentsFulltextIndex",
             embedder=embedder,
-            return_properties=["text", "id"],
             
         )
         # Monkey-patch
@@ -317,7 +316,7 @@ def generate(llm, retriever, query, original_query: str = "", fallback: str = "p
     if hasattr(retriever, 'llm'):
         retriever.llm = llm
 
-    retriever_config = {'top_k': 8}
+    retriever_config = {'top_k': 12}
     if original_query:
         retriever_config['original_query'] = original_query
 
