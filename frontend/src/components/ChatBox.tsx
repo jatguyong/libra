@@ -236,7 +236,16 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                                             }}
                                             className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-white/5 transition-colors text-left group"
                                         >
-                                            <span className="text-sm font-inter text-white/90 pr-3">Force to Prolog-GraphRAG</span>
+                                            <div className="flex items-center gap-1.5 flex-1 pr-3">
+                                                <span className="text-sm font-inter text-white/90">Force to Prolog-GraphRAG</span>
+                                                <div className="relative group/tooltip flex items-center">
+                                                    <Info size={15} className="text-white/40 group-hover/text-white/60 transition-colors" />
+                                                    <div className="font-inter absolute bottom-full right-[-5px] mb-2 w-56 p-2.5 bg-[#2a2435] border border-white/10 rounded-lg shadow-xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 text-xs text-white/80 leading-relaxed pointer-events-none text-left">
+                                                        Forces the pipeline to use complex logical reasoning; this may "overthink" simple queries. Enable only if deep evidence-based logic is required.
+                                                        <div className="absolute top-full right-2 border-4 border-transparent border-t-[#2a2435]" />
+                                                    </div>
+                                                </div>
+                                            </div>
                                             <div className="relative inline-flex items-center cursor-pointer shrink-0">
                                                 <div className={`w-8 h-4.5 rounded-full transition-colors duration-200 ease-in-out ${forceProlog ? 'bg-[#A278AE]' : 'bg-white/20'}`}>
                                                     <div className={`absolute top-[2px] left-[2px] bg-white w-3.5 h-3.5 rounded-full transition-transform duration-200 ease-in-out shadow-sm ${forceProlog ? 'translate-x-[14px]' : 'translate-x-0'}`} />
