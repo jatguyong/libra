@@ -163,12 +163,13 @@ def run_pipeline(
                             clean_t = paren_match.group(2).strip()
                     
                     # Format: "relationship: target" e.g. "definition: ...", "subclass of: ..."
+                    node_label = "WikidataConcept" if triple_source == "Wikidata" else "KBPediaConcept"
                     if ":" in clean_t and source_entity:
                         rel, target = clean_t.split(":", 1)
                         rel, target = rel.strip(), target.strip()
                         if target and len(target) < 200:  # Skip very long definition text
-                            graph_nodes[str(source_entity)] = {"id": str(source_entity), "label": "Concept"}
-                            graph_nodes[str(target)] = {"id": str(target), "label": "Concept"}
+                            graph_nodes[str(source_entity)] = {"id": str(source_entity), "label": node_label}
+                            graph_nodes[str(target)] = {"id": str(target), "label": node_label}
                             graph_edges.append({"source": str(source_entity), "target": str(target), "label": rel})
                     else:
                         # Try known relationship keywords: "Source RELATIONSHIP Target"
@@ -186,8 +187,8 @@ def run_pipeline(
                         
                         if len(parts) >= 3:
                             source, rel, target = parts[0], parts[1], parts[2]
-                            graph_nodes[str(source)] = {"id": str(source), "label": "Concept"}
-                            graph_nodes[str(target)] = {"id": str(target), "label": "Concept"}
+                            graph_nodes[str(source)] = {"id": str(source), "label": node_label}
+                            graph_nodes[str(target)] = {"id": str(target), "label": node_label}
                             graph_edges.append({"source": str(source), "target": str(target), "label": str(rel)})
 
         # --- Source 2: Fetch local document graph relationships directly from Neo4j ---

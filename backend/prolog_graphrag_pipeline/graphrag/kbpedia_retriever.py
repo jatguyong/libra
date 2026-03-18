@@ -274,7 +274,10 @@ Example: ["plant cell", "structural support", "cell wall", "chloroplast"]"""
                 """
                 MATCH (n:KBPediaConcept {uri: $uri})
                 OPTIONAL MATCH (n)-[:SUBCLASS_OF]->(ancestor:KBPediaConcept)
-                RETURN collect(DISTINCT {name: ancestor.name})[0..2] AS ancestors
+                OPTIONAL MATCH (descendant:KBPediaConcept)-[:SUBCLASS_OF]->(n)
+                RETURN 
+                    collect(DISTINCT {name: ancestor.name})[0..2] AS ancestors,
+                    collect(DISTINCT {name: descendant.name})[0..2] AS descendants
                 """,
                 uri=uri,
                 database_="neo4j",
@@ -286,6 +289,9 @@ Example: ["plant cell", "structural support", "cell wall", "chloroplast"]"""
                 for a in row.get("ancestors", []):
                     if a and a.get("name"):
                         triples.append(f"subclass of: {a['name']}")
+                for d in row.get("descendants", []):
+                    if d and d.get("name"):
+                        triples.append(f"has subclass: {d['name']}")
             return triples
         except Exception as e:
             print(f"DEBUG PROLOG-GRAPHRAG:KBPedia neighborhood error: {e}")
