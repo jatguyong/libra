@@ -46,6 +46,52 @@ def health():
 _ingestion_status = {}  # {filename: {status, duration_s, error}}
 _cancellation_flags = {}  # {filename: threading.Event}
 _ingestion_lock = threading.Lock()
+_ingestion_queue = queue.Queue()
+
+def _bg_ingest(file_list):
+    from prolog_graphrag_pipeline.graphrag import graphrag_driver as gd
+    from prolog_graphrag_pipeline.graphrag import neo4j_manager as nm
+    file_paths = [f["filepath"] for f in file_list]
+    try:
+        results = gd.ingest_pdf_files(file_paths)
+        for r in results:
+            fname = os.path.basename(r["file"])
+            with _ingestion_lock:
+                flag = _cancellation_flags.get(fname)
+            # If cancelled mid-run, clean up the partial data
+            if flag and flag.is_set():
+                logger.info(f"Cancellation detected post-ingest for {fname}. Cleaning up...")
+                try:
+                    result = nm.remove_document_from_kg(fname)
+                    logger.info(f"Cancel cleanup result for {fname}: {result}")
+                except Exception as ex:
+                    logger.error(f"Cancel cleanup error for {fname}: {ex}")
+                # File already removed by /api/ingest/cancel, skip status update
+                continue
+            with _ingestion_lock:
+                _ingestion_status[fname] = {
+                    "status": r.get("status", "done"),
+                    "duration_s": r.get("duration_s", 0),
+                    "error": r.get("error"),
+                }
+    except Exception as e:
+        logger.error(f"Background ingestion error: {e}")
+        with _ingestion_lock:
+            for f in file_list:
+                _ingestion_status[f["filename"]] = {"status": "error", "error": str(e)}
+
+def _ingestion_worker():
+    while True:
+        file_list = _ingestion_queue.get()
+        if file_list is None:
+            break
+        try:
+            _bg_ingest(file_list)
+        finally:
+            _ingestion_queue.task_done()
+
+# Start the single global worker thread
+threading.Thread(target=_ingestion_worker, daemon=True).start()
 
 
 @app.route("/api/ingest", methods=["POST"])
@@ -72,45 +118,12 @@ def ingest():
                 _ingestion_status[safe_name] = {"status": "processing", "duration_s": 0}
                 _cancellation_flags[safe_name] = cancel_event
 
-    # Trigger KG ingestion in a background thread
-
-    def _bg_ingest(file_list):
-        from prolog_graphrag_pipeline.graphrag import graphrag_driver as gd
-        from prolog_graphrag_pipeline.graphrag import neo4j_manager as nm
-        file_paths = [f["filepath"] for f in file_list]
-        try:
-            results = gd.ingest_pdf_files(file_paths)
-            for r in results:
-                fname = os.path.basename(r["file"])
-                with _ingestion_lock:
-                    flag = _cancellation_flags.get(fname)
-                # If cancelled mid-run, clean up the partial data
-                if flag and flag.is_set():
-                    logger.info(f"Cancellation detected post-ingest for {fname}. Cleaning up...")
-                    try:
-                        result = nm.remove_document_from_kg(fname)
-                        logger.info(f"Cancel cleanup result for {fname}: {result}")
-                    except Exception as ex:
-                        logger.error(f"Cancel cleanup error for {fname}: {ex}")
-                    # File already removed by /api/ingest/cancel, skip status update
-                    continue
-                with _ingestion_lock:
-                    _ingestion_status[fname] = {
-                        "status": r.get("status", "done"),
-                        "duration_s": r.get("duration_s", 0),
-                        "error": r.get("error"),
-                    }
-        except Exception as e:
-            logger.error(f"Background ingestion error: {e}")
-            with _ingestion_lock:
-                for f in file_list:
-                    _ingestion_status[f["filename"]] = {"status": "error", "error": str(e)}
-
-    thread = threading.Thread(target=_bg_ingest, args=(saved_files,), daemon=True)
-    thread.start()
+    # Trigger KG ingestion in a background worker by queuing the file list
+    if saved_files:
+        _ingestion_queue.put(saved_files)
 
     return jsonify({
-        "message": f"Uploaded {len(saved_files)} file(s). Ingestion started in background.",
+        "message": f"Uploaded {len(saved_files)} file(s). Ingestion queued in background.",
         "files": [f["filename"] for f in saved_files]
     })
 
@@ -180,6 +193,36 @@ def remove_document():
         logger.info(f"Cancellation flagged for in-progress ingest: {filename}")
 
     return cancel_and_remove(filename)
+
+@app.route("/api/ingest/clear", methods=["POST"])
+def clear_all_documents():
+    """Clear all processed documents and chunks from Neo4j and disk."""
+    from prolog_graphrag_pipeline.graphrag import neo4j_manager as nm
+    import shutil
+    
+    # 1. Clear the graph (preserves KBPedia concepts)
+    logger.info("Clearing all local pipeline data from Neo4j...")
+    nm.clear_local_data()
+    
+    # 2. Clear the uploads folder
+    upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
+    if os.path.exists(upload_dir):
+        for filename in os.listdir(upload_dir):
+            filepath = os.path.join(upload_dir, filename)
+            try:
+                if os.path.isfile(filepath) or os.path.islink(filepath):
+                    os.unlink(filepath)
+                elif os.path.isdir(filepath):
+                    shutil.rmtree(filepath)
+            except Exception as e:
+                logger.error(f"Failed to delete {filepath}. Reason: {e}")
+                
+    # 3. Reset ingestion tracking state
+    with _ingestion_lock:
+        _ingestion_status.clear()
+        _cancellation_flags.clear()
+        
+    return jsonify({"message": "Successfully cleared all local documents."})
 
 @app.route("/api/ingest/documents", methods=["GET"])
 def list_documents():

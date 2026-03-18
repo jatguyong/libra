@@ -23,6 +23,7 @@ export interface IngestionState {
   hasProcessing: boolean;
   handleFilesUploaded: (files: File[]) => void;
   handleRemoveFile: (filename: string) => void;
+  handleClearAll: () => Promise<void>;
   reset: () => void;
 }
 
@@ -80,9 +81,61 @@ export function useIngestion(): IngestionState {
     }
   }, [fileStatuses]);
 
+  const handleClearAll = useCallback(async () => {
+    // Optimistically clear the UI
+    setUploadedFiles([]);
+    setFileStatuses({});
+    try {
+      await fetch(`${API_BASE}/api/ingest/clear`, { method: 'POST' });
+    } catch (err) {
+      console.error('Error clearing all documents:', err);
+    }
+  }, []);
+
   const reset = useCallback(() => {
     setUploadedFiles([]);
     setFileStatuses({});
+  }, []);
+
+  // Fetch already-ingested documents on initial mount
+  useEffect(() => {
+    async function fetchIngestedDocs() {
+      try {
+        const res = await fetch(`${API_BASE}/api/ingest/documents`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.documents && Array.isArray(data.documents)) {
+            // Reconstruct pseudo-File objects just for the filename in the UI
+            const recoveredFiles = data.documents.map((doc: { path: string }) => {
+              // Create a dummy file object using File constructor
+              return new File([], doc.path);
+            });
+            
+            setUploadedFiles(prev => {
+              // Avoid duplicates if uploads happened before fetch completes
+              const existingNames = new Set(prev.map(f => f.name));
+              const newFiles = recoveredFiles.filter((f: File) => !existingNames.has(f.name));
+              return [...prev, ...newFiles];
+            });
+
+            // Set their statuses to done
+            setFileStatuses(prev => {
+              const next = { ...prev };
+              recoveredFiles.forEach((f: File) => {
+                if (!next[f.name]) {
+                  next[f.name] = { status: 'done' };
+                }
+              });
+              return next;
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching ingested documents:', err);
+      }
+    }
+    fetchIngestedDocs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
@@ -92,6 +145,7 @@ export function useIngestion(): IngestionState {
     hasProcessing,
     handleFilesUploaded,
     handleRemoveFile,
+    handleClearAll,
     reset,
   };
 }
