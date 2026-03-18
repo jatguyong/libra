@@ -1,8 +1,8 @@
 # Dependencies
-.venv/
-node_modules/
-__pycache__/
-*.pyc
+**/.venv/
+**/node_modules/
+**/__pycache__/
+**/*.pyc
 
 # Version control
 .git/
@@ -13,6 +13,7 @@ __pycache__/
 
 # Data (volume-mounted at runtime)
 neo4j_kbpedia/
+**/uploads/
 
 # OS files
 .DS_Store
@@ -21,7 +22,7 @@ Thumbs.db
 # Debug artifacts
 backend/debug*.txt
 backend/logs/
-*.log
+**/*.log
 
 # Build artifacts
 frontend/dist/

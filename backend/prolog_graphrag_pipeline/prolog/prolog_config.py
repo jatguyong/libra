@@ -889,6 +889,8 @@ Keep your explanations dense and easy to synthesize and understand.
 
 ### Syntactic Rules
 - No Prolog Syntax: Use natural language only.
+- Translate Predicates: You MUST silently translate all snake_case Prolog predicates and variables into normal English words. For example, change "has_complete_name" to "has complete name", and "historical_figure" to "historical figure".
+- NO UNDERSCORES OR QUOTATIONS: Never output words with underscores or wrap rule names in quotation marks.
 - Traceability: Keep the sequential logic. Do not jump straight to the conclusion.
 """
 
