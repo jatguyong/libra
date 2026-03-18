@@ -169,13 +169,9 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
 
                     <div className="flex items-center gap-3">
                         <button
-                            className={`flex items-center justify-center w-8 h-8 rounded-full border transition cursor-pointer ${isIngesting
-                                ? 'border-white/10 text-white/30 cursor-not-allowed'
-                                : 'border-white/20 text-white/70 hover:text-white hover:bg-white/10'
-                                }`}
-                            onClick={() => !isIngesting && fileInputRef.current?.click()}
-                            disabled={isIngesting}
-                            title={isIngesting ? 'Wait for ingestion to finish' : 'Upload PDF'}
+                            className="flex items-center justify-center w-8 h-8 rounded-full border transition cursor-pointer border-white/20 text-white/70 hover:text-white hover:bg-white/10"
+                            onClick={() => fileInputRef.current?.click()}
+                            title="Upload PDF"
                         >
                             <Plus size={16} />
                         </button>

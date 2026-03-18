@@ -4,7 +4,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { Copy, RefreshCw, ChevronLeft, ChevronRight, AlertTriangle, Network } from 'lucide-react';
+import { Copy, RefreshCw, ChevronLeft, ChevronRight, Info, Network } from 'lucide-react';
 import ThinkingProcess from '../ThinkingProcess';
 import { ChatMarkdown } from './MarkdownRenderer';
 import type { Message, ExplanationData } from '../../lib/types';
@@ -150,14 +150,14 @@ export default function AiMessage({ message, onRedo, isFinished, onExplanationCl
             {/* Tuned LLM warning */}
             {message.explanationData?.fallback === 'tuned' && (
               <Tooltip label="This response is not Prolog verified and relies solely on the LLM's parametric memory.">
-                <div className="p-1.5 text-amber-500/80 hover:text-amber-400 rounded-md transition-colors cursor-help ml-1">
-                  <AlertTriangle size={18} />
+                <div className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors cursor-help ml-1">
+                  <Info size={18} />
                 </div>
               </Tooltip>
             )}
 
-            {/* Graph Visualization button — show whenever graph data has nodes */}
-            {message.explanationData?.graph_data && message.explanationData.graph_data.nodes.length > 0 && (
+            {/* Graph Visualization button */}
+            {message.explanationData?.graph_data && (
               <Tooltip label="View Knowledge Graph">
                 <button
                   onClick={() => onGraphClick(message.explanationData!)}
@@ -190,7 +190,7 @@ function Tooltip({ label, children }: { label: string; children: React.ReactNode
   return (
     <div className="relative group/tooltip flex items-center justify-center">
       {children}
-      <div className="absolute bottom-full mb-2 bg-[#1a1523] text-white/80 text-xs px-2 py-1 rounded border border-white/10 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all whitespace-nowrap z-10 pointer-events-none">
+      <div className="absolute bottom-full mb-2 bg-[#1a1523] text-white/80 text-xs px-3 py-1.5 rounded border border-white/10 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all w-max max-w-xs text-center z-10 pointer-events-none leading-relaxed shadow-xl">
         {label}
       </div>
     </div>
