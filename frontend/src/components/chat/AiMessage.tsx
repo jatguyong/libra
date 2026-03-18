@@ -149,7 +149,13 @@ export default function AiMessage({ message, onRedo, isFinished, onExplanationCl
 
             {/* Tuned LLM warning */}
             {message.explanationData?.fallback === 'tuned' && (
-              <Tooltip label="This response is not Prolog verified and relies solely on the LLM's parametric memory.">
+              <Tooltip label={
+                <>
+                  This response is not Prolog verified<br />
+                  and relies solely on the LLM's<br />
+                  parametric memory.
+                </>
+              }>
                 <div className="p-1.5 hover:text-white hover:bg-white/10 rounded-md transition-colors cursor-help ml-1">
                   <Info size={18} />
                 </div>
@@ -186,7 +192,7 @@ export default function AiMessage({ message, onRedo, isFinished, onExplanationCl
 
 // ── Tooltip helper ──────────────────────────────────────────────────
 
-function Tooltip({ label, children }: { label: string; children: React.ReactNode }) {
+function Tooltip({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="relative group/tooltip flex items-center justify-center">
       {children}

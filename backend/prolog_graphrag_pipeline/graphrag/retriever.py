@@ -107,7 +107,7 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
             
             kb_result = self._kbpedia_retriever.search(
                 query_text, 
-                top_k=top_k, 
+                top_k=top_k * 2, # Fetch more for deduplication 
                 original_query=original_query, 
                 status_callback=status_callback
             )
@@ -150,12 +150,22 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
     seen_content = set()
     unique_items = []
     for item in all_items:
-        if item.content:
-            item.content = item.content.replace('\n', ' ').replace('  ', ' ')
-        sig = item.content.strip() if item.content else ""
+        content_str = ""
+        if hasattr(item, "content"):
+            if isinstance(item.content, str):
+                content_str = item.content
+            elif hasattr(item.content, "get"):
+                content_str = item.content.get("text", item.content.get("content", str(item.content)))
+            else:
+                content_str = str(item.content)
+        
+        if content_str:
+            content_str = content_str.replace('\n', ' ').replace('  ', ' ')
+        sig = content_str.strip() if content_str else ""
         if sig and sig not in seen_content:
             seen_content.add(sig)
-            unique_items.append(item)
+            from neo4j_graphrag.retrievers.base import RetrieverResultItem
+            unique_items.append(RetrieverResultItem(content=content_str, metadata=item.metadata))
             
     unique_items.sort(key=lambda x: x.metadata.get('score', 0.0) if x.metadata else 0.0, reverse=True)
     
@@ -254,12 +264,22 @@ def patched_vector_cypher_search(self, query_text, top_k=8, **kwargs):
     seen_content = set()
     unique_items = []
     for item in all_items:
-        if item.content:
-            item.content = item.content.replace('\n', ' ').replace('  ', ' ')
-        sig = item.content.strip() if item.content else ""
+        content_str = ""
+        if hasattr(item, "content"):
+            if isinstance(item.content, str):
+                content_str = item.content
+            elif hasattr(item.content, "get"):
+                content_str = item.content.get("text", item.content.get("content", str(item.content)))
+            else:
+                content_str = str(item.content)
+        
+        if content_str:
+            content_str = content_str.replace('\n', ' ').replace('  ', ' ')
+        sig = content_str.strip() if content_str else ""
         if sig not in seen_content:
             seen_content.add(sig)
-            unique_items.append(item)
+            from neo4j_graphrag.retrievers.base import RetrieverResultItem
+            unique_items.append(RetrieverResultItem(content=content_str, metadata=item.metadata))
             
     if status_callback:
         status_callback({"type": "step", "step": 3})

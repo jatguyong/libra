@@ -221,7 +221,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                                                 <div className="relative group/tooltip flex items-center">
                                                     <Info size={15} className="text-white/40 group-hover/text-white/60 transition-colors" />
                                                     <div className="font-inter absolute bottom-full right-[-5px] mb-2 w-56 p-2.5 bg-[#2a2435] border border-white/10 rounded-lg shadow-xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 text-xs text-white/80 leading-relaxed pointer-events-none">
-                                                        Searches the Global Knowledge Graph (including KBPedia and Wikidata) to provide highly accurate, fact-based answers.
+                                                        Searches the Global Knowledge Graph (including KBPedia and Wikidata) to provide highly accurate, fact-based evidence.
                                                         <div className="absolute top-full right-2 border-4 border-transparent border-t-[#2a2435]" />
                                                     </div>
                                                 </div>
@@ -241,7 +241,7 @@ const ChatBox = ({ onSendMessage, isLoading = false, isIngesting = false, upload
                                                 <div className="relative group/tooltip flex items-center">
                                                     <Info size={15} className="text-white/40 group-hover/text-white/60 transition-colors" />
                                                     <div className="font-inter absolute bottom-full right-[-5px] mb-2 w-56 p-2.5 bg-[#2a2435] border border-white/10 rounded-lg shadow-xl z-50 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 text-xs text-white/80 leading-relaxed pointer-events-none text-left">
-                                                        Forces the pipeline to use complex logical reasoning; this may "overthink" simple queries. Enable only if deep evidence-based logic is required.
+                                                        Forces the pipeline to use complex logical reasoning. This may "overthink" simple queries. Enable only if the routing mechanism fails to provide accurate results.
                                                         <div className="absolute top-full right-2 border-4 border-transparent border-t-[#2a2435]" />
                                                     </div>
                                                 </div>

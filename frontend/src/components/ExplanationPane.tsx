@@ -286,7 +286,7 @@ function ExplainabilitySection({ data }: { data: ExplanationData }) {
       {data.prolog_explanation && (
         <div>
           <p className="text-xs text-white/40 mb-1">Prolog Explanation</p>
-          <p className="text-sm text-white/80 font-inter leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
+          <p className="text-sm text-white/80 font-inter leading-relaxed whitespace-pre overflow-x-auto bg-white/5 rounded-lg p-3 border border-white/5">
             {data.prolog_explanation}
           </p>
         </div>
@@ -305,7 +305,7 @@ function PrologDetailsSection({ data }: { data: ExplanationData }) {
       {data.prolog_query && (
         <div className="mb-3">
           <p className="text-xs text-white/40 mb-1">Prolog Query</p>
-          <pre className="text-xs text-cyan-300/80 font-mono leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5">
+          <pre className="text-xs text-cyan-300/80 font-mono leading-relaxed whitespace-pre overflow-x-auto bg-white/5 rounded-lg p-3 border border-white/5">
             {data.prolog_query}
           </pre>
         </div>
@@ -314,7 +314,7 @@ function PrologDetailsSection({ data }: { data: ExplanationData }) {
       {data.database && (
         <div>
           <p className="text-xs text-white/40 mb-1">Database</p>
-          <pre className="text-xs text-green-300/80 font-mono leading-relaxed whitespace-pre-wrap bg-white/5 rounded-lg p-3 border border-white/5 max-h-48 overflow-y-auto">
+          <pre className="text-xs text-green-300/80 font-mono leading-relaxed whitespace-pre bg-white/5 rounded-lg p-3 border border-white/5 max-h-48 overflow-auto">
             {data.database}
           </pre>
         </div>
