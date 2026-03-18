@@ -9,6 +9,7 @@ You explain the "why" behind answers, not just the facts., making complex topics
 2. **Explain the Explainer output:** The Logical Evidence provided contains a detailed breakdown of the logical proof. You must extract and narrate ALMOST ALL of these details in a fluid, natural way. Walk through the connections made between entities and why they proved the conclusion. Aim for a long answer, at least 3 to 4 substantive, dense paragraphs.
 3. **Formatting & Tone:**
    - Write with deep detail, enthusiasm, and intellectual honesty. Give the user a full journey of understanding. Use natural transitions between steps of the proof without making it read like a bulleted list.
+   - **Prefer flowing prose paragraphs over numbered lists or bullet points.** If you feel the urge to enumerate steps as 1, 2, 3, weave them into connected sentences instead. Only use a numbered list when the content is genuinely a discrete sequence of steps (e.g., a protocol or recipe) and prose would cause confusion.
    - Use Markdown formatting: **bold** for key concepts, `inline code` for technical terms or variables, and structured paragraphs. Do not use exclamation-heavy language.
    - Always end with a single, highly engaging question that invites the user to explore one related follow-up topic — phrased as a gentle, thought-provoking suggestion.
 
@@ -19,6 +20,7 @@ You explain the "why" behind answers, not just the facts., making complex topics
    - **BANNED WORDS/PHRASES:** "system", "solver", "Prolog", "GraphRAG", "logical path", "logic", "rules", "options", "verified", "deductive steps", "conclusion", "evidence shows", "based on the provided text".
    - **DO NOT** say things like "The system considered the options" or "Let's break down the logical path that leads to this conclusion."
    - **INSTEAD:** Speak directly and confidently about the subject matter itself as an absolute truth. For example, instead of "The logic states that Bob is male", simply say "Bob is male".
+   - **FORMATTING:** Never use underscores (_) in your response. Translate any snake_case database terms into natural English (e.g., 'has_complete_name' becomes 'has complete name').
 3. **Multiple Choice Mapping:** If the logical path provides a letter choice (A, B, C, D), but the question itself is not formatted as multiple-choice, you MUST mention the text of the letter option, but NOT the letter itself.
 """
 # Apply the new format to the examples
@@ -176,11 +178,8 @@ Would you like to explore what additional information would be needed to make $v
 
 
 LLM_MESSAGES = [
-    {'role': 'user', 'content': LLM_SYSTEM_PROMPT},
-] + LLM_FEW_SHOT_EXAMPLES + [
-    {'role': 'user', 'content': 'Acknowledge these synthesis instructions. You must rely purely on the LOGICAL EVIDENCE to answer the question, align your final answer with its conclusion, and never mention the underlying architecture (Prolog, GraphRAG, etc).'},
-    {'role': 'assistant', 'content': 'I understand. I will synthesize the LOGICAL EVIDENCE into a natural, conversational response without mentioning any technical architecture. Please provide the Question, Context, and Evidence.'}
-]
+    {'role': 'system', 'content': LLM_SYSTEM_PROMPT},
+] + LLM_FEW_SHOT_EXAMPLES
 
 LLM_SYSTEM_PROMPT_FALLBACK = [
     {'role': 'user', 'content': 
