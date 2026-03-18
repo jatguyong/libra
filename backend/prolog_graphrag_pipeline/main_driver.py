@@ -153,7 +153,6 @@ def run_pipeline(
             if isinstance(chunk_content, dict):
                 chunk_content = chunk_content.get("text", chunk_content.get("content", str(chunk_content)))
             elif isinstance(chunk_content, str) and "text=" in chunk_content:
-                import re
                 match = re.search(r"text='(.*?)'", chunk_content)
                 if match:
                     chunk_content = match.group(1)
