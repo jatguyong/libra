@@ -122,3 +122,28 @@ def list_ingested_documents() -> list:
     except Exception as e:
         logger.error("Error listing documents: %s", e)
         return []
+def stitch_document_chunks():
+    """Create NEXT_CHUNK relationships between sequential chunks of the same document.
+    
+    Links chunks by (d:Document)-[:FROM_DOCUMENT]->(c:Chunk) where c.index is sequential.
+    """
+    ensure_driver_connected()
+    logger.info("Stitching sequential chunks in Neo4j...")
+    try:
+        with neo4j_driver.session(database="neo4j") as session:
+            # Cypher logic: 
+            # 1. Match all chunks of a document
+            # 2. Sort by index
+            # 3. Create NEXT_CHUNK between i and i+1
+            session.run("""
+                MATCH (d:Document)
+                MATCH (c:Chunk)-[:FROM_DOCUMENT]->(d)
+                WITH d, c ORDER BY d.path, c.index
+                WITH d, collect(c) AS chunks
+                UNWIND range(0, size(chunks)-2) AS i
+                WITH chunks[i] AS c1, chunks[i+1] AS c2
+                MERGE (c1)-[:NEXT_CHUNK]->(c2)
+            """)
+        logger.info("Chunk stitching complete.")
+    except Exception as e:
+        logger.error("Error stitching chunks: %s", e)

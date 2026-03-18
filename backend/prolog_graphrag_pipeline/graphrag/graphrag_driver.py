@@ -191,7 +191,12 @@ def run_pipeline(question: str, fallback: str, use_global_kg: bool = False, stat
 def ingest_pdf_files(file_paths: list[str]) -> list:
     """Synchronous wrapper to ingest PDF files into the knowledge graph."""
     init_globals()
-    return _run_async(process_pdf_documents(kg_builder_pdf, file_paths=file_paths))
+    results = _run_async(process_pdf_documents(kg_builder_pdf, file_paths=file_paths))
+    
+    from .neo4j_manager import stitch_document_chunks
+    stitch_document_chunks()
+    
+    return results
 
 
 if __name__ == "__main__":

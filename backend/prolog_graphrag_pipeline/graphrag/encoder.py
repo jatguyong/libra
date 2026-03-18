@@ -169,6 +169,9 @@ async def process_markdown_documents(kg_builder_text: SimpleKGPipeline):
         logger.info("Processing markdown document: %s", path)
         text_result = await kg_builder_text.run_async(text=markdown_text)
         logger.debug("Markdown document processed")
+    
+    from .neo4j_manager import stitch_document_chunks
+    stitch_document_chunks()
 
 async def process_context(driver, kg_builder_pdf, kg_builder_text, texts):
     await asyncio.gather(process_markdown_documents(kg_builder_text))

@@ -97,7 +97,8 @@ RETURN
     score,
     {
         score: score,
-        source: "Local Document"
+        source: "Local Document",
+        id: elementId(node)
     } as metadata
 '''
 
