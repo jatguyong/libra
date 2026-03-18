@@ -82,11 +82,21 @@ def run_pipeline(
     graphrag_answer = graphrag_output.get("answer", "") if graphrag_output else ""
     graphrag_logprobs = graphrag_output.get("logprobs", []) if graphrag_output else []
     graphrag_retriever_result = graphrag_output.get("retriever_results", []) if graphrag_output else []
-    # RetrieverResult is a Pydantic model with .items; unwrap to the actual list
+    # DEBUG: log the exact type and attributes of retriever_result
+    logger.info(f"[GraphDebug] retriever_result type: {type(graphrag_retriever_result)}, dir: {[a for a in dir(graphrag_retriever_result) if not a.startswith('_')]}")
     if hasattr(graphrag_retriever_result, 'items'):
-        graphrag_retriever_results = graphrag_retriever_result.items
+        _items_val = graphrag_retriever_result.items
+        logger.info(f"[GraphDebug] .items type: {type(_items_val)}, len: {len(_items_val) if hasattr(_items_val, '__len__') else 'N/A'}")
+        if callable(_items_val):
+            graphrag_retriever_results = list(_items_val())
+        else:
+            graphrag_retriever_results = list(_items_val) if _items_val else []
     else:
         graphrag_retriever_results = graphrag_retriever_result if isinstance(graphrag_retriever_result, list) else []
+    logger.info(f"[GraphDebug] graphrag_retriever_results count: {len(graphrag_retriever_results)}")
+    if graphrag_retriever_results:
+        first = graphrag_retriever_results[0]
+        logger.info(f"[GraphDebug] First item type: {type(first)}, metadata keys: {list(getattr(first, 'metadata', {}).keys()) if hasattr(first, 'metadata') else 'N/A'}")
     query = graphrag_output.get("query", question) if graphrag_output else question
 
     # Build context strings from retriever results
@@ -121,7 +131,7 @@ def run_pipeline(
     graph_edges = []
     
     if flag != "q" and graphrag_output and fallback != "tuned":
-        # --- Source 1: KBPedia / retriever metadata triples ---
+        # --- Source 1: KBPedia / retriever metadata triples & Chunks ---
         for idx, item in enumerate(graphrag_retriever_results):
             metadata = {}
             if hasattr(item, "metadata"):
@@ -132,11 +142,38 @@ def run_pipeline(
             source_label = metadata.get("source", "unknown")
             source_entity = metadata.get("entity", "")
             
-            logger.debug(f"[GraphData] Item {idx}: source={source_label}, entity={source_entity}, "
-                         f"has_triples={bool(metadata.get('triples'))}, "
-                         f"has_local_context={bool(metadata.get('local_context'))}, "
-                         f"metadata_keys={list(metadata.keys())}")
+            # Extract chunk content and create a Chunk node
+            chunk_content = ""
+            if hasattr(item, "content"):
+                chunk_content = item.content
+            elif isinstance(item, dict):
+                chunk_content = item.get("content", "")
+            
+            # Robust extraction if content is a dict/Record
+            if isinstance(chunk_content, dict):
+                chunk_content = chunk_content.get("text", chunk_content.get("content", str(chunk_content)))
+            elif isinstance(chunk_content, str) and "text=" in chunk_content:
+                import re
+                match = re.search(r"text='(.*?)'", chunk_content)
+                if match:
+                    chunk_content = match.group(1)
+            
+            chunk_id = str(metadata.get('id', ""))
+            if not chunk_id and chunk_content:
+                chunk_id = str(hash(chunk_content[:50]))
+            
+            doc_id = str(source_label)  # Document name
+            
+            if chunk_content:
+                # Always Create Chunk Node
+                display_chunk = chunk_content[:80] + "..." if len(chunk_content) > 80 else chunk_content
+                graph_nodes[chunk_id] = {"id": chunk_id, "name": display_chunk, "label": "Chunk", "val": 15}
                 
+                # Link Chunk to Document if known directly
+                if doc_id and doc_id != "unknown":
+                    graph_nodes[doc_id] = {"id": doc_id, "label": "Document"}
+                    graph_edges.append({"source": chunk_id, "target": doc_id, "label": "FROM_DOCUMENT"})
+            
             # Process local_context (from VectorCypher retriever)
             local_ctx = metadata.get("local_context", [])
             for lc in local_ctx:
@@ -149,8 +186,22 @@ def run_pipeline(
                         graph_nodes[str(target)] = {"id": str(target), "label": "Entity"}
                         graph_edges.append({"source": str(source), "target": str(target), "label": str(rel)})
                         
+                        # Link this chunk to the entities it extracted/mentions
+                        if chunk_id:
+                            graph_edges.append({"source": chunk_id, "target": str(source), "label": "FROM_CHUNK"})
+                            graph_edges.append({"source": chunk_id, "target": str(target), "label": "FROM_CHUNK"})
+                        
             # Process KBPedia / Knowledge Graph Triples
             kg_triples = metadata.get("triples", [])
+            node_label = "KBPediaConcept"  # default, may be overridden per triple
+            
+            # Always register the concept entity as a node, even if no edges can be built
+            if source_entity and kg_triples:
+                graph_nodes[str(source_entity)] = {"id": str(source_entity), "label": node_label}
+                # Link Chunk to the master Entity concept it grounds to
+                if chunk_id:
+                    graph_edges.append({"source": chunk_id, "target": str(source_entity), "label": "GROUNDS_TO"})
+            
             for t in kg_triples:
                 if isinstance(t, str):
                     # Handle (Wikidata) prefix
@@ -167,10 +218,13 @@ def run_pipeline(
                     if ":" in clean_t and source_entity:
                         rel, target = clean_t.split(":", 1)
                         rel, target = rel.strip(), target.strip()
-                        if target and len(target) < 200:  # Skip very long definition text
-                            graph_nodes[str(source_entity)] = {"id": str(source_entity), "label": node_label}
-                            graph_nodes[str(target)] = {"id": str(target), "label": node_label}
-                            graph_edges.append({"source": str(source_entity), "target": str(target), "label": rel})
+                        if target:
+                            display_target = target[:400] + "…" if len(target) > 400 else target
+                            # Ensure both nodes exist
+                            if str(source_entity) not in graph_nodes:
+                                graph_nodes[str(source_entity)] = {"id": str(source_entity), "label": "KBPediaConcept"}
+                            graph_nodes[str(display_target)] = {"id": str(display_target), "label": node_label}
+                            graph_edges.append({"source": str(source_entity), "target": str(display_target), "label": rel})
                     else:
                         # Try known relationship keywords: "Source RELATIONSHIP Target"
                         parts = []
@@ -191,72 +245,63 @@ def run_pipeline(
                             graph_nodes[str(target)] = {"id": str(target), "label": node_label}
                             graph_edges.append({"source": str(source), "target": str(target), "label": str(rel)})
 
-        # --- Source 2: Fetch local document graph relationships directly from Neo4j ---
-        try:
-            from .graphrag.neo4j_manager import get_driver
-            neo4j_driver = get_driver()
-            
-            # Query 1: Entity-to-Entity relationships (created by SimpleKGPipeline)
-            records, _, _ = neo4j_driver.execute_query(
-                """
-                MATCH (a)-[r]->(b)
-                WHERE NOT a:Chunk AND NOT b:Chunk
-                  AND NOT a:Document AND NOT b:Document
-                  AND NOT a:KBPediaConcept AND NOT b:KBPediaConcept
-                  AND NOT type(r) IN ['EMBEDDING', 'FROM_DOCUMENT', 'NEXT_CHUNK', 'HAS_DOCUMENT']
-                RETURN DISTINCT
-                    coalesce(a.name, a.id, toString(id(a))) AS source_name,
-                    labels(a)[0] AS source_label,
-                    type(r) AS relationship,
-                    coalesce(b.name, b.id, toString(id(b))) AS target_name,
-                    labels(b)[0] AS target_label
-                LIMIT 150
-                """,
-                database_="neo4j"
-            )
-            for rec in records:
-                src = str(rec["source_name"])
-                tgt = str(rec["target_name"])
-                rel = str(rec["relationship"])
-                s_label = rec.get("source_label", "Entity")
-                t_label = rec.get("target_label", "Entity")
-                if src and tgt and rel:
-                    graph_nodes[src] = {"id": src, "label": s_label or "Entity"}
-                    graph_nodes[tgt] = {"id": tgt, "label": t_label or "Entity"}
-                    graph_edges.append({"source": src, "target": tgt, "label": rel})
-            logger.info(f"[GraphData] Neo4j entity graph query returned {len(records)} relationships.")
-            
-            # Query 2: Chunk-to-Entity relationships (knowledge extraction links)
-            records2, _, _ = neo4j_driver.execute_query(
-                """
-                MATCH (c:Chunk)-[r]->(e)
-                WHERE NOT type(r) IN ['EMBEDDING', 'FROM_DOCUMENT', 'NEXT_CHUNK', 'PART_OF_CHUNK']
-                  AND NOT e:Chunk AND NOT e:Document
-                RETURN DISTINCT
-                    coalesce(c.text, c.id, toString(id(c))) AS source_name,
-                    type(r) AS relationship,
-                    coalesce(e.name, e.id, e.text, toString(id(e))) AS target_name,
-                    labels(e)[0] AS target_label
-                LIMIT 100
-                """,
-                database_="neo4j"
-            )
-            for rec in records2:
-                src = str(rec["source_name"])[:80]   # Truncate long chunk text
-                tgt = str(rec["target_name"])
-                rel = str(rec["relationship"])
-                t_label = rec.get("target_label", "Entity")
-                if src and tgt and rel:
-                    graph_nodes[src] = {"id": src, "label": "Chunk"}
-                    graph_nodes[tgt] = {"id": tgt, "label": t_label or "Entity"}
-                    graph_edges.append({"source": src, "target": tgt, "label": rel})
-            logger.info(f"[GraphData] Neo4j chunk-entity query returned {len(records2)} relationships.")
-        except Exception as e:
-            logger.warning(f"[GraphData] Failed to fetch local graph from Neo4j: {e}")
+        # --- Source 2: Global Neo4j Discovery (Fetch ALL relationships for retrieved Chunks) ---
+        chunk_ids_to_query = [str(n["id"]) for n in graph_nodes.values() if n.get("label") == "Chunk"]
+        
+        if chunk_ids_to_query:
+            try:
+                from .graphrag.neo4j_manager import get_driver
+                neo4j_driver = get_driver()
+                
+                # Fetch all relationships where at least one side is a retrieved chunk
+                records2, _, _ = neo4j_driver.execute_query(
+                    """
+                    MATCH (s)-[r]->(t)
+                    WHERE (s:Chunk AND s.id IN $chunk_ids) OR (t:Chunk AND t.id IN $chunk_ids)
+                    RETURN 
+                        s.id AS s_id, labels(s) AS s_labels, s.path AS s_path, s.name AS s_name, s.text AS s_text,
+                        type(r) AS rel_label,
+                        t.id AS t_id, labels(t) AS t_labels, t.path AS t_path, t.name AS t_name, t.text AS t_text
+                    """,
+                    chunk_ids=chunk_ids_to_query,
+                    database_="neo4j"
+                )
+                
+                for rec in records2:
+                    s_id = str(rec["s_id"] or rec["s_path"] or "")
+                    t_id = str(rec["t_id"] or rec["t_path"] or "")
+                    if not s_id or not t_id: continue
+
+                    # Ensure source node exists
+                    if s_id not in graph_nodes:
+                        s_label = rec["s_labels"][0] if rec["s_labels"] else "Entity"
+                        s_name = rec["s_name"] or rec["s_path"] or (rec["s_text"][:50] + "..." if rec["s_text"] else s_id)
+                        graph_nodes[s_id] = {"id": s_id, "name": s_name, "label": s_label}
+                    
+                    # Ensure target node exists
+                    if t_id not in graph_nodes:
+                        t_label = rec["t_labels"][0] if rec["t_labels"] else "Entity"
+                        t_name = rec["t_name"] or rec["t_path"] or (rec["t_text"][:50] + "..." if rec["t_text"] else t_id)
+                        graph_nodes[t_id] = {"id": t_id, "name": t_name, "label": t_label}
+                    
+                    # Add specialized edge
+                    graph_edges.append({"source": s_id, "target": t_id, "label": str(rec["rel_label"])})
+                        
+            except Exception as e:
+                logger.warning(f"[GraphData] Global discovery failed: {e}")
+
+    # Deduplicate edges
+    unique_edges = set()
+    deduped_graph_edges = []
+    for edge in graph_edges:
+        sig = (str(edge.get("source")), str(edge.get("target")), str(edge.get("label")))
+        if sig not in unique_edges:
+            unique_edges.add(sig)
+            deduped_graph_edges.append(edge)
 
     graph_data = {
         "nodes": list(graph_nodes.values()),
-        "edges": graph_edges
+        "edges": deduped_graph_edges
     }
     
     logger.info(f"Extracted graph_data: {len(graph_data['nodes'])} nodes, {len(graph_data['edges'])} edges")

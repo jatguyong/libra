@@ -12,27 +12,32 @@ interface KnowledgeGraphViewerProps {
 const colorCache = new Map<string, string>();
 
 function getNodeColor(type: string): string {
-    if (colorCache.has(type)) return colorCache.get(type)!;
+    const upperType = type.toUpperCase();
+    if (colorCache.has(upperType)) return colorCache.get(upperType)!;
 
-    // Hardcoded special colors for KBPedia vs Wikidata differentiation using contrasting muted tones
-    if (type === 'KBPediaConcept') {
-        colorCache.set(type, '#45b583'); // Muted Green
+    // Hardcoded special colors for different node types
+    if (upperType === 'KBPEDIACONCEPT') {
+        colorCache.set(upperType, '#45b583'); // Muted Green
         return '#45b583';
     }
-    if (type === 'WikidataConcept') {
-        colorCache.set(type, '#5b83ad'); // Deep Muted Indigo/Blue
+    if (upperType === 'WIKIDATACONCEPT') {
+        colorCache.set(upperType, '#5b83ad'); // Deep Muted Indigo/Blue
         return '#5b83ad';
     }
-    if (type === 'Chunk') {
-        colorCache.set(type, '#d346b2ff'); // Muted Teal-Blue
-        return '#d346b2ff';
+    if (upperType === 'CHUNK') {
+        colorCache.set(upperType, '#d346b2'); // Muted Pink/Purple
+        return '#d346b2';
+    }
+    if (upperType === 'DOCUMENT') {
+        colorCache.set(upperType, '#e67e22'); // Orange
+        return '#e67e22';
     }
 
     const colors = [
         '#ba52a2', '#48589e', '#5b83ad', '#b56d45', '#45b583', '#854b8a', '#477d94', '#998d5c'
     ];
     const color = colors[colorCache.size % colors.length];
-    colorCache.set(type, color);
+    colorCache.set(upperType, color);
     return color;
 }
 
@@ -54,7 +59,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
             if (fgRef.current) {
                 fgRef.current.d3Force('charge').strength(-100);
                 const linkForce = fgRef.current.d3Force('link');
-                if (linkForce) linkForce.distance(90);
+                if (linkForce) linkForce.distance(120);
             }
             // Automatically zoom to fit when data loads
             if (graphData && graphData.nodes.length > 0) {
@@ -132,7 +137,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                     ${node.label || 'Unknown'}
                                 </span>
                                 <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #888; margin-bottom: 2px;">name</div>
-                                <div style="font-size: 14px; font-weight: 500; color: #fff; max-width: 250px; overflow-wrap: break-word;">${node.id}</div>
+                                <div style="font-size: 14px; font-weight: 500; color: #fff; max-width: 250px; overflow-wrap: break-word;">${node.name || node.id}</div>
                             </div>
                         `}
                             nodeColor="color"
@@ -146,6 +151,9 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                 const start = link.source;
                                 const end = link.target;
                                 if (typeof start !== 'object' || typeof end !== 'object') return;
+
+                                // Hide link label if zoomed out far enough
+                                if (globalScale < 0.8) return;
 
                                 let textPos;
                                 if (link.__controlPoints && link.__controlPoints.length === 2 && typeof link.__controlPoints[0] === 'number') {
@@ -208,7 +216,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                             onNodeClick={handleNodeClick}
                             onNodeHover={(node) => setHoverNode(node)}
                             nodeCanvasObject={(node: any, ctx, globalScale) => {
-                                const label = node.id;
+                                const label = node.name || node.id;
                                 const fontSize = Math.max(12 / globalScale, 2);
                                 const nodeR = Math.sqrt(Math.max(0, node.val || 1)) * 4;
 
@@ -250,55 +258,57 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                     ctx.stroke();
                                 }
 
-                                // Draw text inside circle
-                                ctx.font = `500 ${fontSize}px Inter, sans-serif`;
-                                const maxWidth = nodeR * 1.7;
-                                const words = label.split(' ');
-                                let lines: string[] = [];
-                                let currentLine = words[0] || '';
+                                // Draw text inside circle if zoomed in
+                                if (globalScale >= 0.8) {
+                                    ctx.font = `500 ${fontSize}px Inter, sans-serif`;
+                                    const maxWidth = nodeR * 1.7;
+                                    const words = label.split(' ');
+                                    let lines: string[] = [];
+                                    let currentLine = words[0] || '';
 
-                                for (let i = 1; i < words.length; i++) {
-                                    const word = words[i];
-                                    const width = ctx.measureText(currentLine + " " + word).width;
-                                    if (width < maxWidth) {
-                                        currentLine += " " + word;
-                                    } else {
-                                        lines.push(currentLine);
-                                        currentLine = word;
-                                    }
-                                }
-                                if (currentLine) {
-                                    lines.push(currentLine);
-                                }
-
-                                const formatLine = (line: string) => {
-                                    let text = line;
-                                    if (ctx.measureText(text).width > maxWidth) {
-                                        while (ctx.measureText(text + "...").width > maxWidth && text.length > 0) {
-                                            text = text.slice(0, -1);
+                                    for (let i = 1; i < words.length; i++) {
+                                        const word = words[i];
+                                        const width = ctx.measureText(currentLine + " " + word).width;
+                                        if (width < maxWidth) {
+                                            currentLine += " " + word;
+                                        } else {
+                                            lines.push(currentLine);
+                                            currentLine = word;
                                         }
-                                        return text + "...";
                                     }
-                                    return text;
-                                };
+                                    if (currentLine) {
+                                        lines.push(currentLine);
+                                    }
 
-                                if (lines.length > 2) {
-                                    lines = [formatLine(lines[0]), formatLine(lines[1] + "...")];
-                                } else {
-                                    lines = lines.map(formatLine);
-                                }
+                                    const formatLine = (line: string) => {
+                                        let text = line;
+                                        if (ctx.measureText(text).width > maxWidth) {
+                                            while (ctx.measureText(text + "...").width > maxWidth && text.length > 0) {
+                                                text = text.slice(0, -1);
+                                            }
+                                            return text + "...";
+                                        }
+                                        return text;
+                                    };
 
-                                ctx.textAlign = 'center';
-                                ctx.textBaseline = 'middle';
-                                ctx.fillStyle = '#ffffff';
-                                ctx.shadowColor = 'rgba(0,0,0,0.8)';
-                                ctx.shadowBlur = 4;
+                                    if (lines.length > 2) {
+                                        lines = [formatLine(lines[0]), formatLine(lines[1] + "...")];
+                                    } else {
+                                        lines = lines.map(formatLine);
+                                    }
 
-                                if (lines.length === 1) {
-                                    ctx.fillText(lines[0], node.x, node.y);
-                                } else if (lines.length === 2) {
-                                    ctx.fillText(lines[0], node.x, node.y - fontSize * 0.6);
-                                    ctx.fillText(lines[1], node.x, node.y + fontSize * 0.6);
+                                    ctx.textAlign = 'center';
+                                    ctx.textBaseline = 'middle';
+                                    ctx.fillStyle = '#ffffff';
+                                    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+                                    ctx.shadowBlur = 4;
+
+                                    if (lines.length === 1) {
+                                        ctx.fillText(lines[0], node.x, node.y);
+                                    } else if (lines.length === 2) {
+                                        ctx.fillText(lines[0], node.x, node.y - fontSize * 0.6);
+                                        ctx.fillText(lines[1], node.x, node.y + fontSize * 0.6);
+                                    }
                                 }
 
                                 // Reset shadow for next drawings
@@ -332,7 +342,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                         <span className="text-xs font-mono text-white/70 uppercase">{selectedNode.label}</span>
                                     </div>
                                     <div className="p-3">
-                                        <p className="text-sm text-white/90 font-medium break-words">{selectedNode.id}</p>
+                                        <p className="text-sm text-white/90 font-medium break-words">{selectedNode.name || selectedNode.id}</p>
                                     </div>
                                 </div>
 
@@ -356,7 +366,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                             <span className="text-sm text-white/80 font-inter">{type}</span>
                                         </div>
                                         <span className="text-xs font-mono text-white/40">
-                                            {graphData?.nodes.filter(n => n.label === type).length || 0}
+                                            {graphData?.nodes.filter(n => n.label?.toUpperCase() === type).length || 0}
                                         </span>
                                     </div>
                                 ))}
