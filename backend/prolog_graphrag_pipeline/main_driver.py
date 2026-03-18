@@ -149,27 +149,50 @@ def run_pipeline(
             elif isinstance(item, dict):
                 chunk_content = item.get("content", "")
             
-            # Robust extraction if content is a dict/Record
-            if isinstance(chunk_content, dict):
-                chunk_content = chunk_content.get("text", chunk_content.get("content", str(chunk_content)))
-            elif isinstance(chunk_content, str) and "text=" in chunk_content:
-                match = re.search(r"text='(.*?)'", chunk_content)
-                if match:
-                    chunk_content = match.group(1)
-            
+            # Use elementId if available from RetrieverResultItem metadata
             chunk_id = str(metadata.get('id', ""))
             if not chunk_id and chunk_content:
-                chunk_id = str(hash(chunk_content[:50]))
+                # Fallback to hash only if elementId is totally missing
+                chunk_id = str(hash(str(chunk_content)[:100]))
             
             doc_id = str(source_label)  # Document name
             
-            if chunk_content:
-                # Always Create Chunk Node
-                display_chunk = chunk_content[:80] + "..." if len(chunk_content) > 80 else chunk_content
-                graph_nodes[chunk_id] = {"id": chunk_id, "name": display_chunk, "label": "Chunk", "val": 15}
+            def clean_text(text_val):
+                if not text_val: return ""
+                if isinstance(text_val, dict):
+                    return text_val.get("text", text_val.get("content", str(text_val)))
                 
-                # Link Chunk to Document if known directly
-                if doc_id and doc_id != "unknown":
+                stripped = str(text_val).strip()
+                if stripped.startswith("{") and stripped.endswith("}"):
+                    try:
+                        import json
+                        import ast
+                        # Try JSON first (standard)
+                        d = None
+                        try:
+                            d = json.loads(stripped)
+                        except:
+                            try:
+                                d = ast.literal_eval(stripped)
+                            except: pass
+                        
+                        if isinstance(d, dict):
+                            return d.get("text", d.get("content", text_val))
+                    except:
+                        pass
+                return str(text_val)
+
+            chunk_content = clean_text(chunk_content)
+            
+            if chunk_content:
+                # Always Create Chunk Node - Increase display limit to 500
+                display_chunk = chunk_content[:500] + "..." if len(chunk_content) > 500 else chunk_content
+                # Differentiate chunk types by source
+                chunk_label = "KBPediaChunk" if source_label == "KBPedia" else "DocumentChunk"
+                graph_nodes[chunk_id] = {"id": chunk_id, "name": display_chunk, "label": chunk_label, "val": 15}
+                
+                # Link Chunk to Document if it is a real file (not a system KB)
+                if doc_id and doc_id not in ["unknown", "KBPedia", "Wikidata"]:
                     graph_nodes[doc_id] = {"id": doc_id, "label": "Document"}
                     graph_edges.append({"source": chunk_id, "target": doc_id, "label": "FROM_DOCUMENT"})
             
@@ -244,46 +267,88 @@ def run_pipeline(
                             graph_nodes[str(target)] = {"id": str(target), "label": node_label}
                             graph_edges.append({"source": str(source), "target": str(target), "label": str(rel)})
 
-        # --- Source 2: Global Neo4j Discovery (Fetch ALL relationships for retrieved Chunks) ---
-        chunk_ids_to_query = [str(n["id"]) for n in graph_nodes.values() if n.get("label") == "Chunk"]
+        # --- Source 2: Global Neo4j Discovery (Fetch ALL relationships for retrieved DocumentChunks) ---
+        # Only query Neo4j for real document chunks (not KBPedia virtual chunks)
+        chunk_ids_to_query = [str(n["id"]) for n in graph_nodes.values() if n.get("label") == "DocumentChunk"]
+        logger.info(f"[GraphData] DocumentChunk IDs for Neo4j discovery: {len(chunk_ids_to_query)} IDs: {chunk_ids_to_query[:5]}")
         
         if chunk_ids_to_query:
             try:
                 from .graphrag.neo4j_manager import get_driver
                 neo4j_driver = get_driver()
                 
-                # Fetch all relationships where at least one side is a retrieved chunk
+                # Simplified but robust discovery:
+                # 1. Fetch ALL relationships for our retrieved chunks (1-hop)
+                # 2. Specifically fetch the NEXT_CHUNK / FROM_DOCUMENT chain for the related documents.
                 records2, _, _ = neo4j_driver.execute_query(
                     """
                     MATCH (s)-[r]->(t)
-                    WHERE (s:Chunk AND s.id IN $chunk_ids) OR (t:Chunk AND t.id IN $chunk_ids)
+                    WHERE elementId(s) IN $chunk_ids OR elementId(t) IN $chunk_ids
                     RETURN 
-                        s.id AS s_id, labels(s) AS s_labels, s.path AS s_path, s.name AS s_name, s.text AS s_text,
+                        elementId(s) AS s_id, labels(s) AS s_labels, properties(s) AS s_props,
                         type(r) AS rel_label,
-                        t.id AS t_id, labels(t) AS t_labels, t.path AS t_path, t.name AS t_name, t.text AS t_text
+                        elementId(t) AS t_id, labels(t) AS t_labels, properties(t) AS t_props
+                    UNION
+                    MATCH (d:Document)<-[:FROM_DOCUMENT]-(c:Chunk)
+                    WHERE elementId(c) IN $chunk_ids
+                    MATCH (s:Chunk)-[r:NEXT_CHUNK|FROM_DOCUMENT]->(t)
+                    WHERE (s)-[:FROM_DOCUMENT]->(d)
+                    RETURN 
+                        elementId(s) AS s_id, labels(s) AS s_labels, properties(s) AS s_props,
+                        type(r) AS rel_label,
+                        elementId(t) AS t_id, labels(t) AS t_labels, properties(t) AS t_props
                     """,
                     chunk_ids=chunk_ids_to_query,
                     database_="neo4j"
                 )
                 
                 for rec in records2:
-                    s_id = str(rec["s_id"] or rec["s_path"] or "")
-                    t_id = str(rec["t_id"] or rec["t_path"] or "")
+                    s_id = str(rec["s_id"] or "")
+                    t_id = str(rec["t_id"] or "")
                     if not s_id or not t_id: continue
 
-                    # Ensure source node exists
-                    if s_id not in graph_nodes:
-                        s_label = rec["s_labels"][0] if rec["s_labels"] else "Entity"
-                        s_name = rec["s_name"] or rec["s_path"] or (rec["s_text"][:50] + "..." if rec["s_text"] else s_id)
-                        graph_nodes[s_id] = {"id": s_id, "name": s_name, "label": s_label}
+                    # Process Nodes
+                    for n_prefix in ["s", "t"]:
+                        n_id = s_id if n_prefix == "s" else t_id
+                        n_labels = rec[f"{n_prefix}_labels"]
+                        n_props = rec[f"{n_prefix}_props"] or {}
+                        
+                        if n_id not in graph_nodes:
+                            n_label = n_labels[0] if n_labels else "Entity"
+                            
+                            # Clean/Short Name for Label
+                            raw_text = n_props.get("text", n_props.get("name", n_props.get("path", n_id)))
+                            def clean_val(v):
+                                if not v: return ""
+                                v_str = str(v).strip()
+                                if v_str.startswith("{") and v_str.endswith("}"):
+                                    try:
+                                        import json, ast
+                                        d = None
+                                        try: d = json.loads(v_str)
+                                        except:
+                                            try: d = ast.literal_eval(v_str)
+                                            except: pass
+                                        if isinstance(d, dict): return d.get("text", d.get("content", v_str))
+                                    except: pass
+                                return v_str
+
+                            full_text = clean_val(raw_text)
+                            display_name = full_text[:80] + "..." if len(full_text) > 80 else full_text
+                            if n_label == "Document":
+                                display_name = n_props.get("path", "Document").split("/")[-1]
+                            elif n_label == "Chunk":
+                                n_label = "DocumentChunk"  # Reclassify Neo4j Chunk as DocumentChunk
+                                display_name = f"Chunk {n_props.get('index', '?')}: {full_text[:40]}..."
+
+                            graph_nodes[n_id] = {
+                                "id": n_id, 
+                                "name": display_name, 
+                                "label": n_label,
+                                "properties": n_props  # Send full properties to frontend
+                            }
                     
-                    # Ensure target node exists
-                    if t_id not in graph_nodes:
-                        t_label = rec["t_labels"][0] if rec["t_labels"] else "Entity"
-                        t_name = rec["t_name"] or rec["t_path"] or (rec["t_text"][:50] + "..." if rec["t_text"] else t_id)
-                        graph_nodes[t_id] = {"id": t_id, "name": t_name, "label": t_label}
-                    
-                    # Add specialized edge
+                    # Add edge
                     graph_edges.append({"source": s_id, "target": t_id, "label": str(rec["rel_label"])})
                         
             except Exception as e:
