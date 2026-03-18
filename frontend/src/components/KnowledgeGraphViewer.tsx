@@ -24,8 +24,16 @@ function getNodeColor(type: string): string {
         colorCache.set(upperType, '#5b83ad'); // Deep Muted Indigo/Blue
         return '#5b83ad';
     }
-    if (upperType === 'CHUNK') {
+    if (upperType === 'DOCUMENTCHUNK') {
         colorCache.set(upperType, '#d346b2'); // Muted Pink/Purple
+        return '#d346b2';
+    }
+    if (upperType === 'KBPEDIACHUNK') {
+        colorCache.set(upperType, '#e8a04c'); // Warm Amber/Gold
+        return '#e8a04c';
+    }
+    if (upperType === 'CHUNK') {
+        colorCache.set(upperType, '#d346b2'); // Fallback for legacy Chunk label
         return '#d346b2';
     }
     if (upperType === 'DOCUMENT') {
@@ -76,9 +84,11 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
         if (!graphData) return { nodes: [], links: [] };
 
         // Process formatting for react-force-graph
+        const isChunkType = (label: string | undefined) => 
+            label === 'DocumentChunk' || label === 'KBPediaChunk' || label === 'Chunk';
         const nodes = graphData.nodes.map(n => ({
             ...n,
-            val: n.label === 'Chunk' ? 15 : 25,
+            val: isChunkType(n.label) ? 15 : 25,
             color: getNodeColor(n.label || 'Unknown')
         }));
 
@@ -137,7 +147,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                     ${node.label || 'Unknown'}
                                 </span>
                                 <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #888; margin-bottom: 2px;">name</div>
-                                <div style="font-size: 14px; font-weight: 500; color: #fff; max-width: 250px; overflow-wrap: break-word;">${node.name || node.id}</div>
+                                <div style="font-size: 14px; font-weight: 500; color: #fff; max-width: 400px; overflow-wrap: break-word;">${node.name || node.id}</div>
                             </div>
                         `}
                             nodeColor="color"
@@ -261,7 +271,8 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                 // Draw text inside circle if zoomed in
                                 if (globalScale >= 0.8) {
                                     ctx.font = `500 ${fontSize}px Inter, sans-serif`;
-                                    const maxWidth = nodeR * 1.7;
+                                    // Conservative width for circle fit
+                                    const maxWidth = nodeR * 1.5;
                                     const words = label.split(' ');
                                     let lines: string[] = [];
                                     let currentLine = words[0] || '';
@@ -291,8 +302,9 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                         return text;
                                     };
 
-                                    if (lines.length > 2) {
-                                        lines = [formatLine(lines[0]), formatLine(lines[1] + "...")];
+                                    // Limit to 4 lines and format each
+                                    if (lines.length > 4) {
+                                        lines = [lines[0], lines[1], lines[2], lines[3] + "..."].map(formatLine);
                                     } else {
                                         lines = lines.map(formatLine);
                                     }
@@ -303,12 +315,12 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                     ctx.shadowColor = 'rgba(0,0,0,0.8)';
                                     ctx.shadowBlur = 4;
 
-                                    if (lines.length === 1) {
-                                        ctx.fillText(lines[0], node.x, node.y);
-                                    } else if (lines.length === 2) {
-                                        ctx.fillText(lines[0], node.x, node.y - fontSize * 0.6);
-                                        ctx.fillText(lines[1], node.x, node.y + fontSize * 0.6);
-                                    }
+                                    const lineSpacing = 1.2;
+                                    const startY = node.y - ((lines.length - 1) * fontSize * lineSpacing) / 2;
+
+                                    lines.forEach((line, i) => {
+                                        ctx.fillText(line, node.x, startY + i * fontSize * lineSpacing);
+                                    });
                                 }
 
                                 // Reset shadow for next drawings
