@@ -41,9 +41,3 @@ To stop them:
 ```bash
 docker compose down
 ```
-
-## Features
-- **PDF Ingestion**: Upload educational PDFs to build a local knowledge graph.
-- **Hybrid Search**: Combines vector search with global Cypher queries.
-- **Logical Verification**: Uses s(CASP) to generate human-readable proofs for every answer.
-- **Knowledge Graph Viewer**: Interactive 2D visualization of the retrieved evidence.
