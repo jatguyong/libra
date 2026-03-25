@@ -118,18 +118,6 @@ Verify the following:
 
 If any rule fails, correct the program before producing the final output.
 """
-# TODO ADD LATER
-# 1. **Multiple-Choice Questions (MCQ):**
-#    - A question is only multiple-choice if it has a number of lettered options (e.g. "A. gravity B. weak nuclear force C. strong nuclear force D. electromagnetism").
-#    - Encode EXACTLY FOUR choices as facts. The description MUST be a grounded lowercase snake_case atom derived from the ACTUAL option text, NEVER an uppercase variable!
-#    - Example CORRECT: `choice(a, eliminating_a_source).`
-#    - Example WRONG: `choice(a, A).` (This will trivially unify with anything and fail the proof!)
-#    - Encode retrieved domain knowledge as facts and rules.
-#    - You MUST define an `answer/1` rule that unifies with the correct option letter.
-#    - **CRITICAL:** Your logic MUST uniquely identify EXACTLY ONE correct choice. Do not write generic rules that might accidentally evaluate to true for multiple incorrect options. You must explicitly differentiate the correct target from the distractors based on the domain rules.
-#    - Example DB Rule: `answer(OptionLetter) :- choice(OptionLetter, Target), matches_criteria(Target).`
-#    - IF the question is an MCQ, the <query> MUST strictly be: answer(OptionLetter). Do NOT use this format for Binary or Freeform questions.
-
 
 # ─────────────────────────────────────────────────────────────────
 #  Typed few-shot example banks  (keyed by question_type)

@@ -1,6 +1,15 @@
+"""Prolog reasoning driver — interfaces with s(CASP) via Janus-SWI.
+
+Orchestrates the full Prolog sub-pipeline:
+  1. Load the s(CASP) solver (auto-installing it if needed).
+  2. Generate Prolog code from the question and retrieved context.
+  3. Validate the code against Janus-SWI and run the s(CASP) solver.
+  4. Extract a human-readable proof explanation and truth value.
+
+Results are returned as a dict consumed by ``main_driver.run_pipeline()``.
+"""
 import janus_swi as janus
 import re
-import sys
 import os
 import time
 import logging
@@ -14,51 +23,30 @@ logger = logging.getLogger(__name__)
 SCASP_AVAILABLE = False
 ALLOW_LLM_FALLBACK = True   # Enables LLM synthesis fallback when Prolog generation fails
 
-# ── Dedicated Prolog debug log ────────────────────────────────────────────────
-class _TeeLogger:
-    """Writes to both the original stream and a log file simultaneously."""
-    def __init__(self, original_stream, log_path: str):
-        self._orig = original_stream
-        self._log = open(log_path, "a", encoding="utf-8", errors="replace", buffering=1)
+# ── Persistent Prolog debug log (file handler) ────────────────────────────
+def _setup_prolog_file_logger():
+    """Add a file handler to the package logger for persistent Prolog debug output.
 
-    def write(self, msg):
-        self._orig.write(msg)
-        self._log.write(msg)
-
-    def flush(self):
-        self._orig.flush()
-        self._log.flush()
-
-    def isatty(self):
-        return getattr(self._orig, "isatty", lambda: False)()
-
-    def fileno(self):
-        return self._orig.fileno()
-
-    def close(self):
-        self._log.close()
-
-    def __del__(self):
-        try:
-            self._log.close()
-        except Exception:
-            pass
-
-def _install_prolog_logger():
-    """Install the TeeLogger on stdout if not already installed for this process."""
-    if isinstance(sys.stdout, _TeeLogger):
-        return  # Already installed
+    Replaces the old _TeeLogger approach that hijacked sys.stdout, which
+    was fragile and could interfere with other libraries.
+    """
     _log_dir = os.path.join(os.path.dirname(__file__), "..", "..", "logs")
     os.makedirs(_log_dir, exist_ok=True)
     _log_path = os.path.join(_log_dir, "debug_prolog_output.txt")
-    sys.stdout = _TeeLogger(sys.stdout, _log_path)
-    sys.stderr = _TeeLogger(sys.stderr,
-                            os.path.join(_log_dir, "prolog_debug.txt"))
 
-_install_prolog_logger()
+    # Avoid duplicate handlers on reimport
+    pkg_logger = logging.getLogger("prolog_graphrag_pipeline")
+    if not any(isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(_log_path) for h in pkg_logger.handlers):
+        fh = logging.FileHandler(_log_path, encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s"))
+        pkg_logger.addHandler(fh)
+
+_setup_prolog_file_logger()
 # ─────────────────────────────────────────────────────────────────────────────
 
 def use_scasp():
+    """Load the s(CASP) solver, installing it first if necessary."""
     global SCASP_AVAILABLE
     if SCASP_AVAILABLE:
         return
@@ -81,6 +69,17 @@ def use_scasp():
             SCASP_AVAILABLE = False
 
 def run_pipeline(question: str, retrieved_context: str, status_callback=None) -> dict:
+    """Execute the full Prolog reasoning sub-pipeline.
+
+    Args:
+        question: The user's natural-language question.
+        retrieved_context: Concatenated text from the GraphRAG retriever.
+        status_callback: Optional callable for SSE progress updates.
+
+    Returns:
+        Dict with keys ``explainer_output``, ``prolog_explanation``,
+        ``database``, ``query``, ``prolog_error``, etc.
+    """
     start_time = time.perf_counter()
     
     # Ensure s(CASP) is loaded
