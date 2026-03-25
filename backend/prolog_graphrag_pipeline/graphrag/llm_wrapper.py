@@ -102,19 +102,12 @@ except ImportError:
 # -- LLM Wrapper --------------------------------------------------------------
 
 class GraphRAGLLM(OllamaLLM):
-    """LLM wrapper for the GraphRAG pipeline.
+    """LLM wrapper that routes all calls through the Together AI API.
 
-    Inherits OllamaLLM for interface compatibility with neo4j_graphrag but
-    routes all calls through the Together AI OpenAI-compatible client.
+    Inherits ``OllamaLLM`` purely for interface compatibility with the
+    ``neo4j_graphrag`` library.  Every actual invocation goes through
+    the OpenAI-compatible Together AI client configured in ``llm_config``.
     """
-
-    def _log_to_file(self, message: str):
-        """Appends a message to debug.txt with UTF-8 encoding."""
-        try:
-            with open("debug.txt", "a", encoding="utf-8") as f:
-                f.write(message + "\n")
-        except Exception as e:
-            logger.error("[GraphRAGLLM] Could not write to debug.txt: %s", e)
 
     def _clean_response_text(self, text: str) -> str:
         """Extract JSON object from response text.
@@ -170,7 +163,7 @@ class GraphRAGLLM(OllamaLLM):
 
         log_input = str(messages[-1]['content']) if messages else ""
         if len(log_input) > 100:
-            self._log_to_file(f"\n--- [DEBUG] SENT PROMPT ---\n{log_input}\n----------------------------------")
+            logger.debug("SENT PROMPT: %s", log_input)
 
         max_retries = 5
         timeout_sec = 120.0
@@ -220,7 +213,7 @@ class GraphRAGLLM(OllamaLLM):
         response = result_holder[0]
         if response:
             content = response.choices[0].message.content or ""
-            self._log_to_file(f"\n=== [DEBUG] RAW RESPONSE ===\n{content}\n===================================")
+            logger.debug("RAW RESPONSE: %s", content[:500])
             return LLMResponse(content=self._clean_response_text(content))
 
     def invoke(self, input, message_history=None, system_instruction=None, **kwargs):
