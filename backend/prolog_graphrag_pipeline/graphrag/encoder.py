@@ -1,3 +1,13 @@
+"""Document ingestion and query pre-processing for the knowledge graph.
+
+Handles two distinct tasks:
+  - **Ingestion** (``ingest_pdf``, ``ingest_text``) — splits documents into
+    chunks, extracts entities/relationships via an LLM, and writes them
+    into Neo4j as a sub-graph linked to Chunk nodes.
+  - **Query splitting** (``extract_query_and_context``) — uses an LLM to
+    separate a user's input into a core question and background context,
+    improving downstream retrieval precision.
+"""
 from neo4j_graphrag.experimental.components.text_splitters.fixed_size_splitter import FixedSizeSplitter
 from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 import os

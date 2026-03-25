@@ -1,3 +1,14 @@
+"""Pipeline-level configuration: system prompts, routing logic, and LLM message templates.
+
+This module is the single source of truth for the prompts used in the
+final synthesis step.  It defines:
+  - ``LLM_SYSTEM_PROMPT`` / ``LLM_SYSTEM_PROMPT_FALLBACK`` — character and
+    formatting instructions for the answering LLM.
+  - ``LLM_MESSAGES`` / ``FALLBACK_MESSAGES`` — few-shot message lists that
+    prime the model.
+  - ``ROUTING_MESSAGES`` — structured-output prompt for question routing
+    (decides Prolog-GraphRAG vs. direct LLM).
+"""
 LLM_SYSTEM_PROMPT = """
 ### Role
 You are an exceptionally engaging, knowledgeable, and clear educator. Your mission is to provide accurate, well-structured, and highly conversational answers based STRICTLY on the provided logical evidence.

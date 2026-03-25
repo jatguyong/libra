@@ -1,13 +1,31 @@
+"""Pipeline orchestrator — the central entry point for answering a question.
+
+``run_pipeline()`` coordinates the full flow:
+
+  1. **Routing** — decides whether the question needs the full
+     Prolog-GraphRAG path or can be answered directly by the LLM.
+  2. **GraphRAG retrieval** — searches the Neo4j knowledge graph
+     (user-uploaded documents + KBPedia global concepts).
+  3. **Prolog reasoning** — generates s(CASP) Prolog code, validates it,
+     runs the solver, and produces a natural-language explanation.
+  4. **LLM synthesis** — merges retrieved context and Prolog output into
+     a final answer, with semantic-entropy hallucination checks.
+
+Progress is reported via ``status_callback`` so the frontend can
+display real-time pipeline step indicators.
+"""
 import logging
 import time
+import re
 from typing import Literal
+
 
 from .graphrag import graphrag_driver
 from .prolog import prolog_driver
 from .llm import generate, decide_fallback
 from .prompt_reconstructor import reconstruct_prompt
 from .semantic_entropy import compute_semantic_entropy
-import re
+
 
 logger = logging.getLogger(__name__)
 

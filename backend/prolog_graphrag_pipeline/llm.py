@@ -1,3 +1,13 @@
+"""LLM interaction layer for the pipeline's routing and answer-generation steps.
+
+Key functions:
+  - ``decide_fallback(question)`` — classifies a question as needing
+    Prolog-GraphRAG, plain GraphRAG, or direct LLM synthesis.
+  - ``generate(...)`` — produces the final natural-language answer by
+    combining retrieved context, Prolog explanations, and log-probabilities.
+  - ``create_system_messages(fallback)`` — selects the appropriate
+    few-shot message template for the current routing path.
+"""
 import sys
 import os
 import json

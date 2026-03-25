@@ -1,3 +1,14 @@
+"""Flask backend for the Libra educational assistant.
+
+Provides REST endpoints for:
+  - ``/api/chat`` — SSE-streamed Q&A through the Prolog-GraphRAG pipeline
+  - ``/api/ingest/*`` — PDF upload, ingestion status polling, and document management
+  - ``/api/health`` — liveness check
+
+PDF ingestion runs in a background thread to avoid blocking the main
+Flask process.  Pipeline progress is streamed to the frontend via
+Server-Sent Events so the UI can show real-time step indicators.
+"""
 import os
 import json
 import queue
