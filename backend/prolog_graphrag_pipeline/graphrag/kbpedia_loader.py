@@ -1,3 +1,4 @@
+import logging
 """
 KBPedia N3 → Neo4j Loader
 Parses the KBPedia reference concepts N3 file and loads owl:Class entries
@@ -31,7 +32,7 @@ def parse_n3(filepath: Path):
     Parse the N3 file iteratively without rdflib to prevent OOM errors on 10.5MB+ files.
     Extracts class data and Wikidata Q-ID mappings.
     """
-    print(f"Iteratively parsing N3 file: {filepath} (this may take a minute)...")
+    logger.info(f"Iteratively parsing N3 file: {filepath} (this may take a minute)...")
     start = time.time()
 
     concepts = {}        # uri -> {uri, name, definition, altLabels, wikidata_qid}
@@ -96,7 +97,7 @@ def parse_n3(filepath: Path):
 
 
     elapsed = time.time() - start
-    print(f"Iteratively parsed {len(concepts)} concepts and {len(subclass_edges)} edges in {elapsed:.1f}s.")
+    logger.info(f"Iteratively parsed {len(concepts)} concepts and {len(subclass_edges)} edges in {elapsed:.1f}s.")
     return concepts, subclass_edges
 
 
@@ -115,7 +116,7 @@ def load_into_neo4j(concepts: dict, subclass_edges: list):
         # 2. Batch-create concept nodes
         concept_list = list(concepts.values())
         total = len(concept_list)
-        print(f"Loading {total} concepts in batches of {BATCH_SIZE}...")
+        logger.info(f"Loading {total} concepts in batches of {BATCH_SIZE}...")
         
         print("Computing embeddings for KBPedia concepts...")
         try:
@@ -148,11 +149,11 @@ def load_into_neo4j(concepts: dict, subclass_edges: list):
                 batch=batch,
             )
             done = min(i + BATCH_SIZE, total)
-            print(f"  [{done}/{total}] concepts loaded.")
+            logger.info(f"  [{done}/{total}] concepts loaded.")
 
         # 3. Batch-create SUBCLASS_OF relationships
         total_edges = len(subclass_edges)
-        print(f"Loading {total_edges} SUBCLASS_OF edges...")
+        logger.info(f"Loading {total_edges} SUBCLASS_OF edges...")
 
         edge_dicts = [{"child": c, "parent": p} for c, p in subclass_edges]
         for i in range(0, total_edges, BATCH_SIZE):
@@ -167,7 +168,7 @@ def load_into_neo4j(concepts: dict, subclass_edges: list):
                 batch=batch,
             )
             done = min(i + BATCH_SIZE, total_edges)
-            print(f"  [{done}/{total_edges}] edges loaded.")
+            logger.info(f"  [{done}/{total_edges}] edges loaded.")
 
         # 4. Create fulltext index for fast search
         print("Creating fulltext index on KBPediaConcept...")
@@ -198,7 +199,7 @@ def load_into_neo4j(concepts: dict, subclass_edges: list):
 
 def main():
     if not N3_FILE.exists():
-        print(f"ERROR: N3 file not found at {N3_FILE}")
+        logger.info(f"ERROR: N3 file not found at {N3_FILE}")
         sys.exit(1)
 
     concepts, edges = parse_n3(N3_FILE)
