@@ -19,8 +19,13 @@ instance/
 flask_session/
 
 # Debug logs
+debug.txt
+debug_*.txt
 backend/debug*.txt
 backend/logs/
+*_test_out.txt
+previous_log.txt
+explainer_*.txt
 *.log
 
 # OS
