@@ -85,7 +85,7 @@ def capture_predicate_and_arguments(query: str) -> dict:
     query = query.replace(".", "").replace("\n", "")
     while query.count("(") > 0 and query.count("(") == query.count(")"):
         ei = query.find("(")
-        print(f"prefix: {query[:ei+1]}")
+        logger.debug(f"prefix: {query[:ei+1]}")
         query = query.replace(query[:ei+1], "").removesuffix(")")
     
     arguments_match = re.search(r"\((.*?)\)", query)
@@ -301,10 +301,10 @@ Answer with ONLY one word: YES or NO.
         if not result:
             return False
         answer_text = result.get("text_answer", "").strip().upper()
-        print(f"[Prolog retry] Close-check answer: {repr(answer_text)}")
+        logger.debug(f"[Prolog retry] Close-check answer: {repr(answer_text)}")
         return answer_text.startswith("YES")
     except Exception as e:
-        print(f"[Prolog retry] Close-check LLM call failed: {e}. Skipping extension.")
+        logger.debug(f"[Prolog retry] Close-check LLM call failed: {e}. Skipping extension.")
         return False
 
 
@@ -315,7 +315,7 @@ def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: s
     try:
         answer = generate_fn(prompt=prompt, flag="prolog", question_type=question_type)
     except TypeError as e:
-        print(f"CRITICAL ERROR calling generate: {e}")
+        logger.error(f"CRITICAL ERROR calling generate: {e}")
         raise e
 
     if not answer:
@@ -443,11 +443,26 @@ def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: s
     safe_query = f"call_with_time_limit(80, ({query[:-1]}))"
     janus.query_once(safe_query)
 
-    print(f"Iteration {i} | Prolog code generation success")
+    logger.debug(f"Iteration {i} | Prolog code generation success")
     return database, query
 
 
 def generate_prolog_code(question: str, retrieved_context: str, most_recent_error: Optional[str]) -> tuple:
+    """Translate a natural-language question into a valid Prolog database and query.
+
+    Uses the LLM to generate s(CASP)-compatible Prolog code, validates it
+    against Janus-SWI, and retries up to 10 times (5 normal + 5 extension)
+    with increasingly detailed error feedback.
+
+    Returns:
+        (database_str, query_str) on success.
+
+    Raises:
+        Exception if all attempts are exhausted.
+    """
+    import logging as _logging
+    _logger = _logging.getLogger(__name__)
+
     # ── Resolve the generate function once ───────────────────────────────────
     try:
         from .prolog_llms import generate as generate_fn, classify_question_type
@@ -456,114 +471,92 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
 
     # ── Classify question type once (before any generation attempt) ──────────
     question_type = classify_question_type(question)
-    print(f"[Prolog] Detected question type: {question_type!r} for: {question[:80]!r}")
+    _logger.info("Detected question type: %r for: %r", question_type, question[:80])
 
-    # ── Phase 1: Normal attempts (5 tries) ───────────────────────────────────
+    # ── Shared error handling ────────────────────────────────────────────────
+
     NORMAL_ATTEMPTS = 5
     EXTENSION_ATTEMPTS = 5
-    error_history: list = []  # accumulates every unique error across all iterations
-    last_attempt_tracker: list = [None] # tracks the code generated before error is thrown
+    error_history: list = []
+    last_attempt_tracker: list = [None]
 
     def _record_error(msg: str):
-        """Append error to history without deduplication to track consecutive failures."""
+        """Append an error message for the next retry's prompt context."""
         error_history.append(msg)
 
-    for i in range(NORMAL_ATTEMPTS):
-        try:
-            return _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker, question_type)
-        except ValueError as e:
+    def _get_prolog_error_hint(error_str: str) -> str:
+        """Map a Janus PrologError message to a targeted fix hint."""
+        if "Singleton variables" in error_str:
+            return "Use each variable twice or use '_' for singletons."
+        if "Syntax error: Operator expected" in error_str:
+            return "Wrap mathematical/logical symbols in single quotes."
+        if "time_limit_exceeded" in error_str or "Time limit" in error_str:
+            return "Infinite loop. Recursive rules must bottom out at ground facts."
+        if "not sufficiently instantiated" in error_str:
+            return "Use lowercase atoms for facts, not Uppercase variables."
+        if "(:-)/2" in error_str or "Rules must be loaded from a file" in error_str:
+            return "Rule (:-) in <query>. Move to <database>."
+        if "Unknown procedure" in error_str:
+            return "Undefined predicate. Every body predicate must be defined as a fact or rule head."
+        if "not together" in error_str or "discontiguous" in error_str.lower():
+            return "Scattered clauses. Group ALL clauses for the same predicate together."
+        return "Ensure strict Prolog syntax. Predicates must be lowercase."
+
+    def _handle_attempt_error(e: Exception, i: int, phase_label: str):
+        """Classify an error from _run_prolog_attempt and record it for the next retry.
+
+        Re-raises fatal errors (e.g. missing arguments) immediately.
+        """
+        if isinstance(e, ValueError):
             err_str = str(e)
-            print(f"Iteration {i} | Validation Error: {err_str}")
+            _logger.warning("%s %d | Validation Error: %s", phase_label, i, err_str)
             if "Disjunction" in err_str or "';'" in err_str:
-                hint = "Forbidden: ';'. Use separate rules. WRONG: answer(X) :- choice_a(X) ; choice_b(X). CORRECT: answer(X):-choice_a(X). answer(X) :- choice_b(X)."
-                _record_error(f"{err_str} {hint}")
-            if "Query not found" in err_str or "strictly inside <query>" in err_str:
-                hint = "!!! ERROR: Your response was truncated or missing tags. Ensure you output the full <database> AND <query> tags. Keep your Prolog code concise if necessary to fit the context."
+                _record_error(f"{err_str} Forbidden: ';'. Use separate rules.")
+            elif "Query not found" in err_str or "strictly inside <query>" in err_str:
+                _record_error(f"{err_str} Ensure you output the full <database> AND <query> tags.")
             else:
-                hint = "Ensure the query is a valid Prolog predicate wrapped in <query> tags."
-            _record_error(f"{err_str} {hint}")
-        except janus.PrologError as e:
-            print(f"Iteration {i} | Prolog Error: {e}")
+                _record_error(f"{err_str} Ensure the query is a valid Prolog predicate.")
+        elif isinstance(e, janus.PrologError):
             error_str = str(e)
-            if "Singleton variables" in error_str:
-                hint = "Use each variable twice or use '_' for singletons."
-            elif "Syntax error: Operator expected" in error_str:
-                hint = "Wrap any mathematical/logical symbols (=>, ⊃, ∨, ∧, ~, +, -, (, )) entirely in single quotes (like `'(G ∨ H) ⊃ ~I'`) to make them valid Prolog atoms. Do not leave them unquoted."
-            elif "time_limit_exceeded" in error_str or "Time limit" in error_str:
-                hint = "Infinite loop. Ensure recursive rules bottom out at ground facts (no variables)."
-            elif "not sufficiently instantiated" in error_str:
-                hint = "Use lowercase atoms for facts (e.g. choice(a, text).), not Uppercase variables, which only appear in rule heads/bodies with instantiated matching facts."
-            elif "(:-)/2" in error_str or "Rules must be loaded from a file" in error_str:
-                hint = "Rule (:-) in <query>. Move to <database>."
-            elif "Unknown procedure" in error_str:
-                hint = "!!! CRITICAL: Undefined predicate. You used a predicate in a rule body that is NOT defined as a fact or rule head in your <database>. Every predicate in the body MUST exist as a definition."
-            elif "not together" in error_str or "discontiguous" in error_str.lower():
-                hint = "!!! ERROR: Scattered clauses. You defined facts or rules for the same predicate in different parts of the file. Group ALL clauses for the same predicate together in one block."
-            else:
-                hint = "Ensure strict Prolog syntax. No bullets/hyphens. Predicates must be lowercase."
+            _logger.warning("%s %d | Prolog Error: %s", phase_label, i, error_str)
+            hint = _get_prolog_error_hint(error_str)
             _record_error(f"Prolog Error: {e}\nHint: {hint}")
-        except Exception as e:
-            print(f"Iteration {i} | General Error: {e}")
+        else:
+            _logger.warning("%s %d | General Error: %s", phase_label, i, e)
             if "missing 3 required positional arguments" in str(e):
                 raise e  # Fatal — stop immediately
             if isinstance(e, TimeoutError):
-                _record_error(f"LLM call timed out ({e}). The model may have hung. It has been reset — retry.")
+                _record_error(f"LLM call timed out ({e}). The model may have hung — retry.")
             else:
                 _record_error(f"Error: {e}. Please ensure valid Prolog syntax.")
 
-    # ── Phase 2: Close-check — should we try 5 more times? ───────────────────
+    # ── Phase 1: Normal attempts ─────────────────────────────────────────────
+    for i in range(NORMAL_ATTEMPTS):
+        try:
+            return _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker, question_type)
+        except Exception as e:
+            _handle_attempt_error(e, i, "Iteration")
+
+    # ── Phase 2: Extension attempts (if the LLM thinks the error is fixable) ─
     most_recent_error = error_history[-1] if error_history else None
 
-    # If the same error repeated 3+ times consecutively, the LLM is stuck and
-    # extension retries will be wasted. Bail out early.
     same_error_count = sum(1 for e in error_history if e == most_recent_error)
     if same_error_count >= 3:
-        print(f"[Prolog retry] Same error repeated {same_error_count}x — skipping extension (model is stuck). Giving up.")
+        _logger.warning("Same error repeated %dx — model is stuck. Giving up.", same_error_count)
         raise Exception("Failed to generate valid Prolog code after multiple attempts.")
 
-    print(f"[Prolog retry] Normal attempts exhausted. Asking LLM if error is close to fixable...")
+    _logger.info("Normal attempts exhausted. Asking LLM if error is fixable...")
     if most_recent_error and _ask_if_close_to_fixing(generate_fn, most_recent_error):
-        print(f"[Prolog retry] LLM says YES — granting {EXTENSION_ATTEMPTS} extension attempts.")
+        _logger.info("LLM says YES — granting %d extension attempts.", EXTENSION_ATTEMPTS)
         for i in range(NORMAL_ATTEMPTS, NORMAL_ATTEMPTS + EXTENSION_ATTEMPTS):
             try:
                 return _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker, question_type)
-            except ValueError as e:
-                err_str = str(e)
-                print(f"Extension {i} | Validation Error: {err_str}")
-                if "Disjunction" in err_str or "';'" in err_str:
-                    hint = "Forbidden: ';'. Use separate rules. WRONG: `answer(X) :- choice_a(X) ; choice_b(X).`  CORRECT: `answer(X) :- choice_a(X).` and `answer(X) :- choice_b(X).`"
-                    _record_error(f"{err_str} {hint}")
-                else:
-                    _record_error(f"{err_str} Ensure the query is a valid Prolog predicate.")
-            except janus.PrologError as e:
-                print(f"Extension {i} | Prolog Error: {e}")
-                error_str = str(e)
-                if "Singleton variables" in error_str:
-                    hint = "Use each variable twice or use '_' for singletons."
-                elif "Syntax error: Operator expected" in error_str:
-                    hint = "Wrap mathematical/logical symbols in single quotes."
-                elif "time_limit_exceeded" in error_str or "Time" in error_str:
-                    hint = "Infinite loop. Recursive rules must bottom out at ground facts."
-                elif "not sufficiently instantiated" in error_str:
-                    hint = "Use lowercase atoms for facts, not Uppercase variables."
-                elif "Unknown procedure" in error_str:
-                    hint = "Undefined predicate. Every body predicate must be defined."
-                elif "not together" in error_str or "discontiguous" in error_str.lower():
-                    hint = "Group clauses for the same predicate together."
-                else:
-                    hint = "Use strict Prolog syntax. Lowercase predicates."
-                _record_error(f"Prolog Error: {e}\nHint: {hint}")
             except Exception as e:
-                print(f"Extension {i} | General Error: {e}")
-                if "missing 3 required positional arguments" in str(e):
-                    raise e
-                if isinstance(e, TimeoutError):
-                    _record_error(f"LLM call timed out ({e}). The model may have hung. It has been reset — retry.")
-                else:
-                    _record_error(f"Error: {e}. Please ensure valid Prolog syntax.")
-        print(f"[Prolog retry] Extension attempts also exhausted.")
+                _handle_attempt_error(e, i, "Extension")
+        _logger.warning("Extension attempts also exhausted.")
     else:
-        print(f"[Prolog retry] LLM says NO (or check failed) — skipping extension.")
+        _logger.info("LLM says NO (or check failed) — skipping extension.")
 
     raise Exception("Failed to generate valid Prolog code after multiple attempts.")
+
 
