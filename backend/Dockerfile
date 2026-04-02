@@ -20,9 +20,7 @@ RUN mkdir -p $SWIPL_PACK_DIR && \
 
 # Install Python deps — use CPU-only PyTorch to save ~2GB
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir \
-        torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────

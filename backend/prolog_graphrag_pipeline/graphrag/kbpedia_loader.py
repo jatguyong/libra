@@ -13,7 +13,10 @@ import time
 from pathlib import Path
 from neo4j import GraphDatabase
 
+logger = logging.getLogger(__name__)
+
 from .config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
+from ..llm_config import EMBED_DIM
 
 # Try multiple locations for the N3 file
 _candidates = [
@@ -118,19 +121,40 @@ def load_into_neo4j(concepts: dict, subclass_edges: list):
         total = len(concept_list)
         logger.info(f"Loading {total} concepts in batches of {BATCH_SIZE}...")
         
-        print("Computing embeddings for KBPedia concepts...")
+        print("Computing embeddings for KBPedia concepts using Together AI...")
         try:
-            from sentence_transformers import SentenceTransformer
-            embedder = SentenceTransformer("all-MiniLM-L6-v2")
+            import asyncio
+            from .llm_wrapper import TogetherAIEmbeddings
+            embedder = TogetherAIEmbeddings()
             
             # Batch encode
             texts = [f"{c['name']} {c['definition']}" for c in concept_list]
-            embeddings = embedder.encode(texts, show_progress_bar=True)
+            
+            async def embed_all(texts_to_embed):
+                all_embs = []
+                batch_size = 100
+                total_batches = (len(texts_to_embed) + batch_size - 1) // batch_size
+                for i in range(0, len(texts_to_embed), batch_size):
+                    batch_num = (i // batch_size) + 1
+                    batch = texts_to_embed[i:i+batch_size]
+                    print(f"Embedding batch {batch_num}/{total_batches} (Items {i} to {i+len(batch)})...", flush=True)
+                    batch_emb = await embedder.async_embed_chunks(batch)
+                    all_embs.extend(batch_emb)
+                    await asyncio.sleep(0.2)
+                return all_embs
+
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+            embeddings = loop.run_until_complete(embed_all(texts))
             
             for idx, c in enumerate(concept_list):
-                c['embedding'] = embeddings[idx].tolist()
-        except ImportError:
-            print("WARNING: sentence_transformers not installed. Skipping embeddings.")
+                c['embedding'] = embeddings[idx]  # It is already a list of floats
+        except Exception as e:
+            print(f"WARNING: Together API embedding failed: {e}. Skipping embeddings.")
             for c in concept_list:
                 c['embedding'] = None
 
@@ -181,16 +205,22 @@ def load_into_neo4j(concepts: dict, subclass_edges: list):
         )
 
         # 5. Create vector index for KBPedia
-        print("Creating vector index on KBPediaConcept...")
+        print("Recreating vector index on KBPediaConcept with new dimensions...")
+        try:
+            session.run("DROP INDEX kbpediaConceptVectorIndex IF EXISTS")
+        except Exception as e:
+            print(f"Index drop failed or index didn't exist: {e}")
+
         session.run(
             """
             CREATE VECTOR INDEX kbpediaConceptVectorIndex IF NOT EXISTS
             FOR (n:KBPediaConcept) ON (n.embedding)
             OPTIONS {indexConfig: {
-              `vector.dimensions`: 384,
+              `vector.dimensions`: $dim,
               `vector.similarity_function`: 'cosine'
             }}
-            """
+            """,
+            dim=EMBED_DIM
         )
 
     driver.close()

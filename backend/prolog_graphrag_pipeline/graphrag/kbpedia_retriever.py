@@ -717,10 +717,9 @@ Output ONLY the JSON list. If none are sufficiently relevant, output [].
         matches = []
         try:
             # Prepare the embedder function once
-            from sentence_transformers import SentenceTransformer
-            print("DEBUG PROLOG-GRAPHRAG:[KBPedia] Forcing local SentenceTransformer for 384D KBPedia index.", flush=True)
-            temp_embedder = SentenceTransformer("all-MiniLM-L6-v2")
-            embedder_fn = lambda text: temp_embedder.encode(text).tolist()
+            if not self.embedder:
+                raise ValueError("No embedder instance provided to KBPediaRetriever!")
+            embedder_fn = lambda text: self.embedder.embed_query(text)
 
             # Schedule searches: Main query + individually extracted concepts
             search_strings = [(query_text, top_k * 2)]
