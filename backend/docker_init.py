@@ -22,10 +22,10 @@ def main():
             subprocess.run([sys.executable, "-m", "prolog_graphrag_pipeline.graphrag.kbpedia_loader"], check=True)
             print("KBPedia load complete.", flush=True)
         else:
-            logger.info(f"KBPedia already loaded. Found {count} concepts.")
+            print(f"KBPedia already loaded. Found {count} concepts.", flush=True)
             
     except Exception as e:
-        logger.info(f"Error checking KBPedia status: {e}")
+        print(f"Error checking KBPedia status: {e}", flush=True)
 
 if __name__ == "__main__":
     main()
