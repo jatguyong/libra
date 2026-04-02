@@ -55,7 +55,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
     const [selectedNode, setSelectedNode] = useState<any>(null);
     const [hoverNode, setHoverNode] = useState<any>(null);
-    const [graphCounts, setGraphCounts] = useState<{ nodes: number, edges: number }>({ nodes: 0, edges: 0 });
+    const [showFilteredView, setShowFilteredView] = useState(false);
 
     useEffect(() => {
         if (isOpen && containerRef.current) {
@@ -71,7 +71,6 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
             }
             // Automatically zoom to fit when data loads
             if (graphData && graphData.nodes.length > 0) {
-                setGraphCounts({ nodes: graphData.nodes.length, edges: graphData.edges.length });
                 setTimeout(() => {
                     fgRef.current?.zoomToFit(400, 50);
                 }, 100);
@@ -83,16 +82,24 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
     const memoizedGraphData = useMemo(() => {
         if (!graphData) return { nodes: [], links: [] };
 
-        // Process formatting for react-force-graph
         const isChunkType = (label: string | undefined) => 
             label === 'DocumentChunk' || label === 'KBPediaChunk' || label === 'Chunk';
-        const nodes = graphData.nodes.map(n => ({
+
+        const filteredNodes = showFilteredView 
+            ? graphData.nodes.filter(n => n.in_filtered_view === true)
+            : graphData.nodes;
+
+        const filteredEdges = showFilteredView
+            ? graphData.edges.filter(e => e.in_filtered_view === true)
+            : graphData.edges;
+
+        const nodes = filteredNodes.map(n => ({
             ...n,
             val: isChunkType(n.label) ? 15 : 25,
             color: getNodeColor(n.label || 'Unknown')
         }));
 
-        const links = graphData.edges.map(e => ({
+        const links = filteredEdges.map(e => ({
             source: e.source,
             target: e.target,
             name: e.label || '',
@@ -100,7 +107,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
         }));
 
         return { nodes, links };
-    }, [graphData]);
+    }, [graphData, showFilteredView]);
 
 
     const handleNodeClick = useCallback((node: any) => {
@@ -333,13 +340,21 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                 {/* Sidebar Overview (Bloom Style) */}
                 <div className="w-[320px] shrink-0 border-l border-white/10 bg-[#16111f] flex flex-col">
                     <div className="p-5 border-b border-white/5">
-                        <h2 className="text-white font-space font-medium tracking-wide flex items-center gap-2">
-                            <Network size={18} className="text-white/50" />
-                            Graph Overview
-                        </h2>
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-white font-space font-medium tracking-wide flex items-center gap-2">
+                                <Network size={18} className="text-white/50" />
+                                Graph Overview
+                            </h2>
+                            <button
+                                onClick={() => setShowFilteredView(!showFilteredView)}
+                                className={`text-xs px-2 py-1 rounded transition-colors ${showFilteredView ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 border border-transparent'}`}
+                            >
+                                {showFilteredView ? 'Filtered' : 'Full Context'}
+                            </button>
+                        </div>
                         <div className="mt-3 flex gap-4 text-xs font-mono text-white/60 uppercase">
-                            <div>Nodes: <span className="text-white">{graphCounts.nodes}</span></div>
-                            <div>Edges: <span className="text-white">{graphCounts.edges}</span></div>
+                            <div>Nodes: <span className="text-white">{memoizedGraphData.nodes.length}</span></div>
+                            <div>Edges: <span className="text-white">{memoizedGraphData.links.length}</span></div>
                         </div>
                     </div>
 

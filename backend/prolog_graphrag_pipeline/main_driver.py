@@ -285,6 +285,12 @@ def run_pipeline(
                             graph_nodes[str(target)] = {"id": str(target), "label": node_label}
                             graph_edges.append({"source": str(source), "target": str(target), "label": str(rel)})
 
+        # Mark Source 1 (Retriever Results) as being part of the filtered view
+        for node in graph_nodes.values():
+            node["in_filtered_view"] = True
+        for edge in graph_edges:
+            edge["in_filtered_view"] = True
+
         # --- Source 2: Global Neo4j Discovery (Fetch ALL relationships for retrieved DocumentChunks) ---
         # Only query Neo4j for real document chunks (not KBPedia virtual chunks)
         chunk_ids_to_query = [str(n["id"]) for n in graph_nodes.values() if n.get("label") == "DocumentChunk"]
@@ -363,11 +369,12 @@ def run_pipeline(
                                 "id": n_id, 
                                 "name": display_name, 
                                 "label": n_label,
-                                "properties": n_props  # Send full properties to frontend
+                                "properties": n_props,  # Send full properties to frontend
+                                "in_filtered_view": False
                             }
                     
                     # Add edge
-                    graph_edges.append({"source": s_id, "target": t_id, "label": str(rec["rel_label"])})
+                    graph_edges.append({"source": s_id, "target": t_id, "label": str(rec["rel_label"]), "in_filtered_view": False})
                         
             except Exception as e:
                 logger.warning(f"[GraphData] Global discovery failed: {e}")
