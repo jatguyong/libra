@@ -115,18 +115,19 @@ def _deduplicate_items(items: List[RetrieverResultItem], limit: int) -> List[Ret
     unique: list[RetrieverResultItem] = []
 
     for item in items_sorted:
-        content_str = ""
+        original_content = ""
         if hasattr(item, "content"):
             if isinstance(item.content, str):
-                content_str = item.content
+                original_content = item.content
             elif hasattr(item.content, "get"):
-                content_str = item.content.get("text", item.content.get("content", str(item.content)))
+                original_content = item.content.get("text", item.content.get("content", str(item.content)))
             else:
-                content_str = str(item.content)
+                original_content = str(item.content)
 
-        if content_str:
-            content_str = content_str.replace('\n', ' ').replace('  ', ' ')
-        sig = content_str.strip()
+        sig = ""
+        if original_content:
+            sig = original_content.replace('\n', ' ').replace('  ', ' ').strip()
+        
         if sig and sig not in seen:
             seen.add(sig)
             
@@ -135,7 +136,7 @@ def _deduplicate_items(items: List[RetrieverResultItem], limit: int) -> List[Ret
             if "embedding" in clean_meta:
                 del clean_meta["embedding"]
                 
-            unique.append(RetrieverResultItem(content=content_str, metadata=clean_meta))
+            unique.append(RetrieverResultItem(content=original_content, metadata=clean_meta))
 
     return unique[:limit]
 
@@ -182,11 +183,14 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
                 status_callback=status_callback,
             )
             if kb_result and kb_result.items:
+                for item in kb_result.items:
+                    if item.metadata is None: item.metadata = {}
+                    item.metadata["source"] = "KBPEDIA"
                 all_items.extend(kb_result.items)
                 logger.debug("[Hybrid] KBPedia returned %d items.", len(kb_result.items))
                 if status_callback:
                     status_callback({"type": "step", "step": 3})
-                    status_callback({"type": "thought", "step": 3, "message": f"I checked the Global Knowledge Graph (KBPedia) and found {len(kb_result.items)} relevant definition/fact nodes."})
+                    status_callback({"type": "thought", "step": 3, "message": f"I searched KBPedia and Wikidata Knowledge Graphs and found {len(kb_result.items)} relevant nodes."})
         except Exception as e:
             logger.debug("[Hybrid] KBPedia search error: %s", e)
 
@@ -194,6 +198,9 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
     res_main = self._original_search(query_text=safe_query, top_k=top_k, **kwargs)
     raw_local_count = 0
     if res_main and res_main.items:
+        for item in res_main.items:
+            if item.metadata is None: item.metadata = {}
+            item.metadata["source"] = "LOCAL"
         all_items.extend(res_main.items)
         raw_local_count += len(res_main.items)
 
@@ -209,6 +216,9 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
             safe_choice = _sanitize_lucene_query(choice.strip())
             res_choice = self._original_search(query_text=safe_choice, top_k=choice_k, **kwargs)
             if res_choice and res_choice.items:
+                for item in res_choice.items:
+                    if item.metadata is None: item.metadata = {}
+                    item.metadata["source"] = "MCQ"
                 all_items.extend(res_choice.items)
                 raw_local_count += len(res_choice.items)
 
@@ -218,6 +228,20 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
 
     # 4. Deduplicate and rank
     unique_items = _deduplicate_items(all_items, top_k * 2)
+
+    kbpedia_count = len(kb_result.items) if 'kb_result' in locals() and kb_result else 0
+    main_local_count = len(res_main.items) if res_main and res_main.items else 0
+    mcq_count = raw_local_count - main_local_count
+
+    kbpedia_final = sum(1 for i in unique_items if i.metadata and i.metadata.get("source") == "KBPEDIA")
+    local_final = sum(1 for i in unique_items if i.metadata and i.metadata.get("source") == "LOCAL")
+    mcq_final = sum(1 for i in unique_items if i.metadata and i.metadata.get("source") == "MCQ")
+
+    logger.info(f"\n==========[RETRIEVAL FUSION]==========")
+    logger.info(f"Raw Combined Chunks Found: {len(all_items)} (KBPedia: {kbpedia_count} | Local Docs: {main_local_count} | MCQ Docs: {mcq_count})")
+    logger.info(f"Final Count after Deduplication & Cap: {len(unique_items)}")
+    logger.info(f"Payload Origin -> KBPedia: {kbpedia_final} | Local Docs: {local_final} | MCQ Docs: {mcq_final}")
+    logger.info(f"======================================")
 
     if status_callback:
         status_callback({"type": "step", "step": 3})
