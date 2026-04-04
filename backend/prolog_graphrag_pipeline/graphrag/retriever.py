@@ -129,7 +129,13 @@ def _deduplicate_items(items: List[RetrieverResultItem], limit: int) -> List[Ret
         sig = content_str.strip()
         if sig and sig not in seen:
             seen.add(sig)
-            unique.append(RetrieverResultItem(content=content_str, metadata=item.metadata))
+            
+            # Clean metadata to prevent bulky/empty embedding arrays from entering LLM context
+            clean_meta = dict(item.metadata) if item.metadata else {}
+            if "embedding" in clean_meta:
+                del clean_meta["embedding"]
+                
+            unique.append(RetrieverResultItem(content=content_str, metadata=clean_meta))
 
     return unique[:limit]
 
@@ -167,7 +173,7 @@ def patched_hybrid_search(self, query_text, top_k=8, **kwargs):
                 from .neo4j_manager import get_driver
                 kb_driver = getattr(self, 'driver', None) or get_driver()
                 kb_llm = getattr(self, 'llm', None)
-                self._kbpedia_retriever = KBPediaRetriever(driver=kb_driver, llm=kb_llm, top_k=top_k)
+                self._kbpedia_retriever = KBPediaRetriever(driver=kb_driver, llm=kb_llm, top_k=top_k, embedder=self.embedder)
 
             kb_result = self._kbpedia_retriever.search(
                 query_text,
