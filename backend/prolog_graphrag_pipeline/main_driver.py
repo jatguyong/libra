@@ -25,6 +25,7 @@ from .prolog import prolog_driver
 from .llm import generate, decide_fallback
 from .prompt_reconstructor import reconstruct_prompt
 from .semantic_entropy import compute_semantic_entropy
+from .config import COMPUTE_SEMANTIC_ENTROPY
 
 
 logger = logging.getLogger(__name__)
@@ -418,8 +419,8 @@ def run_pipeline(
             llm_output = (
                 generate(
                     question, retrieved_context_str, explainer_output,
-                    flag=flag, sample_mode=sample_mode, fallback=fallback,
-                    status_callback=status_callback,
+                    flag=flag, sample_mode=(sample_mode and COMPUTE_SEMANTIC_ENTROPY),
+                    fallback=fallback, status_callback=status_callback,
                 )
                 if prolog_error is None
                 else pgr_results.get("final_answer", "")
@@ -469,9 +470,10 @@ def run_pipeline(
             "graph_data": graph_data,
         }
 
-    # sample_mode: run semantic entropy if we have multiple LLM samples
+    # sample_mode path — but SE is disabled OR llm_output came back as a single
+    # dict (because generate() was called with sample_mode=False due to the
+    # COMPUTE_SEMANTIC_ENTROPY guard). Either way, final_answer is already set.
     if not isinstance(llm_output, list) or len(llm_output) == 0:
-        # No multi-sample output (e.g. graphrag-only path) — skip SE
         return {
             "answer": final_answer or "Error generating answer",
             "database": _pgr("database", "No database generated."),
@@ -486,8 +488,26 @@ def run_pipeline(
             "graph_data": graph_data,
         }
 
+    # llm_output is a proper list of samples — safe to unpack
     answers = [output["text_answer"] for output in llm_output]
     logprobs = [output["logprobs"] for output in llm_output]
+
+    if not COMPUTE_SEMANTIC_ENTROPY:
+        # Flag disabled at runtime — skip entropy scoring, return first sample
+        return {
+            "answer": answers[0] if answers else "Error generating answer",
+            "database": _pgr("database", "No database generated."),
+            "prolog_query": _pgr("query", "No prolog query generated."),
+            "query": query,
+            "condensed_context": condensed_context,
+            "contexts": raw_context_strings if raw_context_strings else retrieved_context_str,
+            "prolog_explanation": _pgr("prolog_explanation"),
+            "explainer_output": _pgr("explainer_output", "No explainer output generated."),
+            "prolog_error": _pgr("prolog_error") or None,
+            "fallback": fallback,
+            "graph_data": graph_data,
+        }
+
     se_results = compute_semantic_entropy({"sequences": answers, "logprobs": logprobs})
 
     return {
