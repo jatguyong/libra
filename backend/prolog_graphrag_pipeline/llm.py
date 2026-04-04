@@ -23,7 +23,15 @@ from .prompt_reconstructor import reconstruct_prompt
 
 logger = logging.getLogger(__name__)
 
-client = get_openai_client()
+# Lazy singleton — client is created on first use so an absent API key
+# raises at call time, not at import time (which causes startup-crash loops).
+_client = None
+
+def _get_client():
+    global _client
+    if _client is None:
+        _client = get_openai_client()
+    return _client
 
 
 class Reasoning(BaseModel):
@@ -46,7 +54,7 @@ def decide_fallback(question: str) -> str:
     Returns one of: "prolog-graphrag", "graphrag", "tuned".
     Falls back to "tuned" on any parsing failure so the app never crashes.
     """
-    response = client.chat.completions.create(
+    response = _get_client().chat.completions.create(
         model=MODEL_NAME,
         messages=FALLBACK_MESSAGES + [{"role": "user", "content": question}],
         temperature=0.7,
@@ -106,7 +114,7 @@ def generate(
             status_callback({"type": "thought", "step": 2, "message": "I'm formulating my final conversational response..."})
 
     def _do_call_llm():
-        response = client.chat.completions.create(
+        response = _get_client().chat.completions.create(
             model=MODEL_NAME,
             messages=messages,
             temperature=0.3,
