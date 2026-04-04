@@ -149,17 +149,24 @@ def compute_semantic_entropy(sequences_input: dict) -> dict:
 
     clusters = cluster_sequences(sequences)
 
-    total_sequences = len(sequences)
-    semantic_entropy = 0
-    highest_probability = 0
+    # Weight clusters by model-confidence probability (compute_aggregated_logprobs).
+    # When logprobs are absent the function returns 1.0 per sequence, so the math
+    # degrades cleanly to the original count-based weighting.
+    all_weights = [compute_aggregated_logprobs(seq) for seq in sequences]
+    total_weight = sum(all_weights) or len(sequences)
+
+    semantic_entropy = 0.0
+    highest_probability = 0.0
     highest_probability_cluster = None
 
     for cluster in clusters:
-        p_Ci_x = len(cluster) / total_sequences
+        cluster_weight = sum(compute_aggregated_logprobs(seq) for seq in cluster)
+        p_Ci_x = cluster_weight / total_weight
         if p_Ci_x > highest_probability:
             highest_probability = p_Ci_x
             highest_probability_cluster = cluster
-        semantic_entropy += p_Ci_x * math.log(p_Ci_x)
+        if p_Ci_x > 0:
+            semantic_entropy += p_Ci_x * math.log(p_Ci_x)
 
     semantic_entropy *= -1
     representative_sequence = highest_probability_cluster[0]
