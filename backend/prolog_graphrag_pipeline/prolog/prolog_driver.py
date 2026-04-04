@@ -16,12 +16,9 @@ import logging
 from typing import Optional
 from .prolog_generator import generate_prolog_code, capture_db_and_query, capture_predicate_and_arguments
 from .explainer import generate_safe_scasp_wrapper, generate_explanation
-from .. import llm
 
 logger = logging.getLogger(__name__)
 
-SCASP_AVAILABLE = False
-ALLOW_LLM_FALLBACK = True   # Enables LLM synthesis fallback when Prolog generation fails
 
 # ── Persistent Prolog debug log (file handler) ────────────────────────────
 def _setup_prolog_file_logger():
@@ -185,19 +182,9 @@ def run_pipeline(question: str, retrieved_context: str, status_callback=None) ->
         prolog_error = str(gen_err)
         logger.warning("Prolog failed: %s — falling back to unverified GraphRAG answer.", prolog_error)
         explainer_output = None  # No Prolog proof; LLM will answer from context alone
-        if not ALLOW_LLM_FALLBACK:
-            raise gen_err
-    final_answer = None
-    # ── Final synthesis (always runs unless fallback disabled) ───────────────
-    if prolog_error and not ALLOW_LLM_FALLBACK:
-        logger.warning("LLM fallback disabled: skipping final synthesis because Prolog failed.")
-        final_answer = {"text_answer": "Error: Prolog generation failed and LLM fallback is disabled."}
-    else:
-        final_answer = llm.generate(question, retrieved_context, explainer_output=None, flag="synthesis", fallback=True, status_callback=status_callback)
 
     
     result_dict = {
-        "final_answer": None if prolog_error else final_answer,
         "database": database if database else "No database correctly generated.",
         "query": query if query else "No query correctly generated.",
         "prolog_explanation": human_readable_explanation if human_readable_explanation else "No s(cASP) explanation generated.",
