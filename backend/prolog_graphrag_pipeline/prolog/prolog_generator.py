@@ -103,7 +103,7 @@ def capture_predicate_and_arguments(query: str) -> dict:
     predicate_match = re.search(r"(\w+)\s*\(", query)
     try:
         predicate = predicate_match.group(1)
-    except:
+    except AttributeError:
         raise ValueError("Could not extract predicate name from query")
     
     query = query.replace(".", "").replace("\n", "")
@@ -115,8 +115,8 @@ def capture_predicate_and_arguments(query: str) -> dict:
     arguments_match = re.search(r"\((.*?)\)", query)
     try:
         arguments = arguments_match.group(1).replace(" ", "").split(",")
-        print("Extracted Arguments:", arguments)
-    except:
+        logger.debug("Extracted Arguments: %s", arguments)
+    except AttributeError:
         raise ValueError("Could not extract arguments from query")
     return {"predicate": predicate, "arguments": arguments}
 
