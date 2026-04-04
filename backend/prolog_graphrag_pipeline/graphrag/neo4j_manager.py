@@ -122,6 +122,8 @@ def list_ingested_documents() -> list:
     except Exception as e:
         logger.error("Error listing documents: %s", e)
         return []
+
+
 def stitch_document_chunks():
     """Create NEXT_CHUNK relationships between sequential chunks of the same document.
     
