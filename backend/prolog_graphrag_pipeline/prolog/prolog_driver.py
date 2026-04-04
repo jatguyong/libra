@@ -42,6 +42,8 @@ def _setup_prolog_file_logger():
 _setup_prolog_file_logger()
 # ─────────────────────────────────────────────────────────────────────────────
 
+SCASP_AVAILABLE = False
+
 def use_scasp():
     """Load the s(CASP) solver, installing it first if necessary."""
     global SCASP_AVAILABLE

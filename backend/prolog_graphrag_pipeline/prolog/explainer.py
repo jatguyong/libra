@@ -50,15 +50,16 @@ def generate_explanation_prompt(question: str, retrieved_context: str, database:
 {human_readable_explanation}
 
 ### INSTRUCTION:
-Your job is to translate the "s(CASP) HUMAN-READABLE EXPLANATION" into a highly detailed, clear, and concise LLM-friendly natural-language narrative.
+Your job is to translate the "s(CASP) HUMAN-READABLE EXPLANATION" into a highly detailed, clear, and concise natural-language narrative of the **underlying facts**, NOT the mechanical proof steps.
 
 STRICT RULES:
-1. **DO NOT MENTION THE SOLVER/SYSTEM**: Write your explanation as truths and not something derived from the solver or system.
-2. **NO EXTERNAL KNOWLEDGE:** You must base your explanation *entirely* on the provided s(CASP) explanation and context. Do not inject outside facts.
-3. **DO NOT CONTRADICT THE PROOF:** The s(CASP) output is the absolute ground truth. Whatever answer it arrives at is correct, even if you disagree. DO NOT output a different answer than what the logic proved.
-4. **BE EXPLANATORY BUT CONCISE:** Walk through the logical steps the solver took in informative detail, not bloat. Explain the context, the relevant rules that were applied, the connections made between entities, and exactly *how* they collectively lead to the final conclusion.
-5. **TRANSLATE PROLOG CODE INTO NATURAL LANGUAGE:** Translate Prolog code statements, variables, and rules into rich, human-readable language like you are generating an answer, not simply evaluating code. For instance, rather than saying "The system evaluated same_conditions(X, Y)", say "The solver applies the 'same_conditions' rule, which links the two gases, carbon dioxide and ammonia, based on their identical conditions." Transform the mechanical proof into a comprehensible narrative.
-6. **NO PROLOG JARGON:** Do not use words like "s(CASP)", "Prolog", "holds for", "justification tree", or "predicate". Write naturally as if explaining a logical roadmap.
+1. **ABSOLUTE INVISIBILITY RULE**: Do not write about the proof, the solver, the system, or the logic itself. Write purely about the subject matter. 
+2. **NO META-LANGUAGE**: BANNED WORDS AND PHRASES include "atomic fact", "conditional rule", "initial condition", "the reasoning shows", "the proof establishes", "the solver applied", "logical path", "based on the rule", "according to the facts".
+3. **NO EXTERNAL KNOWLEDGE:** You must base your factual explanation *entirely* on the provided s(CASP) explanation and context. Do not inject outside facts.
+4. **BE EXPLANATORY BUT CONCISE:** Walk through the causal sequence and relationships between entities. If event A leads to event B, explain why based on the physics, biology, or context provided, rather than saying "Rule A activates B".
+5. **TRANSLATE PROLOG CODE INTO NATURAL LANGUAGE:** Translate Prolog code statements and variables into rich, human-readable facts. For instance, instead of saying "The system evaluated same_conditions(X, Y)", simply state the physical/factual reality: "Carbon dioxide and ammonia exhibit identical pressure and temperature conditions." Transform the mechanical proof into direct, authoritative factual statements.
+6. **DO NOT** include snake_case terms in your explanation, transform Prolog code variables, rules, and statements into human-readable language.
+7. **NO PROLOG JARGON:** Do not use words like "s(CASP)", "Prolog", "holds for", "justification tree", or "predicate".
 """
     return prompt
 

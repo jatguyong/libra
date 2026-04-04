@@ -284,6 +284,8 @@ CORRECT: has_prop(X). answer(X) :- has_prop(X). (every body predicate MUST be de
             targeted_fix = "WRONG: a(X) :- b(X, Y). CORRECT: a(X) :- b(X, _). (use _ for singletons)\n"
         elif "time_limit_exceeded" in last_error or "infinite loop" in last_error.lower():
             targeted_fix = "WRONG: a :- a, b. CORRECT: a. a :- b, a. (recursive rules need ground base cases)\n"
+        elif "not sufficiently instantiated" in last_error:
+            targeted_fix = "CRITICAL ERROR: A built-in predicate was passed an UNBOUND VARIABLE. Ensure ALL variables are instantiated with normal facts (e.g., `has_property(X)`) BEFORE using them in math, negation, or logic checks.\n"
 
         prompt += f"""
 ### ERRORS TO FIX
