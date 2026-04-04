@@ -1,6 +1,6 @@
 """LLM wrapper and embeddings for the GraphRAG pipeline.
 
-Provides GraphRAGLLM (extends neo4j_graphrag's OllamaLLM for interface compatibility)
+Provides GraphRAGLLM (extends neo4j_graphrag's LLMInterface abstract base)
 and TogetherAIEmbeddings for the Together AI embeddings API.
 """
 

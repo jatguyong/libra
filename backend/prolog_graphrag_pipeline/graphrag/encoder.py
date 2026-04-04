@@ -60,8 +60,7 @@ def extract_query_and_context(question: str) -> tuple[str, str]:
     most_recent_error = None
     
     for i in range(5):
-        # Reset to a fresh context on every attempt so the conversation doesn't
-        # grow unboundedly and silently breach the model's token limit.
+        # Reset to a fresh context on every attempt
         current_messages = list(ENCODER_SYSTEM_MESSAGES)
         try:
             prompt_content = question
@@ -100,7 +99,8 @@ def extract_query_and_context(question: str) -> tuple[str, str]:
                 return data["question"], data["context"]
             except json.JSONDecodeError as e:
                 logger.warning("JSON decoding error: %s", e)
-                current_messages.append({'role': 'assistant', 'content': response})
+                # Note: current_messages is reset each iteration; error context is
+                # propagated via most_recent_error injected into the next prompt.
                 most_recent_error = f"JSON Decode Error: {e}"
                 
         except Exception as e:

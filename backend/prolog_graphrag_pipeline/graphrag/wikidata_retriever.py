@@ -80,11 +80,9 @@ class WikidataRetriever:
                                 return facts
                                 
                             elif response.status == 429:
-                                # Backoff Logic: Trap HTTP 429. Extract Retry-After
-                                retry_after = int(response.headers.get("Retry-After", 10))
-                                logger.warning(f"HTTP 429 Too Many Requests. Exact sleep for {retry_after} seconds.")
-                                await asyncio.sleep(retry_after)
-                                continue
+                                # Abort immediately instead of blocking the pipeline for 120s
+                                logger.warning(f"HTTP 429 Too Many Requests from Wikidata for {qid}. Aborting fetch silently.")
+                                return []
                             else:
                                 self._record_error()
                                 logger.error(f"HTTP {response.status} from Wikidata for {qid}")
@@ -240,10 +238,8 @@ class WikidataRetriever:
                                             facts.append(fact_str)
                                 return facts
                             elif response.status == 429:
-                                retry_after = int(response.headers.get("Retry-After", 10))
-                                logger.warning(f"HTTP 429 on structural SPARQL. Sleeping {retry_after}s.")
-                                await asyncio.sleep(retry_after)
-                                continue
+                                logger.warning(f"HTTP 429 Too Many Requests on structural SPARQL for {qid}. Aborting silently.")
+                                return []
                             else:
                                 self._record_error()
                                 logger.error(f"HTTP {response.status} from structural SPARQL for {qid}")
