@@ -9,7 +9,7 @@ from typing import Optional
 
 
 def reconstruct_prompt(question: str, retrieved_context: str, explainer_output: str, flag: str) -> str:
-    conclusion = "See Logical Evidence"
+    conclusion = "See ESTABLISHED FACTS"
     logical_evidence_text = explainer_output
 
     pattern = r"\*\*Conclusion:\*\*\s*(.*?)(?=\n\s*\*\*|$)"
@@ -29,9 +29,9 @@ def reconstruct_prompt(question: str, retrieved_context: str, explainer_output: 
         sections.append(f"RETRIEVED KNOWLEDGE:\n{retrieved_context}")
 
     if flag != "q" and logical_evidence_text:
-        sections.append(f"LOGICAL EVIDENCE:\n{logical_evidence_text}")
+        sections.append(f"ESTABLISHED FACTS:\n{logical_evidence_text}")
 
-    if flag == "x" and conclusion != "See Logical Evidence":
+    if flag == "x" and conclusion != "See ESTABLISHED FACTS":
         sections.append(f"CONCLUSION: {conclusion}")
 
     body = "\n\n".join(sections)
