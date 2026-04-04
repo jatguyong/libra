@@ -20,48 +20,25 @@ ENABLE_LLM_FILTERING = True
 
 RETRIEVER = "HybridRetriever"
 
-class SCHEMA_TYPE(Enum):
-  STATIC = "Static Schema"
-  EXTRACTED = "Extracted Schema"
-  
-SCHEMA_CONFIG = SCHEMA_TYPE.STATIC
-
-STATIC_SCHEMA = { # NOTE: Due to how 'EXTRACTED' works, the prompt used by SimpleKGPipeline is bad and does not constrain the output to only JSON format. We can create a custom KG Pipeline but for now we use this to skip it entirely.
-        "node_types": [
-            "Concept",      # The heavy lifter: covers Theorems, Ideas, Theories, Terms
-            "Person",       # Key figures: Socrates, Einstein, Historical Leaders
-            "Event",        # Occurrences: Wars, Experiments, Historical Periods
-            "Definition",   # Crucial for education: Explicit statements of meaning
-            "Example",      # Grounding: Specific instances (e.g., "Pingu" or "3")
-            "Topic"         # The Field: "Mathematics", "Philosophy", "Biology"
-        ],
-        "relationship_types": [
-            "RELATED_TO",   # Generic connection
-            "IS_A",         # Hierarchy: "Calculus IS_A Topic", "Penguin IS_A Bird"
-            "PART_OF",      # Composition: "Cell PART_OF Tissue"
-            "CAUSES",       # Logic/History: "War CAUSES Famine", "Premise CAUSES Conclusion"
-            "DEFINES",      # Concept -> Definition
-            "ILLUSTRATES"   # Example -> Concept ("Pingu ILLUSTRATES Non-flying bird")
-        ]
-    }
-
 PROMPT_TEMPLATE = '''
 ### ROLE: Knowledge Extraction Expert
-You are a highly skilled Knowledge Engineer specializing in extracting high-fidelity, logical knowledge graphs from complex text. Your goal is to identify ALL significant entities, their types, and the dense network of relationships between them.
+You are a highly skilled Knowledge Engineer specializing in extracting high-fidelity, logical knowledge graphs from complex scientific, technical, or domain-specific texts. Your primary goal is to map novel, document-specific information while explicitly grounding universal knowledge to standard ontologies.
 
 ### INSTRUCTIONS:
-1. **Aggressive Extraction**: Extract as many relevant entities and relationships as possible without hallucinating. Focus on capturing the core logical flow (IF-THEN, CAUSE-EFFECT, PART-OF).
-2. **Schema Adherence**: Use the provided Node Labels and Relationship Types strictly.
-3. **Prolog Compatibility**: Ensure all IDs and types are in `lowercase_with_underscores`.
-4. **Rich Metadata**: For every relationship, provide a `natural_statement` (full sentence preservation), a `logic_intent` (FACT, RULE, or EXCEPTION), and a `logical_form_hint`.
+1. **Universal Ontology Mapping (`KBPediaConcept`)**: FOR ALL universal classes, scientific theories, natural phenomena, mathematical principles, or broad domain concepts, you **MUST** assign the node label `KBPediaConcept`. Assign them standardized, universally recognized names (e.g., "Law of Gravity" instead of "the gravity rule mentioned earlier"). This acts as an explicit hook that allows the downstream system to dynamically snap and link this node to the global KBPedia Knowledge Base.
+2. **Novel & Specific Entities**: For specific, novel, or document-local information (e.g., a specific paper's proposed algorithm, a unique experiment event, a specific researcher, or a precise numeric result), assign the most appropriate specific node label (e.g., `Event`, `ScientificTheory`, `Person`, `Technology`).
+3. **Aggressive Synthesis**: Extract dense networks of relationships. Build complex bridges between `KBPediaConcept` nodes (existing classical knowledge) and your novel specific nodes (new information from the text). Capture explicit logical flows (IF-THEN, CAUSE-EFFECT, PART-OF, IS_A).
+4. **Schema Adherence**: Use the provided Node Labels and Relationship Types strictly. Do not invent new labels outside the provided contextual schema.
+5. **Prolog Compatibility**: Ensure all `id` fields are strictly `lowercase_with_underscores`.
+6. **Rich Metadata**: For every relationship, provide a `natural_statement` (full sentence preservation), a `logic_intent` (FACT, RULE, or EXCEPTION), and a `logical_form_hint` (e.g., `causes(friction, heat)`).
 
 ### JSON OUTPUT FORMAT:
 {{
   "nodes": [
     {{
-      "id": "entity_id",
+      "id": "concept_id",
       "label": "NodeLabel",
-      "properties": {{"name": "Display Name"}}
+      "properties": {{"name": "Standardized or Specific Display Name"}}
     }}
   ],
   "relationships": [

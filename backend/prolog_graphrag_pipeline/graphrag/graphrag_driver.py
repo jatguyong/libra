@@ -14,7 +14,7 @@ from neo4j_graphrag.generation import GraphRAG
 
 from .encoder import process_pdf_documents, process_text_context, process_context, extract_query_and_context
 from .retriever import create_retriever
-from .config import GRAPHRAG_TEMPLATE, GRAPHRAG_FALLBACK_TEMPLATE, PROMPT_TEMPLATE, SCHEMA_CONFIG, STATIC_SCHEMA
+from .config import GRAPHRAG_TEMPLATE, GRAPHRAG_FALLBACK_TEMPLATE, PROMPT_TEMPLATE
 from .neo4j_manager import ensure_driver_connected, get_driver
 from .llm_wrapper import initialize_models
 
@@ -44,36 +44,35 @@ def setup_kg_pipeline(llm, embedder) -> SimpleKGPipeline:
 
     STATIC_SCHEMA_DEF = {
         "node_types": [
-            "KBPediaConcept",
-            "NaturalProcess",
-            "ScientificTheory",
-            "Organism",
-            "Substance",
-            "Person",
-            "Event",
-            "Location",
-            "Technology",
-            "MathematicalObject",
-            "Definition",
+            "KBPediaConcept",   # Universal ontology hook for ALL general knowledge
+            "PhysicalEntity",   # Tangible things: People, places, objects, substances
+            "AbstractEntity",   # Intangible things: Theories, ideas, laws, equations
+            "Event",            # Occurrences, processes, historical moments
+            "System",           # Interactive structures: Tech, ecosystems, governments
+            "Property",         # Characteristics, measurements, states
+            "Information",      # Documents, datasets, definitions, records
+            "Role"              # Functions, titles, or purposes an entity serves
         ],
         "relationship_types": [
-            "SUBCLASS_OF",
-            "PART_OF",
-            "RELATED_TO",
-            "CAUSES",
-            "PRODUCES",
-            "REQUIRES",
-            "OCCURS_IN",
-            "DISCOVERED_BY",
-            "DEFINES",
-            "IS_A",
+            # Taxonomy
+            "SUBCLASS_OF", "INSTANCE_OF", "IS_A",
+            # Mereology (Structure)
+            "PART_OF", "HAS_PART",
+            # Causality
+            "CAUSES", "PREVENTS", "AFFECTS", "RESULTS_IN", "REQUIRES",
+            # Spatiotemporal
+            "OCCURS_IN", "LOCATED_IN", "PRECEDES",
+            # Semantic / Logic
+            "DEFINES", "RELATED_TO", "EQUIVALENT_TO", "HAS_PROPERTY",
+            # Genesis / Utility
+            "CREATED_BY", "USED_FOR"
         ]
     }
 
     # Llama 3.3 70B: 128K context. chunk_size=1200 is the sweet spot with the
     # expanded schema (11 node types inflate the extraction prompt).
     chunk_splitter = FixedSizeSplitter(chunk_size=1200, chunk_overlap=100)
-    schema = STATIC_SCHEMA_DEF if SCHEMA_CONFIG.name == "STATIC" else "EXTRACTED"
+    schema = STATIC_SCHEMA_DEF
 
     kg_builder_pdf = SimpleKGPipeline(
         llm=llm,
