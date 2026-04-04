@@ -35,3 +35,6 @@ Thumbs.db
 # IDEs
 .vscode/
 .idea/
+
+# Agent / AI tools (local skills, configs)
+.agent/

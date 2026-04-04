@@ -16,7 +16,6 @@ itsdangerous==2.2.0
 Jinja2==3.1.6
 MarkupSafe==3.0.3
 msgspec==0.20.0
-ollama==0.6.1
 pydantic==2.12.5
 pydantic_core==2.41.5
 python-dotenv==1.1.0
