@@ -13,7 +13,7 @@ from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 from neo4j_graphrag.generation import GraphRAG
 
 from .encoder import process_pdf_documents, process_text_context, process_context, extract_query_and_context
-from .retriever import generate, create_retriever
+from .retriever import create_retriever
 from .config import GRAPHRAG_TEMPLATE, GRAPHRAG_FALLBACK_TEMPLATE, PROMPT_TEMPLATE, SCHEMA_CONFIG, STATIC_SCHEMA
 from .neo4j_manager import ensure_driver_connected, get_driver
 from .llm_wrapper import initialize_models
@@ -128,8 +128,6 @@ def init_globals():
         retriever = create_retriever(neo4j_driver, embedder)
 
 
-def generate_answer(query, retriever, llm, original_query: str = "") -> dict:
-    return generate(llm, retriever, query, original_query=original_query)
 
 
 # -- Main pipeline entry point ------------------------------------------------
