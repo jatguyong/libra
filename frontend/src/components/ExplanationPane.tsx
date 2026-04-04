@@ -187,26 +187,66 @@ function GraphRAGSourcesSection({ data }: { data: ExplanationData }) {
  */
 function ContextCard({ text }: { text: string }) {
   // Detect KBPedia format (possibly prefixed with [Chunk Score: ...])
-  const kbMatch = text.match(/^(?:\[Chunk Score:\s*[\d.]+\]\s*)?KBPedia Concept:\s*(.+?)\.\s*\nRelevant Logical Facts:\n([\s\S]+)$/);
+  const kbMatch = text.match(/^(?:\[Chunk Score:\s*[\d.]+\]\s*)?KBPedia Concept:\s*(.+?)\.\s*Relevant Logical Facts:\s*([\s\S]+)$/i);
   if (kbMatch) {
     const conceptName = kbMatch[1].trim();
     const factsBlock = kbMatch[2].trim();
-    const facts = factsBlock.split('\n').map(l => l.replace(/^\s*-\s*/, '').trim()).filter(Boolean);
+    // Use regex to split either by newlines followed by a dash, OR just a dash preceded by space/start.
+    // This perfectly extracts bullet points even if newlines were collapsed.
+    const rawFacts = factsBlock.split(/(?:\n\s*-\s*|^\s*-\s*|\s+-\s+)/).map(l => l.trim()).filter(Boolean);
+
+    let definitionStr = '';
+    const relationFacts: { relation: string; object: string; isWikidata: boolean }[] = [];
+
+    rawFacts.forEach(fact => {
+      if (fact.startsWith('definition:')) {
+        definitionStr = fact.replace('definition:', '').trim();
+      } else {
+        const isWikidata = fact.startsWith('(Wikidata)');
+        const cleanFact = fact.replace(/^\(Wikidata\)\s*/, '');
+        const colonIdx = cleanFact.indexOf(':');
+        if (colonIdx > -1) {
+          relationFacts.push({
+            isWikidata,
+            relation: cleanFact.substring(0, colonIdx).trim(),
+            object: cleanFact.substring(colonIdx + 1).trim()
+          });
+        } else {
+          relationFacts.push({ isWikidata, relation: 'fact', object: cleanFact });
+        }
+      }
+    });
 
     return (
-      <div className="rounded-lg bg-white/5 border border-white/8 overflow-hidden">
-        <div className="px-3 py-1.5 bg-purple-500/10 border-b border-white/8">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-300/70 mr-1.5">KBPedia</span>
-          <span className="text-xs font-semibold text-white/80">{conceptName}</span>
+      <div className="rounded-xl bg-[#060010] border border-white/10 overflow-hidden shadow-lg">
+        <div className="px-3 py-2 border-b border-white/5 bg-gradient-to-r from-[#5b83ad]/10 to-transparent flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#5b83ad]"></span>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#5b83ad]">KBPedia</span>
+          <span className="text-xs font-semibold text-white/90 tracking-wide">{conceptName}</span>
         </div>
-        <ul className="px-3 py-2 space-y-1">
-          {facts.map((fact, i) => (
-            <li key={i} className="text-xs text-white/70 font-inter leading-relaxed flex gap-1.5">
-              <span className="text-purple-400/60 shrink-0 mt-0.5">–</span>
-              <span>{fact}</span>
-            </li>
-          ))}
-        </ul>
+        
+        {definitionStr && (
+          <div className="px-3 py-2.5 border-b border-white/5 bg-white/[0.02]">
+            <p className="text-[12px] text-white/80 font-inter leading-relaxed italic border-l-2 border-[#5b83ad]/40 pl-2.5">
+              "{definitionStr}"
+            </p>
+          </div>
+        )}
+
+        {relationFacts.length > 0 && (
+          <div className="px-3 py-2.5 flex flex-wrap gap-2">
+            {relationFacts.map((f, i) => (
+              <div key={i} className="flex items-center text-[11px] font-mono leading-none rounded-[4px] overflow-hidden border border-white/10 shadow-sm">
+                 <span className={`px-1.5 py-1 font-semibold ${f.isWikidata ? 'bg-[#45b583]/15 text-[#45b583]' : 'bg-[#5b83ad]/15 text-[#5b83ad]'}`}>
+                    {f.relation}
+                 </span>
+                 <span className="px-1.5 py-1 bg-white/5 text-white/70 border-l border-white/10">
+                    {f.object}
+                 </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
@@ -249,17 +289,20 @@ function CondensedContextBlock({ text }: { text: string }) {
   });
 
   return (
-    <div className="space-y-2 mb-3">
+    <div className="space-y-3 mb-4">
       {SECTION_KEYS.map(key => {
         const content = sections[key];
         if (!content) return null;
 
         return (
-          <div key={key} className="rounded-lg bg-white/5 px-3 py-2">
-            <p className="text-xs font-semibold text-white/40 uppercase tracking-wider mb-1">{key}</p>
-            <div className={`text-sm font-inter leading-relaxed ${content.toLowerCase() === 'none' ? 'text-white/30 italic' : 'text-white/80'}`}>
-              <PaneCompactMarkdown>{content}</PaneCompactMarkdown>
-            </div>
+          <div key={key} className="rounded-xl bg-[#060010] border border-white/10 overflow-hidden shadow-lg">
+             <div className="px-3 py-2 border-b border-white/5 bg-gradient-to-r from-purple-500/10 to-transparent flex items-center gap-2">
+               <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+               <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">{key}</span>
+             </div>
+             <div className={`px-3 py-2.5 bg-white/[0.02] text-[13px] font-inter leading-relaxed ${content.toLowerCase() === 'none' ? 'text-white/30 italic' : 'text-white/80'}`}>
+               <PaneCompactMarkdown>{content}</PaneCompactMarkdown>
+             </div>
           </div>
         );
       })}
@@ -272,23 +315,31 @@ function ExplainabilitySection({ data }: { data: ExplanationData }) {
 
   return (
     <div className="mb-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Explainability</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-3">Explainability</h3>
 
       {data.explainer_output && (
-        <div className="mb-3">
-          <p className="text-xs text-white/40 mb-2">Explainer Output</p>
-          <div className="text-sm text-white/80 font-inter leading-relaxed">
+        <div className="mb-4 rounded-xl bg-[#060010] border border-white/10 overflow-hidden shadow-lg">
+          <div className="px-3 py-2 border-b border-white/5 bg-gradient-to-r from-emerald-500/10 to-transparent flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Synthesis Output</span>
+          </div>
+          <div className="px-3 py-2.5 bg-white/[0.02] text-[14px] text-white/80 font-inter leading-relaxed">
             <PaneMarkdown>{data.explainer_output}</PaneMarkdown>
           </div>
         </div>
       )}
 
       {data.prolog_explanation && (
-        <div>
-          <p className="text-xs text-white/40 mb-1">Prolog Explanation</p>
-          <p className="text-sm text-white/80 font-inter leading-relaxed whitespace-pre overflow-x-auto bg-white/5 rounded-lg p-3 border border-white/5">
-            {data.prolog_explanation}
-          </p>
+        <div className="rounded-xl bg-[#060010] border border-white/10 overflow-hidden shadow-lg">
+          <div className="px-3 py-2 border-b border-white/5 bg-gradient-to-r from-orange-500/10 to-transparent flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400">Prolog Proof Tree</span>
+          </div>
+          <div className="px-3 py-2.5 bg-white/[0.02]">
+            <pre className="text-[13px] text-orange-200/80 font-mono leading-relaxed whitespace-pre-wrap overflow-x-auto">
+              {data.prolog_explanation}
+            </pre>
+          </div>
         </div>
       )}
     </div>
@@ -300,23 +351,33 @@ function PrologDetailsSection({ data }: { data: ExplanationData }) {
 
   return (
     <div className="mb-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-2">Prolog Details</h3>
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50 mb-3">Prolog Details</h3>
 
       {data.prolog_query && (
-        <div className="mb-3">
-          <p className="text-xs text-white/40 mb-1">Prolog Query</p>
-          <pre className="text-xs text-cyan-300/80 font-mono leading-relaxed whitespace-pre overflow-x-auto bg-white/5 rounded-lg p-3 border border-white/5">
-            {data.prolog_query}
-          </pre>
+        <div className="mb-4 rounded-xl bg-[#060010] border border-white/10 overflow-hidden shadow-lg">
+          <div className="px-3 py-2 border-b border-white/5 bg-gradient-to-r from-cyan-500/10 to-transparent flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">Goal Query</span>
+          </div>
+          <div className="px-3 py-2.5 bg-[#0a0a0f]">
+            <pre className="text-[13px] text-cyan-300/90 font-mono leading-relaxed whitespace-pre overflow-x-auto">
+              {data.prolog_query}
+            </pre>
+          </div>
         </div>
       )}
 
       {data.database && (
-        <div>
-          <p className="text-xs text-white/40 mb-1">Database</p>
-          <pre className="text-xs text-green-300/80 font-mono leading-relaxed whitespace-pre bg-white/5 rounded-lg p-3 border border-white/5 max-h-48 overflow-auto">
-            {data.database}
-          </pre>
+        <div className="rounded-xl bg-[#060010] border border-white/10 overflow-hidden shadow-lg">
+          <div className="px-3 py-2 border-b border-white/5 bg-gradient-to-r from-green-500/10 to-transparent flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-green-400">Knowledge Base Facts</span>
+          </div>
+          <div className="px-3 py-2.5 bg-[#0a0a0f]">
+            <pre className="text-[13px] text-green-300/80 font-mono leading-relaxed whitespace-pre overflow-x-auto max-h-48 custom-scrollbar">
+              {data.database}
+            </pre>
+          </div>
         </div>
       )}
     </div>
@@ -327,11 +388,19 @@ function PrologErrorSection({ error }: { error: string | null }) {
   if (!error) return null;
 
   return (
-    <div>
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-red-400/70 mb-2">Prolog Error</h3>
-      <p className="text-sm text-red-300/80 font-inter leading-relaxed whitespace-pre-wrap bg-red-500/5 rounded-lg p-3 border border-red-500/10">
-        {error}
-      </p>
+    <div className="mb-4">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-red-500/70 mb-3">Prolog Error</h3>
+      <div className="rounded-xl bg-[#200000]/40 border border-red-500/20 overflow-hidden shadow-lg">
+          <div className="px-3 py-2 border-b border-red-500/10 bg-gradient-to-r from-red-500/10 to-transparent flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-red-400">Synthesis Failure</span>
+          </div>
+          <div className="px-3 py-2.5 bg-red-950/20">
+            <p className="text-[13px] text-red-300/90 font-mono leading-relaxed whitespace-pre-wrap">
+              {error}
+            </p>
+          </div>
+      </div>
     </div>
   );
 }
