@@ -167,14 +167,23 @@ def cancel_ingest():
     return jsonify({"message": f"Cancellation signal sent for {filename}"})
 
 def cancel_and_remove(filename: str):
-    """Remove a document from Neo4j and disk, with debug output."""
+    """Remove a document from Neo4j and disk, with path-traversal protection."""
     from prolog_graphrag_pipeline.graphrag import neo4j_manager as nm
-    logger.info(f"Removing document: {filename}")
-    result = nm.remove_document_from_kg(filename)
+    from werkzeug.utils import secure_filename as _secure
+
+    safe_name = _secure(filename)
+    if not safe_name:
+        return jsonify({"error": "Invalid filename"}), 400
+
+    upload_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "uploads"))
+    filepath = os.path.abspath(os.path.join(upload_dir, safe_name))
+    if not filepath.startswith(upload_dir + os.sep) and filepath != upload_dir:
+        return jsonify({"error": "Forbidden path"}), 400
+
+    logger.info(f"Removing document: {safe_name}")
+    result = nm.remove_document_from_kg(safe_name)
     logger.info(f"Removal result: {result}")
 
-    upload_dir = os.path.join(os.path.dirname(__file__), "uploads")
-    filepath = os.path.join(upload_dir, filename)
     if os.path.exists(filepath):
         os.remove(filepath)
         logger.info(f"File deleted from disk: {filepath}")
@@ -182,8 +191,8 @@ def cancel_and_remove(filename: str):
         logger.info(f"File not on disk (already gone): {filepath}")
 
     with _ingestion_lock:
-        _ingestion_status.pop(filename, None)
-        _cancellation_flags.pop(filename, None)
+        _ingestion_status.pop(safe_name, None)
+        _cancellation_flags.pop(safe_name, None)
 
     return jsonify(result)
 
@@ -254,8 +263,14 @@ def chat():
 
     latest_msg = react_messages[-1]
     question = latest_msg.get("content", "")
+
+    MAX_QUESTION_LENGTH = 10_000
+    if len(question) > MAX_QUESTION_LENGTH:
+        return jsonify({"error": "Question exceeds the maximum allowed length."}), 400
+
     use_global_kg = data.get("useGlobalKG", False)
     force_prolog = data.get("forceProlog", False)
+    calculate_semantic_entropy = data.get("calculateSemanticEntropy", False)
 
 
     def generate_events():
@@ -270,6 +285,7 @@ def chat():
                 result = run_pipeline(
                     question, flag="x", sample_mode=True,
                     use_global_kg=use_global_kg, force_prolog=force_prolog,
+                    calculate_semantic_entropy=calculate_semantic_entropy,
                     status_callback=status_callback
                 )
 
@@ -322,7 +338,11 @@ def chat():
         thread.start()
 
         while True:
-            item = q.get()
+            try:
+                item = q.get(timeout=300)  # 5-minute ceiling; prevents indefinite hang
+            except queue.Empty:
+                yield f"data: {json.dumps({'type': 'error', 'error': 'Pipeline timed out after 5 minutes.'})}\n\n"
+                break
             yield f"data: {json.dumps(item)}\n\n"
             if item.get("type") in ("result", "error"):
                 break
