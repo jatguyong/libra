@@ -9,13 +9,13 @@ import threading
 import logging
 from typing import Union
 
-from neo4j_graphrag.llm import OllamaLLM
+from neo4j_graphrag.llm import LLMInterface
 from neo4j_graphrag.llm.types import LLMResponse
 from neo4j_graphrag.embeddings.base import Embedder
 
 from ..llm_config import (
     ENCODER_MODEL_NAME as _LLM_MODEL,
-    get_openai_client, BASE_URL, API_KEY,
+    get_openai_client,
     log_llm_event, retry_with_exponential_backoff,
 )
 
@@ -101,13 +101,19 @@ except ImportError:
 
 # -- LLM Wrapper --------------------------------------------------------------
 
-class GraphRAGLLM(OllamaLLM):
+class GraphRAGLLM(LLMInterface):
     """LLM wrapper that routes all calls through the Together AI API.
 
-    Inherits ``OllamaLLM`` purely for interface compatibility with the
-    ``neo4j_graphrag`` library.  Every actual invocation goes through
-    the OpenAI-compatible Together AI client configured in ``llm_config``.
+    Inherits ``LLMInterface`` (the neo4j_graphrag abstract base) so the
+    library treats it as a valid LLM without requiring Ollama.
+    Every actual invocation goes through the OpenAI-compatible Together AI
+    client configured in ``llm_config``.
     """
+
+    def __init__(self, model_name: str = "", model_params: dict | None = None, **kwargs):
+        # LLMInterface expects (model_name, model_params); do NOT call OllamaLLM.__init__
+        self.model_name = model_name
+        self.model_params = model_params or {}
 
     def _clean_response_text(self, text: str) -> str:
         """Extract JSON object from response text.
