@@ -24,6 +24,7 @@ body {
 /* custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -37,4 +38,9 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.4);
+}
+
+/* Hides the white corner box that appears when both scrollbars are present */
+::-webkit-scrollbar-corner {
+  background: transparent;
 }

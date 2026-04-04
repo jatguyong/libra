@@ -44,8 +44,8 @@ export default function ExplanationPane({ isOpen, onClose, data }: ExplanationPa
               <LogprobsSection logprobs={data.logprobs} />
               <QuerySection query={data.query} />
               <GraphRAGSourcesSection data={data} />
-              <ExplainabilitySection data={data} />
               <PrologDetailsSection data={data} />
+              <ExplainabilitySection data={data} />
               <PrologErrorSection error={data.prolog_error} />
             </>
           ) : (
@@ -64,10 +64,10 @@ export default function ExplanationPane({ isOpen, onClose, data }: ExplanationPa
 
 function PipelineBadge({ fallback }: { fallback: string }) {
   const config: Record<string, { classes: string; label: string }> = {
-    'prolog-graphrag': { classes: 'bg-purple-500/20 text-purple-300 border-purple-500/30', label: '⚡ Prolog-GraphRAG' },
-    graphrag: { classes: 'bg-blue-500/20 text-blue-300 border-blue-500/30', label: '🔍 GraphRAG Only' },
+    'prolog-graphrag': { classes: 'bg-purple-500/20 text-purple-300 border-purple-500/30', label: 'Prolog-GraphRAG' },
+    graphrag: { classes: 'bg-blue-500/20 text-blue-300 border-blue-500/30', label: 'GraphRAG Only' },
   };
-  const { classes, label } = config[fallback] ?? { classes: 'bg-amber-500/20 text-amber-300 border-amber-500/30', label: '🧠 Tuned LLM' };
+  const { classes, label } = config[fallback] ?? { classes: 'bg-amber-500/20 text-amber-300 border-amber-500/30', label: 'Tuned LLM' };
 
   return (
     <div>
