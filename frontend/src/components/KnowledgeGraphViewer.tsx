@@ -55,7 +55,6 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
     const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
     const [selectedNode, setSelectedNode] = useState<any>(null);
     const [hoverNode, setHoverNode] = useState<any>(null);
-    const [showFilteredView, setShowFilteredView] = useState(false);
 
     useEffect(() => {
         if (isOpen && containerRef.current) {
@@ -82,16 +81,11 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
     const memoizedGraphData = useMemo(() => {
         if (!graphData) return { nodes: [], links: [] };
 
-        const isChunkType = (label: string | undefined) => 
+        const isChunkType = (label: string | undefined) =>
             label === 'DocumentChunk' || label === 'KBPediaChunk' || label === 'Chunk';
 
-        const filteredNodes = showFilteredView 
-            ? graphData.nodes.filter(n => n.in_filtered_view === true)
-            : graphData.nodes;
-
-        const filteredEdges = showFilteredView
-            ? graphData.edges.filter(e => e.in_filtered_view === true)
-            : graphData.edges;
+        const filteredNodes = graphData.nodes.filter(n => n.in_filtered_view === true);
+        const filteredEdges = graphData.edges.filter(e => e.in_filtered_view === true);
 
         const nodes = filteredNodes.map(n => ({
             ...n,
@@ -107,7 +101,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
         }));
 
         return { nodes, links };
-    }, [graphData, showFilteredView]);
+    }, [graphData]);
 
 
     const handleNodeClick = useCallback((node: any) => {
@@ -345,12 +339,6 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                 <Network size={18} className="text-white/50" />
                                 Graph Overview
                             </h2>
-                            <button
-                                onClick={() => setShowFilteredView(!showFilteredView)}
-                                className={`text-xs px-2 py-1 rounded transition-colors ${showFilteredView ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-white/5 text-white/50 hover:bg-white/10 hover:text-white/80 border border-transparent'}`}
-                            >
-                                {showFilteredView ? 'Filtered' : 'Full Context'}
-                            </button>
                         </div>
                         <div className="mt-3 flex gap-4 text-xs font-mono text-white/60 uppercase">
                             <div>Nodes: <span className="text-white">{memoizedGraphData.nodes.length}</span></div>

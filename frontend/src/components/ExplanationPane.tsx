@@ -44,8 +44,8 @@ export default function ExplanationPane({ isOpen, onClose, data }: ExplanationPa
               <LogprobsSection logprobs={data.logprobs} />
               <QuerySection query={data.query} />
               <GraphRAGSourcesSection data={data} />
-              <PrologDetailsSection data={data} />
               <ExplainabilitySection data={data} />
+              <PrologDetailsSection data={data} />
               <PrologErrorSection error={data.prolog_error} />
             </>
           ) : (
