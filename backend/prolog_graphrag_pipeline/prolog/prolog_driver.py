@@ -53,6 +53,10 @@ def use_scasp():
         
     try:
         # Try to load first
+        pack_dir = os.environ.get('SWIPL_PACK_DIR')
+        if pack_dir:
+            janus.query_once(f"attach_packs('{pack_dir}')")
+            
         list(janus.query("use_module(library(scasp))."))
         janus.query_once("use_module(library(scasp/human)).")
         SCASP_AVAILABLE = True
