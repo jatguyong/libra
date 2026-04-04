@@ -41,11 +41,12 @@ function App() {
   const [isChatLayoutSettled, setIsChatLayoutSettled] = useState(false);
   const [useGlobalKG, setUseGlobalKG] = useState(true);
   const [forceProlog, setForceProlog] = useState(false);
+  const [calculateSemanticEntropy, setCalculateSemanticEntropy] = useState(false);
 
-  const settingsRef = useRef({ useGlobalKG, forceProlog });
+  const settingsRef = useRef({ useGlobalKG, forceProlog, calculateSemanticEntropy });
   useEffect(() => {
-    settingsRef.current = { useGlobalKG, forceProlog };
-  }, [useGlobalKG, forceProlog]);
+    settingsRef.current = { useGlobalKG, forceProlog, calculateSemanticEntropy };
+  }, [useGlobalKG, forceProlog, calculateSemanticEntropy]);
 
   useEffect(() => {
     if (hasStartedChat) {
@@ -111,7 +112,8 @@ function App() {
         {
           messages: updatedMessages,
           useGlobalKG: settingsRef.current.useGlobalKG,
-          forceProlog: settingsRef.current.forceProlog
+          forceProlog: settingsRef.current.forceProlog,
+          calculateSemanticEntropy: settingsRef.current.calculateSemanticEntropy,
         },
         {
           onStep: (step, fallback) => {
@@ -183,7 +185,8 @@ function App() {
         {
           messages: contextMessages,
           useGlobalKG: settingsRef.current.useGlobalKG,
-          forceProlog: settingsRef.current.forceProlog
+          forceProlog: settingsRef.current.forceProlog,
+          calculateSemanticEntropy: settingsRef.current.calculateSemanticEntropy,
         },
         {
           onStep: (step, fallback) => {
@@ -236,6 +239,8 @@ function App() {
     setUseGlobalKG,
     forceProlog,
     setForceProlog,
+    calculateSemanticEntropy,
+    setCalculateSemanticEntropy,
   };
 
   return (
