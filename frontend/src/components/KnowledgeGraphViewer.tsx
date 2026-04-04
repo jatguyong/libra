@@ -17,28 +17,28 @@ function getNodeColor(type: string): string {
 
     // Hardcoded special colors for different node types
     if (upperType === 'KBPEDIACONCEPT') {
-        colorCache.set(upperType, '#45b583'); // Muted Green
-        return '#45b583';
-    }
-    if (upperType === 'WIKIDATACONCEPT') {
-        colorCache.set(upperType, '#5b83ad'); // Deep Muted Indigo/Blue
+        colorCache.set(upperType, '#5b83ad'); // Blue
         return '#5b83ad';
     }
+    if (upperType === 'WIKIDATACONCEPT') {
+        colorCache.set(upperType, '#45b583'); // Orange 
+        return '#45b583';
+    }
     if (upperType === 'DOCUMENTCHUNK') {
-        colorCache.set(upperType, '#d346b2'); // Muted Pink/Purple
-        return '#d346b2';
+        colorCache.set(upperType, '#7a6f8f'); // Dark Purple Gray
+        return '#7a6f8f';
     }
     if (upperType === 'KBPEDIACHUNK') {
-        colorCache.set(upperType, '#e8a04c'); // Warm Amber/Gold
+        colorCache.set(upperType, '#e8a04c'); // Orange
         return '#e8a04c';
     }
     if (upperType === 'CHUNK') {
-        colorCache.set(upperType, '#d346b2'); // Fallback for legacy Chunk label
-        return '#d346b2';
+        colorCache.set(upperType, '#7a6f8f'); // Fallback for legacy Chunk label
+        return '#7a6f8f';
     }
     if (upperType === 'DOCUMENT') {
-        colorCache.set(upperType, '#e67e22'); // Orange
-        return '#e67e22';
+        colorCache.set(upperType, '#8a6dc4ff'); // Medium Purple
+        return '#8a6dc4ff';
     }
 
     const colors = [
@@ -84,16 +84,13 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
         const isChunkType = (label: string | undefined) =>
             label === 'DocumentChunk' || label === 'KBPediaChunk' || label === 'Chunk';
 
-        const filteredNodes = graphData.nodes.filter(n => n.in_filtered_view === true);
-        const filteredEdges = graphData.edges.filter(e => e.in_filtered_view === true);
-
-        const nodes = filteredNodes.map(n => ({
+        const nodes = graphData.nodes.map(n => ({
             ...n,
             val: isChunkType(n.label) ? 15 : 25,
             color: getNodeColor(n.label || 'Unknown')
         }));
 
-        const links = filteredEdges.map(e => ({
+        const links = graphData.edges.map(e => ({
             source: e.source,
             target: e.target,
             name: e.label || '',
@@ -149,6 +146,7 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                                 </span>
                                 <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #888; margin-bottom: 2px;">name</div>
                                 <div style="font-size: 14px; font-weight: 500; color: #fff; max-width: 400px; overflow-wrap: break-word;">${node.name || node.id}</div>
+                                ${node.description ? `<div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #888; margin-top: 8px; margin-bottom: 2px;">description</div><div style="font-size: 12px; font-weight: 400; color: #ccc; max-width: 400px; overflow-wrap: break-word;">${node.description}</div>` : ''}
                             </div>
                         `}
                             nodeColor="color"
@@ -349,16 +347,47 @@ export default function KnowledgeGraphViewer({ isOpen, onClose, graphData }: Kno
                     <div className="flex-1 overflow-y-auto p-5">
                         {selectedNode ? (
                             <div className="space-y-4">
-                                <h3 className="text-xs font-semibold uppercase tracking-wider text-white/40">Selected Node</h3>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-sm font-semibold text-white/90">Node details</h3>
+                                </div>
 
-                                <div className="bg-white/5 rounded-lg border border-white/10 overflow-hidden">
-                                    <div className="px-3 py-2 bg-black/20 border-b border-white/5 flex items-center gap-2">
-                                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedNode.color }}></div>
-                                        <span className="text-xs font-mono text-white/70 uppercase">{selectedNode.label}</span>
+                                <div className="mt-2 inline-block px-3 py-1 rounded-full text-xs font-medium border"
+                                    style={{
+                                        backgroundColor: `${selectedNode.color}20`,
+                                        color: selectedNode.color,
+                                        borderColor: `${selectedNode.color}40`
+                                    }}>
+                                    {selectedNode.label || 'Node'}
+                                </div>
+
+                                <div className="w-full mt-4">
+                                    <div className="grid grid-cols-[90px_1fr] border-b border-white/10 py-2">
+                                        <div className="text-xs font-semibold text-white/50">Key</div>
+                                        <div className="text-xs font-semibold text-white/50">Value</div>
                                     </div>
-                                    <div className="p-3">
-                                        <p className="text-sm text-white/90 font-medium break-words">{selectedNode.name || selectedNode.id}</p>
-                                    </div>
+
+                                    {(selectedNode.name || selectedNode.id !== selectedNode.name) && (
+                                        <div className="grid grid-cols-[90px_1fr] border-b border-white/5 py-2">
+                                            <div className="text-xs font-mono text-white/90 font-bold">name</div>
+                                            <div className="text-xs text-white/70 break-words">{selectedNode.name || selectedNode.id}</div>
+                                        </div>
+                                    )}
+
+                                    {selectedNode.description && (
+                                        <div className="grid grid-cols-[90px_1fr] border-b border-white/5 py-2">
+                                            <div className="text-xs font-mono text-white/90 font-bold">definition</div>
+                                            <div className="text-xs text-white/70 break-words max-h-96 overflow-y-auto">{selectedNode.description}</div>
+                                        </div>
+                                    )}
+
+                                    {selectedNode.properties && Object.entries(selectedNode.properties).filter(([k]) => !['name', 'definition'].includes(k)).map(([key, val]) => (
+                                        <div key={key} className="grid grid-cols-[90px_1fr] border-b border-white/5 py-2">
+                                            <div className="text-xs font-mono text-white/90 font-bold break-words">{key}</div>
+                                            <div className="text-xs text-white/70 break-words max-h-32 overflow-y-auto">
+                                                {typeof val === 'object' ? JSON.stringify(val) : String(val)}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
 
                                 <button

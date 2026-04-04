@@ -28,14 +28,13 @@ export interface ExplanationData {
 export interface GraphNode {
   id: string;
   label?: string;
-  in_filtered_view?: boolean;
+  name?: string;
 }
 
 export interface GraphEdge {
   source: string;
   target: string;
   label?: string;
-  in_filtered_view?: boolean;
 }
 
 export interface GraphData {
