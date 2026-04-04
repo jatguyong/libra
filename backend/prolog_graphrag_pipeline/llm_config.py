@@ -53,20 +53,14 @@ def retry_with_exponential_backoff(
         raise last_exception
     return wrapper
 
-# Model Configuration 
+# Model Configuration
 BASE_URL = "https://api.together.xyz/v1"
-API_KEY = os.environ.get("TOGETHER_API_KEY", "")
 RAGAS_MODEL_NAME = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 ENCODER_MODEL_NAME = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
-MODEL_NAME = "meta-llama/Meta-Llama-3-8B-Instruct-Lite" 
+MODEL_NAME = "meta-llama/Meta-Llama-3-8B-Instruct-Lite"
 PROLOG_GENERATOR_NAME = "deepseek-ai/DeepSeek-V3.1"
 EMBED_MODEL = "intfloat/multilingual-e5-large-instruct"
 EMBED_DIM = 1024
-if not API_KEY:
-    raise EnvironmentError(
-        "TOGETHER_API_KEY environment variable is not set. "
-        "Export it before running:  set TOGETHER_API_KEY=your_key"
-    )
 
 
 def log_llm_event(event_type: str, duration: float = None, error: str = None):
@@ -79,6 +73,17 @@ def log_llm_event(event_type: str, duration: float = None, error: str = None):
     logger.info(log_msg)
 
 def get_openai_client() -> OpenAI:
-    """Return a configured OpenAI client for the active provider."""
+    """Return a configured OpenAI client for the active provider.
+
+    Reads and validates TOGETHER_API_KEY here (not at import time) so a
+    missing key produces a clear error on the first API call rather than
+    crashing the entire process during startup.
+    """
+    api_key = os.environ.get("TOGETHER_API_KEY", "")
+    if not api_key:
+        raise EnvironmentError(
+            "TOGETHER_API_KEY environment variable is not set. "
+            "Export it before running:  set TOGETHER_API_KEY=your_key"
+        )
     http_client = httpx.Client(timeout=120.0)
-    return OpenAI(base_url=BASE_URL, api_key=API_KEY, http_client=http_client, max_retries=0)
+    return OpenAI(base_url=BASE_URL, api_key=api_key, http_client=http_client, max_retries=0)
