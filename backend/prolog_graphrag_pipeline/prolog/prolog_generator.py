@@ -1,6 +1,9 @@
 import janus_swi as janus
 import re
 import sys
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _sanitize_multiword_atoms(code: str) -> str:
@@ -60,12 +63,33 @@ def capture_db_and_query(answer_text: str) -> tuple[str, str]:
     query_match = re.search(r"<query>(.*?)(?:</query>|</reasoning_step>|\Z)", answer_text, re.DOTALL | re.IGNORECASE)
 
     if not db_match:
-        raise ValueError("Database not found in LLM's response. Ensure you wrap your facts and rules strictly inside `<database>` tags.")
-    db = db_match.group(1).strip()
+        # Fallback for models like Kimi that might output code blocks without tags
+        blocks = re.findall(r"```[a-z]*\s*(.*?)```", answer_text, re.DOTALL | re.IGNORECASE)
+        if blocks:
+            db = blocks[0].strip()
+            if not query_match and len(blocks) > 1:
+                query = blocks[1].strip()
+            elif not query_match:
+                parts = db.split("?-")
+                if len(parts) > 1:
+                    db = parts[0].strip()
+                    query = parts[1].strip()
+                else:
+                    query = ""
+        else:
+            parts = answer_text.split("?-")
+            if len(parts) > 1:
+                db = parts[0].strip()
+                query = parts[-1].strip()
+            else:
+                raise ValueError("Database not found in LLM's response. Ensure you wrap your facts and rules strictly inside `<database>` tags.")
+    else:
+        db = db_match.group(1).strip()
 
-    if not query_match:
+    if query_match:
+        query = query_match.group(1).strip()
+    elif 'query' not in locals() or not query:
         raise ValueError("Query not found in LLM's response. Ensure you wrap your goal strictly inside `<query>` tags.")
-    query = query_match.group(1).strip()
 
     # Sanitize multi-word atoms (e.g. "cell membrane" -> "cell_membrane")
     db = _sanitize_multiword_atoms(db)
@@ -310,13 +334,19 @@ Answer with ONLY one word: YES or NO.
 
 def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: str, error_history: list, previous_code: str = None, last_attempt_tracker: list = None, question_type: str = "freeform"):
     """Single attempt of Prolog code generation + validation."""
+    import time as _time
+    attempt_start = _time.perf_counter()
     prompt = generate_prolog_generation_prompt(question, retrieved_context, error_history, previous_code, question_type)
 
+    # ── LLM call ─────────────────────────────────────────────────────────────
+    llm_start = _time.perf_counter()
     try:
         answer = generate_fn(prompt=prompt, flag="prolog", question_type=question_type)
     except TypeError as e:
         logger.error(f"CRITICAL ERROR calling generate: {e}")
         raise e
+    llm_duration = _time.perf_counter() - llm_start
+    logger.info("[TIMING] Attempt %d | LLM call: %.2fs", i, llm_duration)
 
     if not answer:
         raise ValueError(f"Iteration {i} | LLM returned None.")
@@ -334,6 +364,9 @@ def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: s
             clean = clean[2:]
         cleaned_lines.append(clean)
     answer_text = "\n".join(cleaned_lines)
+
+    # ── Python validation ─────────────────────────────────────────────────────
+    val_start = _time.perf_counter()
 
     db_query = capture_db_and_query(answer_text)
     database = db_query["database"]
@@ -431,18 +464,45 @@ def _run_prolog_attempt(generate_fn, i: int, question: str, retrieved_context: s
         if re.search(pattern, unquoted_code):
             raise ValueError(f"{hint}")
 
-
+    val_duration = _time.perf_counter() - val_start
+    logger.info("[TIMING] Attempt %d | Python validation: %.3fs", i, val_duration)
 
     # NOTE: Wikidata facts for missing KBPedia entities are now retrieved and
     # filtered upstream by kbpedia_retriever.py (ENABLE_WIKIDATA_FALLBACK) and
     # flow into `retrieved_context` as plain text triples — no Q-ID scanning needed here.
 
+    # ── Janus consult ─────────────────────────────────────────────────────────
+    consult_start = _time.perf_counter()
     janus.query_once("unload_file(user)")
     janus.consult("user", database)
-    # Run query with a 80-second hard timeout to catch infinite recursive loops
-    safe_query = f"call_with_time_limit(80, ({query[:-1]}))"
-    janus.query_once(safe_query)
+    consult_duration = _time.perf_counter() - consult_start
+    logger.info("[TIMING] Attempt %d | janus.consult: %.3fs", i, consult_duration)
 
+    # ── Janus query ───────────────────────────────────────────────────────────
+    # Run query with an 80-second hard timeout to catch infinite recursive loops.
+    # Strategy:
+    #   1. copy_term/2 duplicates the goal with fresh variables.
+    #   2. numbervars/3 grounds every free variable to a unique atom (e.g. _A, _B ...)
+    #      so built-in predicates (arithmetic, functor/3, =../2 etc.) never receive
+    #      an unbound variable → prevents '$c_call_prolog/0: not sufficiently instantiated'.
+    #   3. ignore/1 discards the result so Janus never tries to marshal a complex
+    #      compound term (e.g. process([...])) back to Python → prevents 'py_term' error.
+    inner_goal = query[:-1]  # strip trailing '.'
+    safe_query = (
+        f"catch("
+        f"  ignore(call_with_time_limit(80, ({inner_goal}))), "
+        f"  time_limit_exceeded, "
+        f"  throw(error(time_limit_exceeded, context(call_with_time_limit/2, _)))"
+        f")"
+    )
+    query_start = _time.perf_counter()
+    janus.query_once(safe_query)
+    query_duration = _time.perf_counter() - query_start
+    logger.info("[TIMING] Attempt %d | janus.query_once: %.3fs", i, query_duration)
+
+    total_duration = _time.perf_counter() - attempt_start
+    logger.info("[TIMING] Attempt %d | TOTAL attempt: %.2fs (llm=%.2fs, val=%.3fs, consult=%.3fs, query=%.3fs)",
+                i, total_duration, llm_duration, val_duration, consult_duration, query_duration)
     logger.debug(f"Iteration {i} | Prolog code generation success")
     return database, query
 
@@ -461,7 +521,9 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
         Exception if all attempts are exhausted.
     """
     import logging as _logging
+    import time as _time
     _logger = _logging.getLogger(__name__)
+    _overall_start = _time.perf_counter()
 
     # ── Resolve the generate function once ───────────────────────────────────
     try:
@@ -470,8 +532,9 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
         from prolog.prolog_llms import generate as generate_fn, classify_question_type
 
     # ── Classify question type once (before any generation attempt) ──────────
+    _classify_start = _time.perf_counter()
     question_type = classify_question_type(question)
-    _logger.info("Detected question type: %r for: %r", question_type, question[:80])
+    _logger.info("[TIMING] classify_question_type: %.2fs → %r", _time.perf_counter() - _classify_start, question_type)
 
     # ── Shared error handling ────────────────────────────────────────────────
 
@@ -493,7 +556,14 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
         if "time_limit_exceeded" in error_str or "Time limit" in error_str:
             return "Infinite loop. Recursive rules must bottom out at ground facts."
         if "not sufficiently instantiated" in error_str:
-            return "Use lowercase atoms for facts, not Uppercase variables."
+            return (
+                "A built-in predicate (e.g. arithmetic 'is', functor/3, atom_length/2, succ/2) "
+                "was called with an unbound Prolog variable. "
+                "Ensure all fact arguments are ground lowercase atoms, not Uppercase variables. "
+                "If your query captures a result variable (e.g. answer(X)), make sure every "
+                "predicate in the rule body is fully grounded before it is called. "
+                "Do NOT pass an unbound variable to arithmetic or type-checking built-ins."
+            )
         if "(:-)/2" in error_str or "Rules must be loaded from a file" in error_str:
             return "Rule (:-) in <query>. Move to <database>."
         if "Unknown procedure" in error_str:
@@ -532,8 +602,11 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
 
     # ── Phase 1: Normal attempts ─────────────────────────────────────────────
     for i in range(NORMAL_ATTEMPTS):
+        _logger.info("[TIMING] Starting Iteration %d (elapsed so far: %.2fs)", i, _time.perf_counter() - _overall_start)
         try:
-            return _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker, question_type)
+            result = _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker, question_type)
+            _logger.info("[TIMING] generate_prolog_code SUCCESS at Iteration %d | total elapsed: %.2fs", i, _time.perf_counter() - _overall_start)
+            return result
         except Exception as e:
             _handle_attempt_error(e, i, "Iteration")
 
@@ -543,20 +616,29 @@ def generate_prolog_code(question: str, retrieved_context: str, most_recent_erro
     same_error_count = sum(1 for e in error_history if e == most_recent_error)
     if same_error_count >= 3:
         _logger.warning("Same error repeated %dx — model is stuck. Giving up.", same_error_count)
+        _logger.info("[TIMING] generate_prolog_code FAILED (stuck) | total elapsed: %.2fs", _time.perf_counter() - _overall_start)
         raise Exception("Failed to generate valid Prolog code after multiple attempts.")
 
     _logger.info("Normal attempts exhausted. Asking LLM if error is fixable...")
-    if most_recent_error and _ask_if_close_to_fixing(generate_fn, most_recent_error):
+    _fixable_start = _time.perf_counter()
+    fixable = most_recent_error and _ask_if_close_to_fixing(generate_fn, most_recent_error)
+    _logger.info("[TIMING] _ask_if_close_to_fixing: %.2fs → %s", _time.perf_counter() - _fixable_start, fixable)
+
+    if fixable:
         _logger.info("LLM says YES — granting %d extension attempts.", EXTENSION_ATTEMPTS)
         for i in range(NORMAL_ATTEMPTS, NORMAL_ATTEMPTS + EXTENSION_ATTEMPTS):
+            _logger.info("[TIMING] Starting Extension %d (elapsed so far: %.2fs)", i, _time.perf_counter() - _overall_start)
             try:
-                return _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker, question_type)
+                result = _run_prolog_attempt(generate_fn, i, question, retrieved_context, error_history, last_attempt_tracker[0], last_attempt_tracker, question_type)
+                _logger.info("[TIMING] generate_prolog_code SUCCESS at Extension %d | total elapsed: %.2fs", i, _time.perf_counter() - _overall_start)
+                return result
             except Exception as e:
                 _handle_attempt_error(e, i, "Extension")
         _logger.warning("Extension attempts also exhausted.")
     else:
         _logger.info("LLM says NO (or check failed) — skipping extension.")
 
+    _logger.info("[TIMING] generate_prolog_code FAILED (all attempts) | total elapsed: %.2fs", _time.perf_counter() - _overall_start)
     raise Exception("Failed to generate valid Prolog code after multiple attempts.")
 
 
