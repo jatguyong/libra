@@ -59,14 +59,14 @@ def generate_with_llm(messages) -> Optional[str]:
 def extract_query_and_context(question: str) -> tuple[str, str]:
     most_recent_error = None
     
-    current_messages = list(ENCODER_SYSTEM_MESSAGES)
-
     for i in range(5):
+        # Reset to a fresh context on every attempt so the conversation doesn't
+        # grow unboundedly and silently breach the model's token limit.
+        current_messages = list(ENCODER_SYSTEM_MESSAGES)
         try:
             prompt_content = question
             if most_recent_error:
                 prompt_content += f"\nYour latest output had error/s. Fix them according to the following error message:\n{most_recent_error}"
-            
 
             turn_message = {'role': 'user', 'content': prompt_content}
             
