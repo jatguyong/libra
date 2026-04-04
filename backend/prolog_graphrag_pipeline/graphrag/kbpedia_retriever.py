@@ -121,7 +121,7 @@ class KBPediaRetriever:
                 CALL db.index.vector.queryNodes('kbpediaConceptVectorIndex', $limit, $vector)
                 YIELD node, score
                 RETURN node.uri AS uri, node.name AS name, node.definition AS definition,
-                       node.altLabels AS altLabels, score
+                       node.altLabels AS altLabels, node.wikidata_qid AS wikidata_qid, score
                 """,
                 vector=query_vector,
                 limit=limit,
@@ -134,6 +134,7 @@ class KBPediaRetriever:
                     "name": r["name"],
                     "definition": r["definition"] or "",
                     "altLabels": r["altLabels"] or [],
+                    "wikidata_qid": r.get("wikidata_qid"),
                     "score": r["score"],
                 })
             return results
@@ -248,7 +249,7 @@ Example: ["plant cell", "structural support", "cell wall", "chloroplast"]"""
                 CALL db.index.fulltext.queryNodes('kbpediaConceptIndex', $term)
                 YIELD node, score
                 RETURN node.uri AS uri, node.name AS name, node.definition AS definition,
-                       node.altLabels AS altLabels, score
+                       node.altLabels AS altLabels, node.wikidata_qid AS wikidata_qid, score
                 ORDER BY score DESC
                 LIMIT $limit
                 """,
@@ -263,6 +264,7 @@ Example: ["plant cell", "structural support", "cell wall", "chloroplast"]"""
                     "name": r["name"],
                     "definition": r["definition"] or "",
                     "altLabels": r["altLabels"] or [],
+                    "wikidata_qid": r.get("wikidata_qid"),
                     "score": r["score"],
                 })
             return results
@@ -384,32 +386,26 @@ Your ONLY job: given a user question and raw knowledge-graph triples, keep ONLY 
 "{filter_query}"
 
 ## What does answering this question require?
-Think carefully: what are the EXACT scientific laws, definitions, or relationships needed?
+Think carefully: what are the EXACT rules, definitions, or relationships needed?
 Any fact that doesn't contribute to deriving that answer is NOISE — discard it.
 
 ## Raw Concepts and Facts
 {concepts_text}
 
 ## RUTHLESS DISCARD RULES (apply all, no exceptions):
-1. DROP any structural/taxonomic fact: "subclass of:", "instance of:", "type of:", "part of a set of:", "collection of all"
+1. For structural/taxonomic facts (e.g. "subclass of:", "instance of:", "type of:"): DO NOT automatically drop them. Keep them ONLY IF knowing that relationship is logically required to ANSWER the question. If they are unrelated, drop them.
 2. DROP any Wikidata property whose value is a generic category (e.g., "subclass of: liquid", "instance of: chemical substance") — unless that specific category is essential to the reasoning chain.
 3. DROP any identifier, external ID, administrative or database reference.
 4. DROP any "different from:", "said to be the same as:", or disambiguation-only facts.
 5. DROP "has use:", "has part(s):" unless the specific part/use is directly relevant to the question.
 6. DROP any fact about a concept that is not mentioned in or directly implied by the question.
-7. KEEP only facts that express a LAW, RULE, or QUANTITATIVE RELATIONSHIP that the Prolog engine can use.
+7. KEEP only facts that express a LAW, RULE, or QUANTITATIVE RELATIONSHIP that the Prolog engine can use AND FOLLOW THE OTHER INSTRUCTIONS HERE.
 8. If a concept has NO relevant facts, return an empty list `[]` — do NOT invent fallbacks.
 9. Keep at most 5 facts per concept. If more pass, keep only the top 5 most relevant.
 
-Output: a JSON dictionary — keys are concept names, values are lists of kept fact strings.
-Only output JSON. No explanation or commentary.
-Example:
-{{
-  "ammonia": ["definition: a colorless gas with molecular formula NH3"],
-  "carbon dioxide": ["definition: a gas with molecular formula CO2"],
-  "ideal gas law": ["equal volumes of gas at same T and P contain equal numbers of molecules (Avogadro's Law)"],
-  "water": []
-}}
+Output: First, write a brief 1-2 sentence reasoning explaining EXACTLY what information or rules are required here. 
+Then, on a new line, output a JSON dictionary — keys are concept names, values are lists of kept fact strings.
+The JSON dictionary MUST be the final thing you output.
 """
         # Default fallback
         result_map = {c["name"]: c["triples"] for c in concepts_data}
@@ -427,12 +423,14 @@ Example:
                 logger.debug(f"Batch triple filter raw response: {repr(safe_res)}...")
 
                 if "```json" in res:
-                    res = res.split("```json")[1].split("```")[0].strip()
+                    res = res.split("```json")[-1].split("```")[0].strip()
                 elif "```" in res:
-                    res = res.split("```")[1].split("```")[0].strip()
+                    res = res.split("```")[-1].split("```")[0].strip()
 
-                bracket_start = res.find('{')
+                logger.debug(f"\n==========[BATCH TRIPLES FILTER OUTPUT]==========\n{res}\n=================================================")
+
                 bracket_end = res.rfind('}')
+                bracket_start = res.rfind('{', 0, bracket_end + 1) if bracket_end != -1 else -1
                 if bracket_start != -1 and bracket_end != -1:
                     res = res[bracket_start:bracket_end + 1]
                 elif not res:
@@ -441,14 +439,27 @@ Example:
 
                 filtered = _safe_parse_json(res, expect=dict)
                 if isinstance(filtered, dict):
+                    # ── Per-concept / per-triple breakdown ──
+                    verdict_lines = ["\n==========[TRIPLE FILTER VERDICTS]=========="]
                     for c in concepts_data:
                         name = c["name"]
+                        original = c["triples"]
                         if name in filtered and isinstance(filtered[name], list):
-                            # Clean up formatting artifacts (like "- subclass of:" -> "subclass of:")
                             cleaned_triples = [t[2:].strip() if t.startswith("- ") else t.strip() for t in filtered[name]]
+                            kept_set = set(cleaned_triples)
                             result_map[name] = cleaned_triples
                             kept_triples += len(cleaned_triples)
-                            
+                        else:
+                            # concept not returned by LLM → all triples dropped
+                            kept_set = set()
+                        verdict_lines.append(f"  CONCEPT: {name}")
+                        for triple in original:
+                            clean_t = triple[2:].strip() if triple.startswith("- ") else triple.strip()
+                            verdict = "  ✅ KEPT" if clean_t in kept_set else "  ❌ DROP"
+                            verdict_lines.append(f"    {verdict}  {clean_t[:120]}")
+                    verdict_lines.append("=============================================")
+                    logger.info("\n".join(verdict_lines))
+
                     if status_callback:
                         status_callback({"type": "thought", "step": 4, "message": f"Discarded {total_triples - kept_triples} noisy properties, finalizing a set of {kept_triples} high-signal logical facts."})
                     return result_map # Return immediately on success
@@ -462,7 +473,7 @@ Example:
         return result_map
 
 
-    def filter_wikidata_triples(self, query: str, concept_name: str, wikidata_facts: list) -> list:
+    def filter_wikidata_triples(self, query_: str, concept_name: str, wikidata_facts: list) -> list:
         """
         Dedicated, per-concept LLM filter for raw Wikidata triples.
         Runs immediately after Wikidata augmentation — BEFORE facts are merged with KBPedia triples.
@@ -501,7 +512,7 @@ Example:
 Before filtering, you MUST reason about what the question is actually asking and what kind of knowledge is needed to answer it.
 
 ## User Question
-"{query}"
+"{query_}"
 
 ## Concept Being Evaluated
 "{concept_name}"
@@ -574,8 +585,6 @@ IMPORTANT: The JSON list must be the LAST thing you output. Only include facts c
         # Patterns applied to the raw fact string (after stripping '(Wikidata)' prefix)
         HARD_DROP = [
             # Taxonomy / ontology structure
-            r'^subclass of:',
-            r'^instance of:',
             r'^part of a set of:',
             r'^facet of:',
             r'^collection of',
@@ -664,12 +673,14 @@ Candidates (index: concept name: short definition):
 3. The concept is NOT a vague superthing (e.g. "chemical entity", "concentration per volume", "simple substance").
 
 ### Reject if:
-- The concept shares only a keyword with the question but describes a DIFFERENT thing (e.g. ammonia solution ≠ ammonia gas).
+- The concept shares only a generic keyword with the question (e.g., if the question mentions a generic "rotating body", DO NOT keep specific examples like "Oort cloud", "celestial body", or "elastic body").
+- The concept describes a DIFFERENT specific entity than what was asked.
 - The concept is entirely generic or taxonomic.
-- The concept is one of {len(candidates)} candidates and clearly less relevant than others covering the same entity.
+- The concept is one of the candidates but clearly tangential or less relevant than others covering the exact entity.
 
-Return a JSON list of the RELEVANT indices (integers). Example: [0, 2]
-Output ONLY the JSON list. If none are sufficiently relevant, output [].
+First, write a 1-sentence thought process evaluating the validity of each candidate against the rules.
+THEN, on a new line, return a JSON list of the RELEVANT indices (integers). Example: [0, 2]
+The JSON list MUST be the final thing in your response. If none are sufficiently relevant, output [].
 """
         max_retries = 3
         for attempt in range(max_retries):
@@ -680,20 +691,41 @@ Output ONLY the JSON list. If none are sufficiently relevant, output [].
                 log_llm_event("KBPEDIA_CONCEPT_FILTER", duration=duration)
                 
                 res = (raw.content if hasattr(raw, 'content') else str(raw)).strip()
-                if "```" in res:
-                    res = res.split("```")[1].split("```")[0].strip()
-                bracket_start = res.find('[')
-                bracket_end = res.rfind(']')
-                if bracket_start != -1 and bracket_end != -1:
-                    res = res[bracket_start:bracket_end + 1]
-                indices = _safe_parse_json(res, expect=list)
-                if not isinstance(indices, list):
-                    raise ValueError(f"LLM did not return a list: {repr(res[:100])}")
+                if "```json" in res:
+                    res = res.split("```json")[-1].split("```")[0].strip()
+                elif "```" in res:
+                    res = res.split("```")[-1].split("```")[0].strip()
+
+                logger.debug(f"\n==========[CONCEPT FILTER OUTPUT]==========\n{res}\n===========================================")
                 
-                kept_candidates = [candidates[i] for i in indices if isinstance(i, int) and 0 <= i < len(candidates)]
-                logger.debug(f"End-filter LLM kept indices: {indices} from {len(candidates)} candidates.")
+                # Robustly find all JSON-like arrays of integers in the output.
+                # e.g., [], [1], [0, 1, 2, 3] 
+                arrays = re.findall(r'\[\s*(?:\d+\s*(?:,\s*\d+\s*)*)?\]', res)
+                
+                if not arrays:
+                    raise ValueError(f"Could not find JSON array of indices in LLM response: {repr(res[:100])}")
+                    
+                # Take the LAST array found, as LLMs typically output their final answer at the end
+                import json
+                indices = json.loads(arrays[-1])
+                
+                kept_indices = set(i for i in indices if isinstance(i, int) and 0 <= i < len(candidates))
+                kept_candidates = [candidates[i] for i in range(len(candidates)) if i in kept_indices]
+
+                # ── Per-concept PASS/FAIL breakdown ──
+                lines = ["\n==========[CONCEPT FILTER VERDICTS]=========="]
+                for idx, c in enumerate(candidates):
+                    verdict = "✅ PASS" if idx in kept_indices else "❌ FAIL"
+                    lines.append(f"  [{idx}] {verdict}  {c['name']}")
+                lines.append("=============================================")
+                logger.info("\n".join(lines))
+
+                logger.info(f"End-filter LLM kept indices: {sorted(kept_indices)} from {len(candidates)} candidates.")
                 if status_callback:
-                    status_callback({"type": "thought", "step": 4, "message": f"Concept Filter: I systematically rejected {len(candidates) - len(kept_candidates)} irrelevant concepts and kept {len(kept_candidates)} highly relevant core entities."})
+                    total_triples = sum(len(c.get("triples", [])) for c in candidates)
+                    kept_triples = sum(len(c.get("triples", [])) for c in kept_candidates)
+                    discarded_triples = total_triples - kept_triples
+                    status_callback({"type": "thought", "step": 4, "message": f"Concept Filter: I systematically rejected {len(candidates) - len(kept_candidates)} irrelevant concepts and kept {len(kept_candidates)} highly relevant core entities. This filtered out {discarded_triples} noisy logical triples, leaving {kept_triples} targeted triples for the engine."})
                 return kept_candidates
             except Exception as e:
                 logger.debug(f"End-filter LLM attempt {attempt + 1}/{max_retries} failed: {e}.")
@@ -732,9 +764,17 @@ Output ONLY the JSON list. If none are sufficiently relevant, output [].
                     if concept.strip().lower() != query_text.strip().lower():
                         search_strings.append((concept.strip(), concept_limit))
 
-            # Execute searches
-            for text_to_embed, limit in search_strings:
-                query_vector = embedder_fn(text_to_embed)
+            # Execute searches with batch embedding to eliminate 5x network latency roundtrips
+            texts = [s[0] for s in search_strings]
+            try:
+                # Most Langchain-compatible embedders support batching via embed_documents
+                query_vectors = self.embedder.embed_documents(texts)
+            except Exception as embed_err:
+                logger.debug(f"[KBPedia] Batch embedding failed, falling back to serial: {embed_err}")
+                query_vectors = [embedder_fn(t) for t in texts]
+
+            # Now perform local vector search into Neo4j using the fetched vectors
+            for (text_to_embed, limit), query_vector in zip(search_strings, query_vectors):
                 sub_matches = self._vector_search(query_vector, limit=limit)
                 matches.extend(sub_matches)
 
@@ -758,8 +798,10 @@ Output ONLY the JSON list. If none are sufficiently relevant, output [].
 
             # Build raw triples
             raw_triples = []
-            if match["definition"]:
-                raw_triples.append(f"definition: {match['definition'][:400]}")
+            clean_definition = ""
+            if match.get("definition"):
+                clean_definition = re.sub(r'<[^>]+>', '', match["definition"]).strip()
+                raw_triples.append(f"definition: {clean_definition[:400]}")
             raw_triples.extend(self.get_neighborhood(uri))
 
             # Defensive filter: remove any triple that looks like an MCQ option
@@ -774,30 +816,58 @@ Output ONLY the JSON list. If none are sufficiently relevant, output [].
             candidates.append({
                 "name": match["name"],
                 "uri": uri,
-                "definition": match.get("definition", ""),
+                "wikidata_qid": match.get("wikidata_qid"),
+                "definition": clean_definition,
                 "triples": raw_triples,
             })
 
-        # ── Augment with Wikidata ─────────────
-        if self.enable_wikidata and candidates:
-            logger.debug(f"[Wikidata] Concurrently augmenting {len(candidates)} candidates with Wikidata structural facts.")
+        # ── Step 1: Coarse LLM filtering logic (Do this FIRST) ─────────────
+        if candidates and self.llm:
+            # Enforce coarse filter similar to pure GraphRAG's standard behavior
+            filtered_candidates = self._filter_concepts_once(query_text, candidates, original_query=filter_query, status_callback=status_callback)
+            logger.debug(f"End-filter kept {len(filtered_candidates)}/{len(candidates)} concepts.")
+            filtered_concepts_to_use = filtered_candidates
+        else:
+            # Fallback if LLM is disabled: just use raw candidates
+            filtered_concepts_to_use = candidates[:top_k]
+
+        # ── Step 2: Augment with Wikidata (ONLY for the ones we actually kept) ──
+        if self.enable_wikidata and filtered_concepts_to_use:
+            logger.debug(f"[Wikidata] Augmenting the {len(filtered_concepts_to_use)} kept candidates with exact Wikidata structural facts.")
             try:
                 import asyncio
                 from .wikidata_retriever import WikidataRetriever
                 wd = WikidataRetriever()
                 
+                # Use a semaphore to prevent 30-error-per-minute IP bans from extreme concurrency
+                sem = asyncio.Semaphore(3)
+                
                 async def augment_candidate(c):
-                    try:
-                        res = await wd._search_entity_async(c["name"], limit=1)
-                        if res:
-                            qid = res[0]["qid"]
+                    qid = c.get("wikidata_qid")
+                    if not qid:
+                        return
+                    
+                    async with sem:
+                        try:
+                            # Added a tiny delay to be safe with the public Wikidata endpoint
+                            await asyncio.sleep(0.5)
                             # Include a wider range of chemistry/physics/structural properties
                             extra = ["P527", "P279", "P31", "P361", "P1889", "P460", "P2579", "P921", "P366", "P1056", "P1542", "P1148", "P186", "P2054", "P2176"]
-                            wd_facts = await wd._fetch_structural_facts_async(qid, extra_properties=extra)
+                            # Put a strict timeout on the SPARQL fetch! 4 seconds maximum
+                            try:
+                                wd_facts = await asyncio.wait_for(
+                                    wd._fetch_structural_facts_async(qid, extra_properties=extra),
+                                    timeout=4.0
+                                )
+                            except asyncio.TimeoutError:
+                                logger.debug(f"[Wikidata] Timeout fetching structural facts for {c['name']} ({qid})")
+                                return
+
                             if wd_facts:
-                                # ── Dedicated Wikidata filter (per concept, synchronous) ────
-                                filtered_wd_facts = self.filter_wikidata_triples(
-                                    query=filter_query,
+                                # Run the synchronous LLM filter in a background thread to prevent event loop blocking
+                                filtered_wd_facts = await asyncio.to_thread(
+                                    self.filter_wikidata_triples,
+                                    query_=filter_query,
                                     concept_name=c["name"],
                                     wikidata_facts=wd_facts,
                                 )
@@ -805,11 +875,11 @@ Output ONLY the JSON list. If none are sufficiently relevant, output [].
                                     c["triples"].extend([f"(Wikidata) {f}" for f in filtered_wd_facts])
                                 else:
                                     logger.debug(f"[WikidataFilter] '{c['name']}': 0 wikidata facts kept — not merging.")
-                    except Exception as e:
-                        logger.debug(f"[Wikidata] Augmentation failed for {c['name']}: {e}")
+                        except Exception as e:
+                            logger.debug(f"[Wikidata] Augmentation failed for {c['name']} ({qid}): {e}")
 
                 async def run_augmentation():
-                    tasks = [augment_candidate(c) for c in candidates]
+                    tasks = [augment_candidate(c) for c in filtered_concepts_to_use]
                     await asyncio.gather(*tasks)
 
                 # Execute concurrent fetching inside sync context
@@ -826,32 +896,23 @@ Output ONLY the JSON list. If none are sufficiently relevant, output [].
             except Exception as e:
                 logger.debug(f"[Wikidata] Global fallback pipeline error: {e}")
 
-        # ── LLM filtering logic ─────────────
-        if candidates and self.llm:
-            # Enforce coarse filter similar to pure GraphRAG's standard behavior
-            filtered_candidates = self._filter_concepts_once(query_text, candidates, original_query=filter_query, status_callback=status_callback)
-            logger.debug(f"End-filter kept {len(filtered_candidates)}/{len(candidates)} concepts.")
-            filtered_concepts_to_use = filtered_candidates
+        # ── Step 3: Batch Triple Filtering ─────────────
+        if filtered_concepts_to_use and self.llm:
+            # Prepare batch payload
+            batch_data = [{"name": c["name"], "triples": c["triples"]} for c in filtered_concepts_to_use]
+            logger.debug(f"Batch sending {len(batch_data)} concepts to LLM triple filter...")
             
-            if filtered_concepts_to_use:
-                # Prepare batch payload
-                batch_data = [{"name": c["name"], "triples": c["triples"]} for c in filtered_concepts_to_use]
-                logger.debug(f"Batch sending {len(batch_data)} concepts to LLM triple filter...")
-                
-                # Use unified batch filter
-                batch_results = self.filter_triples_batch(query_text, batch_data, original_query=filter_query, status_callback=status_callback)
-                
-                # Reassign filtered triples back to the candidates
-                for c in filtered_concepts_to_use:
-                    selected = batch_results.get(c["name"], c["triples"])
-                    logger.debug(f"Batch LLM filter kept {len(selected)}/{len(c['triples'])} triple(s) for '{c['name']}'")
-                    c["triples"] = selected
+            # Use unified batch filter
+            batch_results = self.filter_triples_batch(query_text, batch_data, original_query=filter_query, status_callback=status_callback)
+            
+            # Reassign filtered triples back to the candidates
+            for c in filtered_concepts_to_use:
+                selected = batch_results.get(c["name"], c["triples"])
+                logger.debug(f"Batch LLM filter kept {len(selected)}/{len(c['triples'])} triple(s) for '{c['name']}'")
+                c["triples"] = selected
 
-                # Remove concepts where LLM filter kept 0 triples
-                filtered_concepts_to_use = [c for c in filtered_concepts_to_use if c["triples"]]
-        else:
-            # Fallback if LLM is disabled: just use raw candidates
-            filtered_concepts_to_use = candidates[:top_k]
+            # Remove concepts where LLM filter kept 0 triples
+            filtered_concepts_to_use = [c for c in filtered_concepts_to_use if c["triples"]]
 
         for c in filtered_concepts_to_use:
             # ── Final hard pass: deterministic junk removal on all triples ──
