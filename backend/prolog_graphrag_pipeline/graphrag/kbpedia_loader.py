@@ -127,8 +127,8 @@ def load_into_neo4j(concepts: dict, subclass_edges: list):
             from .llm_wrapper import TogetherAIEmbeddings
             embedder = TogetherAIEmbeddings()
             
-            # Batch encode
-            texts = [f"{c['name']} {c['definition']}" for c in concept_list]
+            # Batch encode - truncate to 1500 characters (~375 tokens) to respect the 512 token limit
+            texts = [(f"{c['name']} {c['definition']}")[:1500] for c in concept_list]
             
             async def embed_all(texts_to_embed):
                 all_embs = []
