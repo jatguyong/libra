@@ -65,7 +65,7 @@ def decide_fallback(question: str) -> str:
     except json.JSONDecodeError:
         logger.warning("Router JSON decode failed, falling back to tuned. Raw: %s", content_str)
         return "tuned"
-    return data["route_to"]
+    return data.get("route_to", "tuned")
 
 
 def generate(
@@ -149,7 +149,9 @@ def generate(
                 sequences.append(_call_llm())
             except Exception as e:
                 logger.error("Sample %d failed (%s): %s", i, MODEL_NAME, e)
-                return []  # caller expects a list
+                # Continue collecting the remaining samples; only bail if all fail
+        if not sequences:
+            return []  # every sample failed
         return sequences
     else:
         try:
