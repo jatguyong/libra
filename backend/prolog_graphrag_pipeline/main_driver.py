@@ -25,10 +25,36 @@ from .prolog import prolog_driver
 from .llm import generate, decide_fallback
 from .prompt_reconstructor import reconstruct_prompt
 from .semantic_entropy import compute_semantic_entropy
-from .config import COMPUTE_SEMANTIC_ENTROPY
+from .config import COMPUTE_SEMANTIC_ENTROPY  # kept for potential future use
 
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_text(text_val) -> str:
+    """Normalize a retriever item's content field to a plain string."""
+    if not text_val:
+        return ""
+    if isinstance(text_val, dict):
+        return text_val.get("text", text_val.get("content", str(text_val)))
+    stripped = str(text_val).strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            import json as _json
+            import ast as _ast
+            d = None
+            try:
+                d = _json.loads(stripped)
+            except Exception:
+                try:
+                    d = _ast.literal_eval(stripped)
+                except Exception:
+                    pass
+            if isinstance(d, dict):
+                return d.get("text", d.get("content", text_val))
+        except Exception:
+            pass
+    return str(text_val)
 
 
 def run_pipeline(
@@ -37,6 +63,7 @@ def run_pipeline(
     sample_mode: bool = True,
     use_global_kg: bool = False,
     force_prolog: bool = False,
+    calculate_semantic_entropy: bool = False,
     status_callback=None,
 ) -> dict:
     start_time = time.perf_counter()
@@ -176,32 +203,7 @@ def run_pipeline(
             
             doc_id = str(source_label)  # Document name
             
-            def clean_text(text_val):
-                if not text_val: return ""
-                if isinstance(text_val, dict):
-                    return text_val.get("text", text_val.get("content", str(text_val)))
-                
-                stripped = str(text_val).strip()
-                if stripped.startswith("{") and stripped.endswith("}"):
-                    try:
-                        import json
-                        import ast
-                        # Try JSON first (standard)
-                        d = None
-                        try:
-                            d = json.loads(stripped)
-                        except:
-                            try:
-                                d = ast.literal_eval(stripped)
-                            except: pass
-                        
-                        if isinstance(d, dict):
-                            return d.get("text", d.get("content", text_val))
-                    except:
-                        pass
-                return str(text_val)
-
-            chunk_content = clean_text(chunk_content)
+            chunk_content = _clean_text(chunk_content)
             
             if chunk_content:
                 # Always Create Chunk Node - Increase display limit to 500
@@ -419,7 +421,7 @@ def run_pipeline(
             llm_output = (
                 generate(
                     question, retrieved_context_str, explainer_output,
-                    flag=flag, sample_mode=(sample_mode and COMPUTE_SEMANTIC_ENTROPY),
+                    flag=flag, sample_mode=(sample_mode and calculate_semantic_entropy),
                     fallback=fallback, status_callback=status_callback,
                 )
                 if prolog_error is None
@@ -492,7 +494,7 @@ def run_pipeline(
     answers = [output["text_answer"] for output in llm_output]
     logprobs = [output["logprobs"] for output in llm_output]
 
-    if not COMPUTE_SEMANTIC_ENTROPY:
+    if not calculate_semantic_entropy:
         # Flag disabled at runtime — skip entropy scoring, return first sample
         return {
             "answer": answers[0] if answers else "Error generating answer",
