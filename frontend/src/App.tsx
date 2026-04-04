@@ -40,7 +40,7 @@ function App() {
   const [hasStartedChat, setHasStartedChat] = useState(false);
   const [isChatLayoutSettled, setIsChatLayoutSettled] = useState(false);
   const [useGlobalKG, setUseGlobalKG] = useState(true);
-  const [forceProlog, setForceProlog] = useState(false);
+  const [forceProlog, setForceProlog] = useState(true);
   const [calculateSemanticEntropy, setCalculateSemanticEntropy] = useState(false);
 
   const settingsRef = useRef({ useGlobalKG, forceProlog, calculateSemanticEntropy });
@@ -89,7 +89,7 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading, thoughts]);
+  }, [messages, isLoading]);
 
   // ── Chat handlers ───────────────────────────────────────────────
 
@@ -147,6 +147,7 @@ function App() {
         id: (Date.now() + 1).toString(),
         role: 'llm',
         content: 'There seems to be an error in the backend. Please try again.',
+        thoughts: { ...localThoughts }
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -216,7 +217,7 @@ function App() {
       setMessages(prev =>
         prev.map(msg =>
           msg.id === llmMsgId
-            ? { ...msg, content: 'There seems to be an error in the backend. Please try again.' }
+            ? { ...msg, content: 'There seems to be an error in the backend. Please try again.', thoughts: { ...localThoughts } }
             : msg,
         ),
       );
