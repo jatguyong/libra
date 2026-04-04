@@ -59,7 +59,7 @@ API_KEY = os.environ.get("TOGETHER_API_KEY", "")
 RAGAS_MODEL_NAME = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 ENCODER_MODEL_NAME = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 MODEL_NAME = "meta-llama/Meta-Llama-3-8B-Instruct-Lite" 
-PROLOG_GENERATOR_NAME = "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
+PROLOG_GENERATOR_NAME = "deepseek-ai/DeepSeek-V3.1"
 EMBED_MODEL = "intfloat/multilingual-e5-large-instruct"
 EMBED_DIM = 1024
 if not API_KEY:
